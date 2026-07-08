@@ -1,0 +1,5 @@
+# External libraries (git submodules - do not modify directly)
+add_subdirectory(NJU72343-library)
+if(BUILD_SD_CARD)
+    add_subdirectory(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src ${CMAKE_BINARY_DIR}/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico)
+endif()

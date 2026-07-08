@@ -1,0 +1,6 @@
+add_subdirectory(fm)
+add_subdirectory(midi_panel)
+if(BUILD_SD_CARD)
+    add_subdirectory(storage)
+endif()
+add_subdirectory(usb)

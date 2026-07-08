@@ -1,0 +1,61 @@
+; Unified FM bus — single state machine (Phase 2)
+; side_set 2: bit0=/WR (GPIO14), bit1=/RD (GPIO15)
+;   side 3 = /WR=H, /RD=H
+;   side 2 = /WR=L, /RD=H
+;   side 1 = /WR=H, /RD=L
+;
+; Register read Word2 uses write pin layout (bits[11:0]); CPU sets D0-D7 input
+; after addr phase (fm_bus_wait_write_idle) before pushing Word2.
+; main_entry and reg_entry share the same /WR-low loop (set x,6); change both if retuned.
+
+.program fm_bus
+.side_set 2
+
+public main_entry:
+.wrap_target
+    pull block          side 3
+    out  pins, 12       side 3
+    nop                 side 3
+    set  x, 6           side 3
+wr_low:
+    nop                 side 2 [7]
+    jmp  x--, wr_low    side 2
+    nop                 side 2
+    out  x, 20          side 3 [2]
+w_loop:
+    jmp  x--, w_loop    side 3
+.wrap
+
+public reg_entry:
+    pull block          side 3          ; Word 1: addr (write layout)
+    out  pins, 12       side 3
+    nop                 side 3
+    set  x, 6           side 3
+reg_wr_low:
+    nop                 side 2 [7]
+    jmp  x--, reg_wr_low side 2
+    nop                 side 2
+    pull block          side 3          ; Word 2: data read (write layout)
+    out  pins, 12       side 3          ; A0=1, A1, CS=chip_id in bits[11:0]
+    jmp  read_strobe    side 3
+
+public data_read_entry:
+    pull block          side 3          ; Pattern-2 data read (reg addr already latched)
+    out  pins, 12       side 3
+    jmp  read_strobe    side 3
+
+public status_entry:
+    pull block          side 3
+    ; D0-D7 are switched to input by the CPU before this word is pushed.
+    ; Using the same lower-12-bit pin layout as read_reg avoids the dedicated
+    ; status word's out-pindirs bit consumption path.
+    out  pins, 12       side 3
+    jmp  read_strobe    side 3
+
+read_strobe:
+    out  x, 12          side 1
+tacc_loop:
+    jmp  x--, tacc_loop side 1
+    in   pins, 8        side 1
+    push block          side 3
+    jmp  main_entry     side 3

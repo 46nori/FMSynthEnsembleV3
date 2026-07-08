@@ -1,0 +1,6 @@
+[submodule "extern/NJU72343-library"]
+	path = extern/NJU72343-library
+	url = https://github.com/46nori/NJU72343-library
+[submodule "extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico"]
+	path = extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
+	url = https://github.com/carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico.git

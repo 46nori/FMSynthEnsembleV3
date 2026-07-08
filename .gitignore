@@ -1,0 +1,29 @@
+build*/
+!.vscode/*
+.cache
+tmp/
+tools/**/out/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# CMake in-source build artifacts (should never appear outside build/)
+cmake_install.cmake
+CMakeFiles/
+CMakeCache.txt
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+compile_commands.json
+Makefile
+pico_flash_region.ld
+generated/
+pico-sdk/
+
+# extern/
+extern/libOPNMIDI/
+
+# macOS
+.DS_Store

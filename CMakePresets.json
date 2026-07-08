@@ -1,0 +1,23 @@
+{
+  "version": 9,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "BUILD_SD_CARD": "OFF",
+        "BUILD_MIDI_PANEL": "ON",
+        "USB_MIDI_IRQ_DRIVEN": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "displayName": "Default",
+      "configurePreset": "default"
+    }
+  ]
+}
