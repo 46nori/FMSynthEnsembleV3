@@ -148,33 +148,18 @@ void NoteChannel::finishNoteOff(VoiceQueue& queue, VoiceQueue::iterator it) {
     moveVoice(queue, it, freeQueue);
 }
 
-Voice* NoteChannel::stealVoiceFromQueue(VoiceQueue& queue, int mid, bool type) {
-    Voice*                 fallback    = nullptr;
-    VoiceQueue::iterator   fallback_it = queue.end();
-
+Voice* NoteChannel::stealVoiceFromQueue(VoiceQueue& queue, bool type) {
     for (auto it = queue.begin(); it != queue.end(); ++it) {
         if ((*it)->GetType() != type) {
             continue;
         }
-        if (mid != -1 && (*it)->GetModuleId() == mid) {
-            Voice* voice = *it;
-            voice->SetNoteOnCount(0);
-            voice->NoteOff();
-            queue.erase(it);
-            return voice;
-        }
-        if (fallback == nullptr) {
-            fallback    = *it;
-            fallback_it = it;
-        }
+        Voice* voice = *it;
+        voice->SetNoteOnCount(0);
+        voice->NoteOff();
+        queue.erase(it);
+        return voice;
     }
-    if (fallback == nullptr) {
-        return nullptr;
-    }
-    fallback->SetNoteOnCount(0);
-    fallback->NoteOff();
-    queue.erase(fallback_it);
-    return fallback;
+    return nullptr;
 }
 
 bool NoteChannel::IsVoiceSounding(const Voice* voice) const {
@@ -267,10 +252,10 @@ Voice* NoteChannel::getFreeVoice(int mid, bool type, bool fromFirst) {
 Voice* NoteChannel::Reclaim(int mid, bool type) {
     Voice* voice = getFreeVoice(mid, type, true);
     if (voice == nullptr) {
-        voice = stealVoiceFromQueue(holdQueue, mid, type);
+        voice = stealVoiceFromQueue(holdQueue, type);
     }
     if (voice == nullptr) {
-        voice = stealVoiceFromQueue(activeQueue, mid, type);
+        voice = stealVoiceFromQueue(activeQueue, type);
     }
     if (voice) {
         ++rel_success_count;

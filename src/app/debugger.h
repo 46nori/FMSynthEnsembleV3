@@ -27,7 +27,6 @@ namespace Debugger {
 
 // Shared debug state referenced from multiple modules.
 extern volatile bool gMidiMode;
-extern volatile bool gMidiPanelMode;
 extern volatile uint8_t gDEBUG_LEVEL;
 
 /**

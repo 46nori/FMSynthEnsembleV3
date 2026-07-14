@@ -75,11 +75,11 @@ private:
     void finishNoteOff(VoiceQueue& queue, VoiceQueue::iterator it);
 
     /**
-     * @brief キュー先頭から type 一致の Voice を奪い KeyOff して返す（調停用）
-     * @param mid  module_id 一致を優先（-1 なら任意）
+     * @brief キュー先頭（最古）から type 一致の Voice を奪い KeyOff して返す（調停用）
+     * @details module_id は考慮せず、常にキュー先頭（最古）の Voice を奪取する。
      * @return 奪取した Voice。該当なしなら nullptr
      */
-    Voice* stealVoiceFromQueue(VoiceQueue& queue, int mid, bool type);
+    Voice* stealVoiceFromQueue(VoiceQueue& queue, bool type);
 
 public:
     /**
