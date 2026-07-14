@@ -9,6 +9,7 @@
 #include "midi_panel_task.h"
 #include "FreeRTOS.h"
 #include "MidiMessage.h"
+#include "debugger.h"
 #include "midi_ipc.h"
 #include "task.h"
 #include "task_config.h"
@@ -21,7 +22,7 @@ void MidiPanelTask(void* param) {
     for (;;) {
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(MIDI_PANEL_PERIOD_MS));
 
-        if (!ctx->panel->IsConnected()) {
+        if (!Debugger::gMidiPanelMode || !ctx->panel->IsConnected()) {
             continue;
         }
 

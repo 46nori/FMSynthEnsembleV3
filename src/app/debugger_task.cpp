@@ -23,8 +23,9 @@
 /*********************************************************
  * Shared variables
  *********************************************************/
-volatile uint8_t Debugger::gDEBUG_LEVEL = 0;
-volatile bool Debugger::gMidiMode       = true;
+volatile uint8_t Debugger::gDEBUG_LEVEL  = 0;
+volatile bool Debugger::gMidiMode        = true;
+volatile bool Debugger::gMidiPanelMode   = true;
 
 /*********************************************************
  * Debugger main loop and command handling
@@ -55,6 +56,7 @@ void set_debugger_context(DebuggerTaskContext* ctx);
 int c_help(token_list* t);
 int c_debug_level(token_list* t);
 int c_midi_mode(token_list* t);
+int c_midi_panel_mode(token_list* t);
 int c_midi_channel_status(token_list* t);
 int c_midi_reset(token_list* t);
 int c_midi_dump_channel(token_list* t);
@@ -76,6 +78,7 @@ const struct {
 } cmd_table[] = {
     {    "dl",       c_debug_level},
     {    "mm",         c_midi_mode},
+    {    "mp",   c_midi_panel_mode},
     {    "cs", c_midi_channel_status},
     {"mreset",        c_midi_reset},
     {    "dc", c_midi_dump_channel},
@@ -184,6 +187,7 @@ int c_help(token_list* t) {
         "dc [0-15] : Dump MIDI Channel parameters\n"
         "dv        : Dump MIDI Voice parameters\n"
         "mm [0-1]  : MIDI Mode 0:Ignore MIDI, 1:Process MIDI\n"
+        "mp [0-1]  : MIDI Panel 0:Disable scan/Tick, 1:Enable (for A/B comparison)\n"
         "cs [st]   : MIDI Channel ON/OFFStatus\n"
         "stats     : Statistics\n"
         "mreset    : MIDI Reset\n"
@@ -224,6 +228,19 @@ int c_midi_mode(token_list* t) {
         Debugger::gMidiMode = (mode == 0) ? false : true;
     }
     std::printf("MIDI Mode: %s\n", Debugger::gMidiMode ? "ON" : "OFF");
+    return NO_ERROR;
+}
+
+/*********************************************************
+ * MIDI Panel mode (enable/disable panel scan/Tick for A/B comparison)
+ *********************************************************/
+int c_midi_panel_mode(token_list* t) {
+    unsigned int mode = 0;
+    if (t->n > 1) {
+        get_uint(t, T_PARAM1, &mode);
+        Debugger::gMidiPanelMode = (mode == 0) ? false : true;
+    }
+    std::printf("MIDI Panel Mode: %s\n", Debugger::gMidiPanelMode ? "ON" : "OFF");
     return NO_ERROR;
 }
 
