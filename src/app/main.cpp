@@ -73,11 +73,13 @@ int main()
     // DebuggerTaskのコンテキスト構築
     static DebuggerTaskContext debuggerCtx{&factory->GetChannels()};
 
-    // MIDIパネルコントローラーの生成(modules[1]に接続する想定)
+#if ENABLE_FREERTOS_SAMPLE_TASK != 1
+    // MIDIパネルコントローラーの生成(modules[3]に接続する想定)
     auto panelDriver = CreateMidiPanelDriver(modules[3]);
     static MidiPanelController panelController(std::move(panelDriver));
     // MidiPanelTaskのコンテキスト構築
     static MidiPanelTaskContext midiPanelCtx{&panelController};
+#endif
 
     // IPCの初期化
     if (!MidiIpcInitialize()) {
