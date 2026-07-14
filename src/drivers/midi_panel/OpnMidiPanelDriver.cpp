@@ -25,7 +25,7 @@ constexpr uint8_t kPbBit7LedModeMask = 0x80;
 
 OpnMidiPanelDriver::OpnMidiPanelDriver(OpnBase& opn)
     : opn_(opn),
-      config_{.debounce_ms = 20, .toggle_hold_ms = 100, .long_press_ms = 2000, .settle_us = 100},
+      config_{.debounce_ms = 20, .toggle_hold_ms = 30, .long_press_ms = 2000, .settle_us = 100},
       host_led_bitmap_(0),
       switch_bitmap_(0xffff),  // 全 CH トグル ON
       long_press_bitmap_(0),

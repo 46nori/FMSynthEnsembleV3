@@ -241,6 +241,15 @@ uint8_t fm_read_reg_data_raw(fm_bus_t *bus, uint8_t chip_id,
 
 static uint32_t get_w1_count(const fm_device_t *dev, uint8_t addr, uint8_t a1)
 {
+    /* I/O PortA/B (0x0e/0x0f) はデータシート上SSG扱い(W1=W2=0)だが、実機では
+       アドレスライト直後(W1=0)のデータライトが動作中のFM発音のピッチを乱す
+       （Undocumentedな仕様。FM相当のW1で解消、W2は0のままで問題ないことを
+       実機で確認済み。実測での最小必要値は3サイクルだが、FMレジスタと同じ
+       17サイクルを安全マージン込みで採用する）。FM相当のW1を常時適用する
+    */
+    if (a1 == 0u && (addr == 0x0eu || addr == 0x0fu)) {
+        return dev->wait_table.w17;
+    }
     if (addr <= 0x0fu) {
         return dev->wait_table.w0;
     }
@@ -258,6 +267,9 @@ static uint32_t get_w1_count(const fm_device_t *dev, uint8_t addr, uint8_t a1)
 
 static uint32_t get_w2_count(const fm_device_t *dev, uint8_t addr, uint8_t a1)
 {
+    /* I/O PortA/B (0x0e/0x0f) の W2 は 0 のままで問題ないことを実機で確認済み
+       （W1 の例外については get_w1_count を参照）
+    */
     if (addr <= 0x0fu) {
         return dev->wait_table.w0;
     }

@@ -19,6 +19,7 @@ constexpr int MIDI_CHANNELS = 16;
 #define ENABLE_DEBUG_PRINT                     1
 
 // FreeRTOS 基本動作確認用のサンプルタスク (1:有効, 0:無効)
+// PortA/PortB音外れ診断（sample_task.cpp）を再現させる場合も1にする
 #define ENABLE_FREERTOS_SAMPLE_TASK            0
 
 // ------------------------------
