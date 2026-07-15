@@ -17,6 +17,10 @@ constexpr UBaseType_t kMidiEventQueueLength   = 64;
 constexpr UBaseType_t kMidiNoteQueueLength    = 128;
 constexpr UBaseType_t kMidiControlQueueLength = 8;
 
+// NoteOff 用に gMidiNoteQueue へ常時確保する空きスロット数。
+// NoteOn はこの予約を侵食しない範囲でのみ受け付ける。
+constexpr UBaseType_t kNoteOffReservedSlots = 8;
+
 constexpr unsigned kPendingNoteOffWords = 4;  // 128 keys per channel
 
 }  // namespace
@@ -31,7 +35,7 @@ volatile uint32_t gMidiEventQueueDropCount = 0;
 volatile uint32_t gMidiNoteQueueDropCount  = 0;
 volatile uint32_t gMidiControlQueueDropCount = 0;
 volatile uint32_t gMidiResetQueueDropCount = 0;
-volatile uint32_t gMidiNoteOnEvictCount = 0;
+volatile uint32_t gMidiNoteOnReserveDropCount = 0;
 volatile uint32_t gMidiNoteOffFallbackCount = 0;
 
 std::atomic<uint32_t> gPendingNoteOffBitmap[16][kPendingNoteOffWords] = {};
@@ -45,12 +49,12 @@ void log_queue_failure_once_every_64(const char* label, volatile uint32_t& count
 #endif
 }
 
-void log_note_on_evict_once_every_64() {
-    ++gMidiNoteOnEvictCount;
+void log_note_on_reserve_drop_once_every_64() {
+    ++gMidiNoteOnReserveDropCount;
 #if ENABLE_DEBUG_PRINT == 1
-    if ((gMidiNoteOnEvictCount & 0x3fu) == 1u) {
-        std::printf("midi_ipc note_on evicted for note_off evict=%lu\n",
-                    static_cast<unsigned long>(gMidiNoteOnEvictCount));
+    if ((gMidiNoteOnReserveDropCount & 0x3fu) == 1u) {
+        std::printf("midi_ipc note_on dropped for note_off reserve drop=%lu\n",
+                    static_cast<unsigned long>(gMidiNoteOnReserveDropCount));
     }
 #endif
 }
@@ -65,50 +69,6 @@ void log_note_off_fallback_once_every_64(uint8_t channel, uint8_t key) {
 #endif
 }
 
-bool RestoreNoteQueue(const MidiEvent* buf, size_t count) {
-    for (size_t i = 0; i < count; ++i) {
-        if (xQueueSendToBack(gMidiNoteQueue, &buf[i], 0) != pdTRUE) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/** @brief 満杯キュー末尾の NoteOn を 1 件追い出して空きを 1 スロット作る */
-bool TryEvictNewestNoteOn() {
-    MidiEvent buf[kMidiNoteQueueLength];
-    size_t    n = 0;
-    while (n < kMidiNoteQueueLength && xQueueReceive(gMidiNoteQueue, &buf[n], 0) == pdTRUE) {
-        ++n;
-    }
-    if (n == 0) {
-        return false;
-    }
-
-    size_t drop_idx = n;
-    for (size_t i = n; i > 0; --i) {
-        if (!MidiEventIsNoteOff(buf[i - 1])) {
-            drop_idx = i - 1;
-            break;
-        }
-    }
-    if (drop_idx == n) {
-        return RestoreNoteQueue(buf, n);
-    }
-
-    log_note_on_evict_once_every_64();
-
-    for (size_t i = 0; i < n; ++i) {
-        if (i == drop_idx) {
-            continue;
-        }
-        if (xQueueSendToBack(gMidiNoteQueue, &buf[i], 0) != pdTRUE) {
-            return false;
-        }
-    }
-    return true;
-}
-
 void SetPendingNoteOff(uint8_t channel, uint8_t key) {
     if (channel >= 16) {
         return;
@@ -117,16 +77,6 @@ void SetPendingNoteOff(uint8_t channel, uint8_t key) {
     const unsigned bit  = key & 31u;
     gPendingNoteOffBitmap[channel][word].fetch_or(1u << bit, std::memory_order_release);
     log_note_off_fallback_once_every_64(channel, key);
-}
-
-bool SendNoteOffToQueue(const MidiEvent& event) {
-    if (xQueueSendToBack(gMidiNoteQueue, &event, 0) == pdTRUE) {
-        return true;
-    }
-    if (!TryEvictNewestNoteOn()) {
-        return false;
-    }
-    return xQueueSendToBack(gMidiNoteQueue, &event, 0) == pdTRUE;
 }
 
 }  // namespace
@@ -164,11 +114,20 @@ bool MidiIpcSendMidiNoteEvent(const MidiEvent& event) {
     }
 
     if (MidiEventIsNoteOff(event)) {
-        if (SendNoteOffToQueue(event)) {
+        // NoteOff は予約スロットを使ってでも投入し、満杯なら pending 退避で必ず届ける
+        if (xQueueSendToBack(gMidiNoteQueue, &event, 0) == pdTRUE) {
             return true;
         }
         SetPendingNoteOff(event.channel, event.data1);
         return true;
+    }
+
+    // NoteOn は NoteOff 予約分の空きを残して受け付けない。
+    // Producer は UsbMidiTask のみで、Consumer(Core1) は空きを増やす方向にしか
+    // 動かないため、空き確認と送信が非アトミックでも予約が破られることはない。
+    if (uxQueueSpacesAvailable(gMidiNoteQueue) <= kNoteOffReservedSlots) {
+        log_note_on_reserve_drop_once_every_64();
+        return false;
     }
 
     if (xQueueSendToBack(gMidiNoteQueue, &event, 0) == pdTRUE) {
@@ -233,7 +192,7 @@ MidiIpcStats MidiIpcGetStats() {
         static_cast<uint32_t>(gMidiNoteQueueDropCount),
         static_cast<uint32_t>(gMidiControlQueueDropCount),
         static_cast<uint32_t>(gMidiResetQueueDropCount),
-        static_cast<uint32_t>(gMidiNoteOnEvictCount),
+        static_cast<uint32_t>(gMidiNoteOnReserveDropCount),
         static_cast<uint32_t>(gMidiNoteOffFallbackCount),
     };
 }

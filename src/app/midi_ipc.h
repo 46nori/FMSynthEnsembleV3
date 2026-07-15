@@ -31,8 +31,8 @@ struct MidiIpcStats {
     uint32_t midi_note_queue_drop_count;
     uint32_t midi_control_queue_drop_count;
     uint32_t midi_reset_queue_drop_count;
-    /** NoteOff 優先のため満杯時に追い出した NoteOn 数 */
-    uint32_t midi_note_on_evict_count;
+    /** NoteOff 予約スロット確保のため受け付けなかった NoteOn 数 */
+    uint32_t midi_note_on_reserve_drop_count;
     /** キュー満杯時に pending ビットマップへ退避した NoteOff 数 */
     uint32_t midi_note_off_fallback_count;
 };
@@ -52,7 +52,9 @@ bool MidiIpcSendMidiEvent(const MidiEvent& event);
 
 /**
  * @brief NoteOn/Off 用キューに送信（timestamp_us は受信側で設定済みであること）
- * @details NoteOff は満杯時も Drop せず、NoteOn 追い出しまたは pending 退避で必ず届ける。
+ * @details NoteOff 用にキュー末尾の空きスロットを常時予約し、NoteOn は予約を
+ *          侵食しない範囲でのみ受け付ける。NoteOff は満杯時も Drop せず
+ *          pending 退避で必ず届ける。
  */
 bool MidiIpcSendMidiNoteEvent(const MidiEvent& event);
 
