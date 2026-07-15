@@ -5,9 +5,7 @@
 // See LICENSE file for details.
 //
 #include <cstdio>
-#include <iterator>
 #include "NoteChannel.h"
-#include "NoteVoice.h"
 #include "VoiceLimits.h"
 #include "config.h"
 #include "debugger.h"
@@ -102,8 +100,8 @@ static const char* ClassifyBankLabel(uint8_t msb, uint8_t lsb, int midi_ch) {
 
 volatile VibOverride g_vib_override = VibOverride::Auto;
 
-NoteChannel::NoteChannel(int no) : MidiChannel(no), bCsmVoiceMode(false) {
-    allocator = &VoiceAllocator::GetInstance();
+NoteChannel::NoteChannel(int no, VoiceAllocator& allocator)
+    : MidiChannel(no), allocator(allocator), bCsmVoiceMode(false) {
     activeQueue.reserve(VoiceLimits::kMaxVoices);
     holdQueue.reserve(VoiceLimits::kMaxVoices);
     freeQueue.reserve(VoiceLimits::kMaxVoices);
@@ -128,11 +126,6 @@ void NoteChannel::Reset() {
 void NoteChannel::moveVoice(VoiceQueue& src, VoiceQueue::iterator it, VoiceQueue& dst) {
     dst.push_back(*it);
     src.erase(it);
-}
-
-void NoteChannel::moveAllVoices(VoiceQueue& src, VoiceQueue& dst) {
-    dst.insert(dst.end(), src.begin(), src.end());
-    src.clear();
 }
 
 void NoteChannel::releaseHoldQueue() {
@@ -179,6 +172,29 @@ bool NoteChannel::IsVoiceSounding(const Voice* voice) const {
     return false;
 }
 
+Voice* NoteChannel::scanFreeVoice(int start_index, int step, int mid, bool type) {
+    int candidate_index = -1;
+    const int n = static_cast<int>(freeQueue.size());
+    for (int i = start_index; i >= 0 && i < n; i += step) {
+        if (freeQueue[i]->GetType() != type) {
+            continue;
+        }
+        if (candidate_index < 0) {
+            candidate_index = i;  // 走査開始側に最も近いVoice候補（mid不一致時のフォールバック）
+        }
+        if (mid == -1 || freeQueue[i]->GetModuleId() == mid) {
+            candidate_index = i;
+            break;
+        }
+    }
+    if (candidate_index < 0) {
+        return nullptr;
+    }
+    Voice* voice = freeQueue[static_cast<size_t>(candidate_index)];
+    freeQueue.erase(freeQueue.begin() + candidate_index);
+    return voice;
+}
+
 Voice* NoteChannel::getFreeVoice(int mid, bool type, bool fromFirst) {
     // 最近使ったmoduleに属するVoiceを優先的に探す。
     // NoteVoiceをチャンネル内で再利用する場合は末尾から、解放する場合は先頭から探す。
@@ -188,65 +204,16 @@ Voice* NoteChannel::getFreeVoice(int mid, bool type, bool fromFirst) {
         return nullptr;
     }
 
-    Voice* voice = nullptr;
     if (type == true) {
-        // CsmVoiceを先頭から探す
-        for (auto it = freeQueue.begin(); it != freeQueue.end(); ++it) {
-            if ((*it)->GetType() == type) {
-                voice = *it;
-                freeQueue.erase(it);
-                return voice;
-            }
-        }
-    } else if (fromFirst) {
-        // 最近使ったmoduleに属するNoteVoiceを先頭から探す
-        auto it        = freeQueue.begin();
-        auto end       = freeQueue.end();
-        auto candidate = it;
-        for (; it != end; ++it) {
-            if ((*it)->GetType() == type) {
-                if (voice == nullptr) {
-                    candidate = it;  // 先頭に最も近いVoice候補
-                }
-                voice = *it;  // イテレータが失効する前にVoiceを保存
-                if (mid == -1 || voice->GetModuleId() == mid) {
-                    freeQueue.erase(it);
-                    return voice;
-                }
-            }
-        }
-        // なければ先頭に最も近い候補から取り出す
-        if (voice) {
-            voice = *candidate;
-            freeQueue.erase(candidate);
-            return voice;
-        }
-    } else {
-        // 最近使ったmoduleに属するNoteVoiceを末尾から探す
-        auto it        = freeQueue.rbegin();
-        auto end       = freeQueue.rend();
-        auto candidate = it;
-        for (; it != end; ++it) {
-            if ((*it)->GetType() == type) {
-                if (voice == nullptr) {
-                    candidate = it;  // 末尾に最も近いVoice候補
-                }
-                voice = *it;  // イテレータが失効する前にVoiceを保存
-                if (mid == -1 || voice->GetModuleId() == mid) {
-                    freeQueue.erase(std::next(it).base());
-                    return voice;
-                }
-            }
-        }
-        // なければ末尾に最も近い候補から取り出す
-        if (voice) {
-            voice = *candidate;
-            freeQueue.erase(std::next(candidate).base());
-            return voice;
-        }
+        // CsmVoiceを先頭から探す（mid は考慮せず最初の一致を返す）
+        return scanFreeVoice(0, 1, -1, type);
     }
-    // 再利用可能なVoiceが存在しない
-    return nullptr;
+    if (fromFirst) {
+        // 最近使ったmoduleに属するNoteVoiceを先頭から探す
+        return scanFreeVoice(0, 1, mid, type);
+    }
+    // 最近使ったmoduleに属するNoteVoiceを末尾から探す
+    return scanFreeVoice(static_cast<int>(freeQueue.size()) - 1, -1, mid, type);
 }
 
 Voice* NoteChannel::Reclaim(int mid, bool type) {
@@ -383,7 +350,7 @@ bool NoteChannel::IsVoiceInVibratoFmDelay(const Voice* voice) const {
 uint32_t NoteChannel::VibratoFmStartDelayMs(const Voice* voice) const {
     uint32_t delay_ms = static_cast<uint32_t>(VIBRATO_ATTACK_DELAY_MS);
 #if VIBRATO_HIGH_NOTE_EXTRA_MS > 0
-    const int key = const_cast<Voice*>(voice)->GetKey();
+    const int key = voice->GetKey();
     if (key >= VIBRATO_HIGH_NOTE_KEY) {
         delay_ms += static_cast<uint32_t>(VIBRATO_HIGH_NOTE_EXTRA_MS);
     }
@@ -496,7 +463,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
 
         Voice* voice = getFreeVoice(-1, true, false);
         if (voice == nullptr) {
-            voice = allocator->AllocateVoice(channel, -1, true);
+            voice = allocator.AllocateVoice(channel, -1, true);
             if (voice == nullptr) {
                 ++rel_fail_count;
                 DPRINTF(3, "!!!!!!!!!!");
@@ -565,7 +532,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
     Voice* voice = getFreeVoice(mid, bCsmVoiceMode, false);
     if (voice == nullptr) {
         // 使用可能なVoiceがないので新規にAllocate
-        voice = allocator->AllocateVoice(channel, mid, bCsmVoiceMode);
+        voice = allocator.AllocateVoice(channel, mid, bCsmVoiceMode);
         if (voice == nullptr) {
             // AllocateできなかったのでNoteOn失敗
             ++rel_fail_count;
@@ -626,14 +593,8 @@ void NoteChannel::AllNoteOff() {
         auto it = activeQueue.begin();
         finishNoteOff(activeQueue, it);
     }
-    for (auto& voice : freeQueue) {
-        voice->SetNoteOnCount(0);
-        if (!voice->GetType()) {
-            static_cast<NoteVoice*>(voice)->NoteOff();
-        } else {
-            voice->NoteOff();
-        }
-    }
+    // freeQueue内のVoiceはfinishNoteOff()で既にSetNoteOnCount(0)/NoteOff()済みのため、
+    // ここでの再処理は不要（KeyOffのFM再送はバス帯域の無駄になる）。
 }
 
 void NoteChannel::Hold1(int val) {

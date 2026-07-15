@@ -1,4 +1,4 @@
-    //
+//
 // Copyright (c) 2026 46nori All rights reserved.
 //
 // This code is licensed under the MIT License.
@@ -94,12 +94,16 @@ void OpnBase::fm_set_pitch(uint8_t ch, uint8_t p, uint8_t oct, int16_t diff) {
 }
 
 void OpnBase::fm_turnon_key(uint8_t ch, uint8_t op) {
-    if (ch >= 3) ch = ++ch & 0x07;
+    if (ch >= 3) {
+        ch = (ch + 1) & 0x07;
+    }
     ::write_reg(dev, 0x28, 0, ch | (op << 4));
 }
 
 void OpnBase::fm_turnoff_key(uint8_t ch) {
-    if (ch >= 3) ch = ++ch & 0x07;
+    if (ch >= 3) {
+        ch = (ch + 1) & 0x07;
+    }
     ::write_reg(dev, 0x28, 0, ch);
 }
 
@@ -185,6 +189,7 @@ void OpnBase::fm_set_volume(uint8_t ch, uint8_t no, uint8_t vl) {
     switch (alg) {
     case 4:  // Carrier: 2,4
         set_carrier_level(1);
+        [[fallthrough]];
     case 0:  // Carrier: 4
     case 1:  // Carrier: 4
     case 2:  // Carrier: 4
@@ -193,6 +198,7 @@ void OpnBase::fm_set_volume(uint8_t ch, uint8_t no, uint8_t vl) {
         break;
     case 7:  // Carrier: 1,2,3,4
         set_carrier_level(0);
+        [[fallthrough]];
     case 5:  // Carrier: 2,3,4
     case 6:  // Carrier: 2,3,4
         set_carrier_level(1);

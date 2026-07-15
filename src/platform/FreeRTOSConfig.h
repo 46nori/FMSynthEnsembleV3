@@ -60,7 +60,7 @@
 
 /* Software timer */
 #define configUSE_TIMERS                        1
-#define configTIMER_TASK_PRIORITY               (configMAX_PRIORITIES - 4)  /* 28: Core0固定のため31不要。USB(30)/Panel(29)より低い */
+#define configTIMER_TASK_PRIORITY               (configMAX_PRIORITIES - 5)  /* 27: Core0固定のため31不要。USB(30)/Panel(29)より低い */
 #define configTIMER_QUEUE_LENGTH                10
 #define configTIMER_TASK_STACK_DEPTH            1024
 #define configTIMER_SERVICE_TASK_CORE_AFFINITY  ((UBaseType_t)(1u << 0))    /* Core0 に固定 */

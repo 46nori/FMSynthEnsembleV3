@@ -10,7 +10,7 @@
 #include "task.h"
 
 Voice::Voice(bool type, int id)
-    : type(type), note_on_count(0), midi_ch(-1), pitch_attack_start_tick_(0), bk_program(-1),
+    : note_on_count(0), type(type), midi_ch(-1), pitch_attack_start_tick_(0), bk_program(-1),
       volume(-1), velocity(-1), key(-1), id(id) {
 }
 
@@ -52,7 +52,7 @@ void Voice::SetChannel(int channel) {
     midi_ch = channel;
 }
 
-int Voice::GetKey() {
+int Voice::GetKey() const {
     return key;
 }
 

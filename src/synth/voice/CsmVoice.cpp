@@ -39,6 +39,22 @@ constexpr VoiceSpan kVoiceSpans[] = {
 };
 constexpr int kVoiceSpanCount = static_cast<int>(sizeof(kVoiceSpans) / sizeof(kVoiceSpans[0]));
 
+constexpr int kFrameDataCount = static_cast<int>(sizeof(frame_data) / sizeof(frame_data[0]));
+
+/** @brief kVoiceSpans の全区間が frame_data[] の範囲に収まっているか
+ *  @details VOICE.dat 再生成時に区間がはみ出すと frame_data[frame] の配列外
+ *           読み出しになるため、ビルド時に検出する。
+ */
+constexpr bool AllSpansInRange() {
+    for (const auto& s : kVoiceSpans) {
+        if (s.start < 0 || s.length < 0 || s.start + s.length >= kFrameDataCount) {
+            return false;
+        }
+    }
+    return true;
+}
+static_assert(AllSpansInRange(), "kVoiceSpans must fit within frame_data[]");
+
 /** Timer B リロード値（VOICE.dat の FRAME_PERIOD と補間設定に連動） */
 constexpr uint8_t TimerBReloadByte() {
 #ifdef ENABLE_INTERPOLATION

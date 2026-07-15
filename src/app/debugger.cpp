@@ -29,7 +29,7 @@ bool ShouldEcho(FILE* stream) {
 int Debugger::getchar(void) {
     int c;
     while ((c = getchar_timeout_us(0)) == PICO_ERROR_TIMEOUT) {
-        taskYIELD(); // 他タスクに処理を譲る
+        vTaskDelay(pdMS_TO_TICKS(10));  // 他タスクに処理を譲る
     }
     return c;
 }
