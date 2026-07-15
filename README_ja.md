@@ -1,6 +1,6 @@
 # FMSynthEnsembleV3
 
-**[英語版はこちら](README.md)**
+**[English version is here](README.md)**
 
 ![](./doc/image/YM2608.jpeg)
 
