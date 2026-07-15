@@ -208,12 +208,14 @@ flowchart LR
 | Producer | UsbMidiTask (Core0) |
 | Consumer | MidiEngineTask (Core1) |
 | 送信 | NoteOn / NoteOff とも `xQueueSendToBack` |
-| 送信失敗時 | 下記の NoteOff 保護。NoteOn は Drop + `midi_note_queue_drop_count` 更新 |
+| 送信失敗時 | 下記の NoteOff 保護。NoteOn は高水位到達時点で Drop（`midi_note_on_reserve_drop_count` 更新） |
 
-キュー満杯時、NoteOff は音の止め漏れに直結するため Drop しない（`MidiIpcSendMidiNoteEvent`）:
+NoteOff は音の止め漏れに直結するため Drop しない（`MidiIpcSendMidiNoteEvent`）:
 
-1. キュー内の NoteOn を 1 件追い出して（evict）NoteOff を再投入する（`midi_note_on_evict_count` 更新）
-2. それも失敗した場合はチャンネル × キーの pending ビットマップへ退避する（`midi_note_off_fallback_count` 更新）。MidiEngineTask は Note キューが空になったタイミングで退避分を NoteOff として処理する（`MidiIpcDrainPendingNoteOffs`）
+1. NoteOff 用にキュー末尾の空きスロットを常時予約する（`kNoteOffReservedSlots`）。NoteOn は空きが予約数以下になった時点で受け付けず Drop する（`midi_note_on_reserve_drop_count` 更新）。NoteOff はこの予約を使って投入する
+2. NoteOff すら投入できない（予約分も使い切った）場合はチャンネル × キーの pending ビットマップへ退避する（`midi_note_off_fallback_count` 更新）。MidiEngineTask は Note キューが空になったタイミングで退避分を NoteOff として処理する（`MidiIpcDrainPendingNoteOffs`）
+
+キューからの取り出しは Consumer の MidiEngineTask (Core1) のみが行う。
 
 ### 4.3 gMidiEventQueue
 

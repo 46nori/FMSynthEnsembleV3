@@ -513,8 +513,8 @@ int c_midi_stats(token_list* t) {
                 static_cast<unsigned long>(midiIpcStats.midi_note_queue_drop_count),
                 static_cast<unsigned long>(midiIpcStats.midi_control_queue_drop_count),
                 static_cast<unsigned long>(midiIpcStats.midi_reset_queue_drop_count));
-    std::printf("midi_ipc note_off protect: evict=%lu fallback=%lu\n",
-                static_cast<unsigned long>(midiIpcStats.midi_note_on_evict_count),
+    std::printf("midi_ipc note_off protect: reserve_drop=%lu fallback=%lu\n",
+                static_cast<unsigned long>(midiIpcStats.midi_note_on_reserve_drop_count),
                 static_cast<unsigned long>(midiIpcStats.midi_note_off_fallback_count));
     for (auto* ch : *gDebuggerCtx->channels) {
         ch->stats();

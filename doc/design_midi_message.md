@@ -168,7 +168,7 @@ flowchart TD
     K -- Drop --> G
 ```
 
-キュー投入はすべてノンブロッキングで行う。満杯時の扱い（NoteOn evict / pending NoteOff 退避）は [design_concurrency.md](design_concurrency.md#42-gmidinotequeue) を参照。
+キュー投入はすべてノンブロッキングで行う。満杯時の扱い（NoteOff 予約スロット / pending NoteOff 退避）は [design_concurrency.md](design_concurrency.md#42-gmidinotequeue) を参照。
 
 ---
 
@@ -237,7 +237,7 @@ F0 7D 46 4D <cmd> <payload...> F7
 | `midi_event_queue_drop_count` | `gMidiEventQueue` Full による Drop 数 |
 | `midi_control_queue_drop_count` | `gMidiControlQueue` Full による Drop 数（Reset 以外） |
 | `midi_reset_queue_drop_count` | Reset の Queue Full Drop 数（`gPendingReset` フォールバック発火回数） |
-| `midi_note_on_evict_count` | NoteOff 優先のため満杯時に追い出した NoteOn 数 |
+| `midi_note_on_reserve_drop_count` | NoteOff 予約スロット確保のため受け付けなかった NoteOn 数 |
 | `midi_note_off_fallback_count` | キュー満杯時に pending ビットマップへ退避した NoteOff 数 |
 
 `MidiIpcGetStats()` で取得し、`MidiControlType::DebugStats` コマンドで出力する。種別ごとの詳細な Drop カウント（Realtime Drop、パースエラー等）は持たない。
@@ -257,6 +257,6 @@ F0 7D 46 4D <cmd> <payload...> F7
 - Core1 は SysEx 生バイト列を処理しない
 - GM_SYSTEM_ON / XG_RESET / GS_RESET を受信したとき、Core1 側で `MidiProcessor::Reset()` が実行される
 - Realtime メッセージが `gMidiNoteQueue` / `gMidiEventQueue` / `gMidiControlQueue` へ投入されない
-- Queue Full 時は Drop + `MidiIpcStats` カウンタ更新（NoteOff は evict / pending 退避で必ず届ける）
+- Queue Full 時は Drop + `MidiIpcStats` カウンタ更新（NoteOff は予約スロット / pending 退避で必ず届ける）
 - 独自拡張 SysEx は Core0 の `Debugger::HandleSysEx()` で処理される
 - `gMidiControlQueue` が満杯でも Reset は `gPendingReset` フォールバックで失われず、MIDI イベント処理後に実行される
