@@ -123,33 +123,18 @@ void InitTinyUsb() {
 
 /**
  * @brief SD カード初期化・マウント
+ * @details マウント状態を維持するため、FATFS ワークエリアは静的に保持する
+ *          （FatFs はマウント中このオブジェクトへのポインタを内部に保持し続ける）。
  */
 #if BUILD_SD_CARD
+FATFS g_sd_fatfs;
+
 void InitSdCard() {
     sd_init_driver();
 
-    FATFS fs;
-    FRESULT fr = f_mount(&fs, "0:", 1);
+    FRESULT fr = f_mount(&g_sd_fatfs, "0:", 1);
     if (FR_OK != fr) {
         std::printf("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
-    } else {
-        // Write sample
-        FIL fil;
-        fr = f_open(&fil, "0:/test.txt", FA_OPEN_APPEND | FA_WRITE);
-        if (FR_OK != fr) {
-            std::printf("f_open error: %s (%d)\n", FRESULT_str(fr), fr);
-        } else {
-            if (f_printf(&fil, "Hello from FMSynthEnsembleV3!\n") < 0) {
-                std::printf("f_printf failed\n");
-            }
-            fr = f_close(&fil);
-            if (FR_OK != fr) {
-                std::printf("f_close error: %s (%d)\n", FRESULT_str(fr), fr);
-            } else {
-                std::printf("Wrote to 0:/test.txt\n");
-            }
-        }
-        f_unmount("0:");
     }
 }
 #endif
@@ -270,6 +255,7 @@ std::unique_ptr<FmSystem> SetupFmModules(Error* out_error) {
     }
     VolumeController::GetInstance().SetDockModuleTypes(dock_module_types);
     if (!has_any) {
+        fm_bus_deinit(&fs->bus);  // PIOプログラムとスピンロックを解放してから返す
         if (out_error != nullptr) {
             *out_error = Error::NoModuleFound;
         }

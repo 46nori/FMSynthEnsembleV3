@@ -23,7 +23,7 @@ struct ChannelLfoState {
  */
 class NoteChannel : public MidiChannel, public IVoiceReclaimable {
 private:
-    VoiceAllocator* allocator;
+    VoiceAllocator& allocator;
     using VoiceQueue = std::vector<Voice*>;
 
     VoiceQueue activeQueue;  // NoteON状態のVoiceキュー
@@ -52,6 +52,19 @@ private:
     Voice* getFreeVoice(int mid, bool type, bool fromFirst);
 
     /**
+     * @brief freeQueue を指定方向にスキャンし、type 一致の Voice を取り出す
+     * @param start_index 走査開始インデックス
+     * @param step        +1:前方向, -1:後方向
+     * @param mid         優先するmodule id（-1なら不問）
+     * @param type        探すVoice種別
+     * @details type 一致かつ mid 一致の Voice があれば優先して取り出す。
+     *          mid 不一致でも type 一致する最初の候補があれば、mid 一致が
+     *          見つからなかった場合のフォールバックとして取り出す。
+     *          getFreeVoice() の前方向/後方向スキャンの共通実装。
+     */
+    Voice* scanFreeVoice(int start_index, int step, int mid, bool type);
+
+    /**
      * @brief Voiceをキュー間で移動する
      * @param src 移動元キュー
      * @param it  移動元キューのイテレータ
@@ -59,14 +72,6 @@ private:
      * @details srcキューのitが指し示すVoice 1つ分を、dstキューに移動する
      */
     void moveVoice(VoiceQueue& src, VoiceQueue::iterator it, VoiceQueue& dst);
-
-    /**
-     * @brief Voiceをすべて移動する
-     * @param src 移動元キュー
-     * @param dst 移動先キュー
-     * @details srcキューの内容をすべてdstキューに移動する
-     */
-    void moveAllVoices(VoiceQueue& src, VoiceQueue& dst);
 
     /** @brief holdQueue の Voice を KeyOff して freeQueue へ移す */
     void releaseHoldQueue();
@@ -84,9 +89,10 @@ private:
 public:
     /**
      * @brief コンストラクタ
-     * @param no MIDI Channel No.
+     * @param no        MIDI Channel No.
+     * @param allocator Voice割り当てに使用するVoiceAllocator
      */
-    NoteChannel(int no);
+    NoteChannel(int no, VoiceAllocator& allocator);
     NoteChannel() = delete;
 
     virtual ~NoteChannel();

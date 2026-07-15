@@ -96,7 +96,7 @@ public:
      * @return MIDI Note No.
      */
 
-    int GetKey();
+    int GetKey() const;
 
     /**
      * @brief VoiceのVelocityをセットする

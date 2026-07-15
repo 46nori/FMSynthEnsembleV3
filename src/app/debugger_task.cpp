@@ -208,10 +208,11 @@ int c_help(token_list* t) {
  * Debug print level
  *********************************************************/
 int c_debug_level(token_list* t) {
-    // External memory test
     unsigned int level = 0;
     if (t->n > 1) {
-        get_uint(t, T_PARAM1, &level);
+        if (get_uint(t, T_PARAM1, &level) != NO_ERROR) {
+            return ERR_PARAM_VAL;
+        }
         Debugger::gDEBUG_LEVEL = (uint8_t)level;
     }
     std::printf("Debug Level: %d\n", Debugger::gDEBUG_LEVEL);
@@ -224,7 +225,9 @@ int c_debug_level(token_list* t) {
 int c_midi_mode(token_list* t) {
     unsigned int mode = 0;
     if (t->n > 1) {
-        get_uint(t, T_PARAM1, &mode);
+        if (get_uint(t, T_PARAM1, &mode) != NO_ERROR) {
+            return ERR_PARAM_VAL;
+        }
         Debugger::gMidiMode = (mode == 0) ? false : true;
     }
     std::printf("MIDI Mode: %s\n", Debugger::gMidiMode ? "ON" : "OFF");
@@ -237,7 +240,9 @@ int c_midi_mode(token_list* t) {
 int c_midi_panel_mode(token_list* t) {
     unsigned int mode = 0;
     if (t->n > 1) {
-        get_uint(t, T_PARAM1, &mode);
+        if (get_uint(t, T_PARAM1, &mode) != NO_ERROR) {
+            return ERR_PARAM_VAL;
+        }
         Debugger::gMidiPanelMode = (mode == 0) ? false : true;
     }
     std::printf("MIDI Panel Mode: %s\n", Debugger::gMidiPanelMode ? "ON" : "OFF");
@@ -247,10 +252,15 @@ int c_midi_panel_mode(token_list* t) {
 /*********************************************************
  * MIDI channel status
  *********************************************************/
+// デバッグ専用の Single Writer Rule 例外: gPanelChannelBitmap の書き手は本来
+// MidiPanelTask のみ（doc/design_concurrency.md 4.5）。Panel 接続中はこのコマンドの
+// 効果が次回スキャン（MIDI_PANEL_PERIOD_MS 周期）で上書きされる。
  int c_midi_channel_status(token_list* t) {
     unsigned int status = 0;
     if (t->n > 1) {
-        get_uint(t, T_PARAM1, &status);
+        if (get_uint(t, T_PARAM1, &status) != NO_ERROR) {
+            return ERR_PARAM_VAL;
+        }
         gPanelChannelBitmap = status & 0xffff;
     }
     std::printf("MIDI Channel ON/OFF Status: $%04x\n", gPanelChannelBitmap);

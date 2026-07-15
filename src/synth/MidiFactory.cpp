@@ -61,7 +61,7 @@ MidiFactory::MidiFactory(std::array<OpnBase*, 4>& modules) : modules_(modules) {
             allocator.AddReclaimTarget(i, rc);
         } else {
             // ノートチャンネル
-            NoteChannel* nc = new NoteChannel(i);
+            NoteChannel* nc = new NoteChannel(i, allocator);
             channels_[i]    = nc;
             // VoiceAllocatorに回収対象を登録
             allocator.AddReclaimTarget(i, nc);
