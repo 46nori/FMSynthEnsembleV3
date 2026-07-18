@@ -6,7 +6,7 @@ target_include_directories(usb PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
 if(USB_MIDI_IRQ_DRIVEN)
     if(PICO_PLATFORM STREQUAL "rp2040")
-        set(FREERTOS_TINYUSB_PORT_DIR "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040")
+        set(FREERTOS_TINYUSB_PORT_DIR "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/include")
     elseif(PICO_PLATFORM STREQUAL "rp2350-riscv")
         set(FREERTOS_TINYUSB_PORT_DIR "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/Community-Supported-Ports/GCC/RP2350_RISC-V")
     else()

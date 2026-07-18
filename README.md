@@ -1,5 +1,7 @@
 # FMSynthEnsembleV3
 
+[![Build](https://github.com/46nori/FMSynthEnsembleV3/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/46nori/FMSynthEnsembleV3/actions/workflows/build.yml)
+
 **[日本語版はこちら](README_ja.md)**
 
 ![](./doc/image/YM2608.jpeg)
@@ -83,6 +85,10 @@ ninja -C build
 ```
 
 Configure also generates `build/compile_commands.json`. clangd reads it through `.clangd` at the repository root to resolve include paths for pico-sdk and ARM GCC.
+
+## CI / CD
+
+Push and pull requests to `main` run [`.github/workflows/build.yml`](.github/workflows/build.yml). It builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each.
 
 ## Using a Debugger
 

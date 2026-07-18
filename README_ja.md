@@ -1,5 +1,7 @@
 # FMSynthEnsembleV3
 
+[![Build](https://github.com/46nori/FMSynthEnsembleV3/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/46nori/FMSynthEnsembleV3/actions/workflows/build.yml)
+
 **[English version is here](README.md)**
 
 ![](./doc/image/YM2608.jpeg)
@@ -83,6 +85,10 @@ ninja -C build
 ```
 
 Configure で `build/compile_commands.json` も生成される。clangd はリポジトリ直下の `.clangd` 経由でこれを読み、pico-sdk と ARM GCC の include パスを解決する。
+
+## CI / CD
+
+`main` への push / pull request で [`.github/workflows/build.yml`](.github/workflows/build.yml) が走る。`PICO_BOARD=pico2` と `PICO_BOARD=pico` をデフォルトの CMake オプションでビルドし、それぞれ Artifact として保存する。
 
 ## デバッガを使う場合
 

@@ -1,0 +1,126 @@
+# Autobuild on main (push / merge) and on PRs targeting main.
+# Matrix covers PICO_BOARD only; other CMake options use project defaults.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PICO_SDK_REF: "2.2.0"
+  # Matches the FreeRTOS-Kernel revision used with the Pico VS Code layout locally.
+  FREERTOS_KERNEL_REF: "a8c9d351520d43bd94692361bd67b6d798985c98"
+  ARM_GCC_RELEASE: "14.2.Rel1"
+
+jobs:
+  build:
+    name: ${{ matrix.board }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [pico2, pico]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config libusb-1.0-0-dev
+
+      - name: Install ARM GNU Toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: ${{ env.ARM_GCC_RELEASE }}
+
+      - name: Cache pico-sdk
+        id: cache-pico-sdk
+        uses: actions/cache@v4
+        with:
+          path: deps/pico-sdk
+          key: ${{ runner.os }}-pico-sdk-${{ env.PICO_SDK_REF }}
+
+      - name: Checkout pico-sdk
+        if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: raspberrypi/pico-sdk
+          ref: ${{ env.PICO_SDK_REF }}
+          path: deps/pico-sdk
+          submodules: recursive
+
+      - name: Cache FreeRTOS-Kernel
+        id: cache-freertos
+        uses: actions/cache@v4
+        with:
+          path: deps/FreeRTOS-Kernel
+          key: ${{ runner.os }}-freertos-${{ env.FREERTOS_KERNEL_REF }}
+
+      - name: Checkout FreeRTOS-Kernel
+        if: steps.cache-freertos.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: FreeRTOS/FreeRTOS-Kernel
+          ref: ${{ env.FREERTOS_KERNEL_REF }}
+          path: deps/FreeRTOS-Kernel
+          submodules: recursive
+
+      # SDK 2.x needs picotool for ELF→UF2; cache a prebuilt install so firmware builds do not fetch it.
+      - name: Cache picotool
+        id: cache-picotool
+        uses: actions/cache@v4
+        with:
+          path: deps/picotool-install
+          key: ${{ runner.os }}-picotool-${{ env.PICO_SDK_REF }}
+
+      - name: Build picotool
+        if: steps.cache-picotool.outputs.cache-hit != 'true'
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/deps/pico-sdk
+        run: |
+          git clone --depth 1 --branch "${PICO_SDK_REF}" \
+            https://github.com/raspberrypi/picotool.git deps/picotool-src
+          cmake -S deps/picotool-src -B deps/picotool-src/build -G Ninja \
+            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/deps/picotool-install"
+          cmake --build deps/picotool-src/build --parallel
+          cmake --install deps/picotool-src/build
+
+      - name: Configure
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/deps/pico-sdk
+          FREERTOS_KERNEL_PATH: ${{ github.workspace }}/deps/FreeRTOS-Kernel
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPICO_BOARD=${{ matrix.board }} \
+            -Dpicotool_DIR="${GITHUB_WORKSPACE}/deps/picotool-install/picotool"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Check artifacts
+        run: |
+          test -f build/FMSynthEnsembleV3.elf
+          test -f build/FMSynthEnsembleV3.uf2
+          ls -la build/FMSynthEnsembleV3.elf build/FMSynthEnsembleV3.uf2
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: FMSynthEnsembleV3-${{ matrix.board }}
+          path: |
+            build/FMSynthEnsembleV3.elf
+            build/FMSynthEnsembleV3.uf2
+          if-no-files-found: error
+          retention-days: 3
