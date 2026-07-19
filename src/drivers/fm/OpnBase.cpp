@@ -6,6 +6,8 @@
 //
 #include "OpnBase.h"
 
+#include <algorithm>
+
 // In opn_piolib C API calls, `::` is used to distinguish them from OpnBase members.
 
 #if ENABLE_FM_TL_TRIM
@@ -355,11 +357,12 @@ void OpnBase::set_timer_b(uint8_t value) {
 }
 
 void OpnBase::set_timer_b_ms(float time) {
-    int value = 256 - (uint8_t)(timerB_k * time);
-    if (value < 0) {
-        value = 0;
-    }
-    set_timer_b(value);
+    // timerB_k * time can exceed uint8_t range (0-255); clamp before the
+    // narrowing cast to avoid float->uint8_t UB (see GitHub issue #30).
+    // raw is bounded to [0,255], so 256-raw is always in [1,256]; no
+    // negative-value clamp is needed here (unlike set_timer_a_ms).
+    uint8_t raw = (uint8_t)std::clamp(timerB_k * time, 0.0f, 255.0f);
+    set_timer_b(256 - raw);
 }
 
 void OpnBase::set_timer_mode(uint8_t mode) {
