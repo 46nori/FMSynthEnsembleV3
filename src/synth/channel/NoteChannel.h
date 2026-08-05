@@ -32,15 +32,9 @@ private:
     bool bCsmVoiceMode;      // true:CsmVoice, false:NoteType
 
     ChannelLfoState lfo_{};
-    int16_t         last_vib_cents_sent_;  // TickVibrato で最後に FM へ送った vib_cents
 
     /** @brief effect.vbrate から lfo_.phase_inc を再計算する */
     void updateLfoPhaseInc();
-
-    bool IsVoiceInAttackDelay(const Voice* voice) const;
-    bool IsVoiceInVibratoFmDelay(const Voice* voice) const;
-    uint32_t VibratoFmStartDelayMs(const Voice* voice) const;
-    bool ShouldAdvanceLfoPhase() const;
 
     /**
      * @brief freeQueueから未使用のVoiceを取得する
@@ -232,9 +226,9 @@ public:
     /**
      * @brief active・hold の全 Voice に ApplyPitch を呼ぶ
      * @param vib_cents チャンネル LFO からのビブラート偏差（セント）
-     * @param skip_attack_voices true のとき Attack 遅延中 Voice は FM を触らない（TickVibrato 用）
+     * @param allow_vib_dedup true のとき、直前と同じ vib_cents なら Voice 側で FM 書き込みを省略する（TickVibrato 用）
      */
-    void ApplyPitchToVoices(int16_t vib_cents, bool skip_attack_voices = false);
+    void ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup = false);
 
     /** @brief MidiEngineTask から呼ぶ（phase_ticks 周期分の LFO 位相を進める） */
     void TickVibrato(uint32_t phase_ticks) override;

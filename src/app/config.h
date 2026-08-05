@@ -49,18 +49,9 @@ constexpr int MIDI_CHANNELS = 16;
 // ビブラート（ソフトウェア LFO）
 #define VIBRATO_PERIOD_MS            20
 #define VIBRATO_DT_SEC               (VIBRATO_PERIOD_MS / 1000.0f)
-#define VIBRATO_TICK_HZ              (1000 / VIBRATO_PERIOD_MS)
 #define VIBRATO_RATE_MIN_HZ          3.0f
 #define VIBRATO_RATE_MAX_HZ          12.0f
 #define VIBRATO_DEPTH_MAX_CENTS      50
-// Attack 遅延: 発音直後 TickVibrato の FM 書き込みを抑制（0=無効）
-#define VIBRATO_ATTACK_DELAY_MS      12
-// このキー以上は上記に加えて FM 書き込み開始を遅らせる（短い高音向け）
-#define VIBRATO_HIGH_NOTE_KEY        72
-#define VIBRATO_HIGH_NOTE_EXTRA_MS   16
-// これより短い単音には TickVibrato で FM を書かない（vib 0 と同等）
-#define VIBRATO_MIN_SOUNDING_MS      50
-#define VIBRATO_HIGH_MIN_SOUNDING_MS 75
 
 #define MIDI_NOTE_BATCH_MAX          32
 #define MIDI_EFFECT_BATCH_MAX        8

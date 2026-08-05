@@ -23,9 +23,8 @@ MIDI チャンネル単位のピッチエフェクト（Pitch Bend、coarse tune
 7. [ピッチ合成](#7-ピッチ合成)
 8. [イベント処理](#8-イベント処理)
 9. [MidiEngineTask 内 TickVibrato](#9-midienginetask-内-tickvibrato)
-10. [発音直後の FM 書き込み抑制](#10-発音直後の-fm-書き込み抑制)
-11. [YM2608 ハードウェア LFO の扱い](#11-ym2608-ハードウェア-lfo-の扱い)
-12. [ビルド設定](#12-ビルド設定)
+10. [YM2608 ハードウェア LFO の扱い](#10-ym2608-ハードウェア-lfo-の扱い)
+11. [ビルド設定](#11-ビルド設定)
 
 ---
 
@@ -52,15 +51,12 @@ YM2608 の LFO は **チップ 1 個につき 1 系統**（レジスタ `0x22`�
 | D3 | Pitch Bend は active + hold の全 Voice に即時反映する（`MidiEngineTask`） |
 | D4 | ビブラート更新周期は `VIBRATO_PERIOD_MS`（既定 20 ms）。`MidiEngineTask` ループ内で `time_us_64()` ベースの周期実行 |
 | D5 | 深さは線形セント（`vbdepth` 0〜127 → 0〜`VIBRATO_DEPTH_MAX_CENTS`） |
-| D6 | 発音直後は TickVibrato による FM ピッチ更新を抑制する（[10 章](#10-発音直後の-fm-書き込み抑制)） |
 
 ### 1.3 聴感に基づく判断の経緯
 
-D1 / D6 と位相停止の各判断は、実機での同一曲試聴により確定した。要点は次のとおり。
+D1 と位相停止の判断は、実機での同一曲試聴により確定した。要点は次のとおり。
 
 **和音中は LFO 位相をリセットしない（D1）。** 毎回の Note On で位相を 0 に戻すと、同一 ch で既に鳴っている Voice のビブラート波形が不連続になり、旋律パートの切り替えや和音への新音追加で息切れ・うねりの乱れが生じた。同一 ch の和音は同位相（[3.3 節](#33-midi-セマンティクス)）であるため、チャンネル無音時のみ位相をリセットし、和音中の追加音は進行中の LFO に載せる。
-
-**発音直後はピッチ変化を保留する（D6）。** KeyOn 直後から `TickVibrato` が F-Number を周期更新すると、FM エンベロープの立ち上がりと干渉し、アタック中に音程が揺れる・ビリビリするという症状が出た。KeyOn 直後は当該 Voice への TickVibrato 経由の `fm_set_pitch` を抑制し、PB / CC の即時経路では `VIBRATO_ATTACK_DELAY_MS` の間ビブラート成分を 0 にして適用する。チャンネル内の全 Voice が Attack 中のときは LFO 位相も進めない（`ShouldAdvanceLfoPhase`）。
 
 **無音中は LFO を進めない。** 無音中も位相を進めると、休符の長さによって次の Note On 時の位相が音によってばらつく。`IsActive()` でないチャンネルは `TickVibrato` を早期 return し、無音からの Note On で位相 0 から再開する。休符明けのビブラート開始位置が予測可能になり、和音中の位相連続性とも両立する。
 
@@ -205,13 +201,13 @@ phase_inc = (uint32_t)(rate_hz * VIBRATO_DT_SEC * 16777216.0)   // 2^24
 
 #### `VIBRATO_PERIOD_MS` への依存
 
-`VIBRATO_PERIOD_MS` はコンパイル時定数（[12 章](#12-ビルド設定)）。調整時はこの値だけを変え、以下をマクロ／共通関数経由で導出する。値の直書きはしない。
+`VIBRATO_PERIOD_MS` はコンパイル時定数（[11 章](#11-ビルド設定)）。調整時はこの値だけを変え、以下をマクロ／共通関数経由で導出する。値の直書きはしない。
 
 | 項目 | `PERIOD_MS` からの導出 | 備考 |
 |------|----------------------|------|
 | `phase_inc` | 必須 | `dt = VIBRATO_DT_SEC` を式に使用 |
 | `ServiceVibratoIfDue` の周期 | 必須 | `VIBRATO_PERIOD_MS`（`time_us_64()` ベース） |
-| 更新レート | 必須 | `VIBRATO_TICK_HZ = 1000 / VIBRATO_PERIOD_MS` |
+| 更新レート | 必須 | `1000 / VIBRATO_PERIOD_MS`（既定 50 Hz） |
 | `vbrate` → `rate_hz` | 独立 | MIDI のみに依存。PERIOD を変えても Hz は不変 |
 | 深さ（セント・sin LUT） | 独立 | |
 | Pitch Bend / coarse tune | 独立 | イベント駆動 |
@@ -239,7 +235,6 @@ vib_cents  = (peak_cents * sin_lut[index]) >> 15
 | `vbdepth` 0→非 0 | リセットしない | 次回 `TickVibrato` / イベント |
 | `vbdepth` 非 0→0 | — | 即時、全 Voice で vib=0 のピッチ（[8.2 節](#82-vbdepth-が-0-になったとき)） |
 | `ResetAllController` | 0 | 全 Voice 再適用 |
-| Attack 遅延中（D6） | 全 Voice が Attack 中なら位相も進めない | Attack 中 Voice は vib=0 |
 
 ---
 
@@ -274,7 +269,7 @@ diff_vib = (int32_t)semitone * vib_cents / 100
 ```cpp
 // NoteChannel.h / .cpp
 int16_t NoteChannel::ComputeVibCents() const;
-void    NoteChannel::ApplyPitchToVoices(int16_t vib_cents, bool skip_attack_voices = false);
+void    NoteChannel::ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup = false);
 void    NoteChannel::TickVibrato(uint32_t phase_ticks);
 
 // NoteVoice.h / .cpp（Voice.h の ChannelEffects を使用）
@@ -310,12 +305,12 @@ static int16_t PitchCalcVibDiff(int k, int16_t vib_cents);
 | NRPN 1:9 | `vbdepth`（64 中心相対値を変換） | CC#1 と同様 |
 | PBS / coarse (Data Entry) | `pbs` / `coarse_tune` | active + hold |
 | ResetAllController | `effect.Init()` + `lfo.phase=0` | active + hold |
-| Note On / Retrigger | `MarkPitchAttackStart()`（D6） | 必須（[8.3 節](#83-note-on--retrigger-時)） |
+| Note On / Retrigger | — | 必須（[8.3 節](#83-note-on--retrigger-時)） |
 | SetPan (CC#10) | `outputLR` | 不要（次回 Note On から反映。[7.3 節](#73-pan)） |
 
 ### 8.1 `ApplyPitchToVoices`
 
-`activeQueue` と `holdQueue` の全 Voice に `ApplyPitch(effect, vib_cents)` を適用する。`vib_cents` は呼び出し側で計算する（イベント時は `vbdepth` から、TickVibrato 時は LFO から）。`skip_attack_voices = true` のとき Attack 遅延中の Voice は FM を触らない。
+`activeQueue` と `holdQueue` の全 Voice に `ApplyPitch(effect, vib_cents)` を適用する。`vib_cents` は呼び出し側で計算する（イベント時は `vbdepth` から、TickVibrato 時は LFO から）。`allow_vib_dedup = true` のとき、Voice 側で直前と同じ `vib_cents` なら FM 書き込みを省略する（[7.1 節](#71-合成順序と-applypitch1-voice)、`NoteVoice::ApplyPitch`）。
 
 ### 8.2 `vbdepth` が 0 になったとき
 
@@ -332,10 +327,8 @@ ApplyPitchToVoices(0);  // ビブラート成分を除去したピッチへ即�
 
 ```cpp
 // NoteChannel::NoteOn / TryRetrigger 成功時の処理末尾（CSM モード除く）
-voice->MarkPitchAttackStart();   // D6: NoteOn / TryRetrigger の直前（全経路）
 voice->NoteOn(...);              // または TryRetrigger
-last_vib_cents_sent_ = ComputeVibCents();
-ApplyPitchToVoices(last_vib_cents_sent_);
+ApplyPitchToVoices(ComputeVibCents());
 ```
 
 適用箇所は、新規 Allocate、`freeQueue` 再利用、`activeQueue` / `holdQueue` からの `TryRetrigger` 成功の全経路。CSM モード（`bCsmVoiceMode`）は対象外。
@@ -358,83 +351,14 @@ KeyOn 直後からビブラート付きピッチに揃え、次の `TickVibrato`
 `NoteChannel::TickVibrato()` の動作:
 
 1. `vbdepth == 0` または `!IsActive()` なら return
-2. `ShouldAdvanceLfoPhase()` なら `lfo_.phase += lfo_.phase_inc`
-3. `ApplyPitchToVoices(ComputeVibCents(), true)` — Attack 遅延中の Voice は FM を触らない
+2. `lfo_.phase += lfo_.phase_inc`
+3. `ApplyPitchToVoices(ComputeVibCents(), /*allow_vib_dedup=*/true)`
 
-負荷の目安: 最大 24 Voice × `VIBRATO_TICK_HZ`（既定 50 Hz）で、典型 8 音なら CPU 数 % 未満。
-
----
-
-## 10. 発音直後の FM 書き込み抑制
-
-### 10.1 背景
-
-KeyOn 直後から `TickVibrato` が `fm_set_pitch` で F-Number を更新すると、FM エンベロープの立ち上がりと干渉し、息切れ・途切れ・ビリつきが出やすい（[1.3 節](#13-聴感に基づく判断の経緯)）。特に KeyOn から NoteOff までが短い発音（スタッカート的な単音）と高音域で顕著である。
-
-試聴での切り分けでは、CC#1=0（ビブラート無効）では症状が出にくく、CC#1>0 の短い発音で出やすかった。原因は MIDI のビブラート設定そのものではなく、有効な CC#1 下で `TickVibrato` が FM ピッチ更新を送るタイミングにある。
-
-対策として `NoteChannel::VibratoFmStartDelayMs()` が「KeyOn から何 ms 経過するまで TickVibrato 経由の `fm_set_pitch` を送らないか」を返す。発音時間がこの値より短い発音では、NoteOff まで一度も TickVibrato による FM ピッチ更新が行われず、聴感は CC#1=0 のとき（KeyOn 時の基準ピッチ 1 回のみ）に近づく。
-
-### 10.2 定数一覧（`config.h`）
-
-| 定数 | 現値 | 役割 |
-|------|------|------|
-| `VIBRATO_ATTACK_DELAY_MS` | 12 | 計算の起点（ms）。PB / CC 等の即時 `ApplyPitch` でも、KeyOn 後この時間はビブラート成分 0（PB / coarse tune は反映） |
-| `VIBRATO_HIGH_NOTE_KEY` | 72 (C5) | この MIDI ノート番号以上を高音域とみなす |
-| `VIBRATO_HIGH_NOTE_EXTRA_MS` | 16 | 高音域のみ、起点に加算（ms） |
-| `VIBRATO_MIN_SOUNDING_MS` | 50 | 全音域の FM 抑制時間の下限（ms） |
-| `VIBRATO_HIGH_MIN_SOUNDING_MS` | 75 | 高音域の FM 抑制時間の下限（ms） |
-
-「加算」と「下限（フロア）」の二段構造。最終的な抑制時間は `VibratoFmStartDelayMs(voice)` が返す。
-
-### 10.3 計算式（`NoteChannel.cpp`）
-
-```
-delay_ms ← VIBRATO_ATTACK_DELAY_MS
-
-if key >= VIBRATO_HIGH_NOTE_KEY:
-    delay_ms += VIBRATO_HIGH_NOTE_EXTRA_MS
-    if delay_ms < VIBRATO_HIGH_MIN_SOUNDING_MS:
-        delay_ms ← VIBRATO_HIGH_MIN_SOUNDING_MS
-
-if delay_ms < VIBRATO_MIN_SOUNDING_MS:
-    delay_ms ← VIBRATO_MIN_SOUNDING_MS
-```
-
-現設定での実効値:
-
-| 音域 | 計算 | 実効 `delay_ms` |
-|------|------|-----------------|
-| 中低音（key < 72） | max(12, 50) | 50 ms |
-| 高音（key ≥ 72） | max(12+16, 75) | 75 ms |
-
-`VIBRATO_HIGH_NOTE_EXTRA_MS` の +16 ms は、現状 `VIBRATO_HIGH_MIN_SOUNDING_MS=75` のフロアに吸収され実質無効である。`HIGH_MIN` を下げたときだけ差が出る。
-
-### 10.4 2 つのピッチ更新経路
-
-同じ定数群でも TickVibrato 経路と MIDI イベント即時経路で参照が異なる。
-
-| 経路 | 判定 | 現設定 |
-|------|------|--------|
-| `TickVibrato` | `IsVoiceInVibratoFmDelay` → `VibratoFmStartDelayMs` | 中低音 50 ms / 高音 75 ms まで FM 更新なし |
-| PB / CC 即時 | `IsVoiceInAttackDelay` → `VIBRATO_ATTACK_DELAY_MS` のみ | KeyOn 後 12 ms までビブラート成分 0。PB / coarse tune は反映 |
-
-起点はいずれも `MarkPitchAttackStart()` が記録する KeyOn 時刻。
-
-### 10.5 チューニング指針
-
-| 症状 | 調整候補 |
-|------|----------|
-| 短い高音がまだ途切れる | `VIBRATO_HIGH_MIN_SOUNDING_MS` を増やす |
-| 長い高音でビブラート開始が遅すぎる | `VIBRATO_HIGH_MIN_SOUNDING_MS` を減らす（試聴必須） |
-| 中低音の短い発音のみ問題 | `VIBRATO_MIN_SOUNDING_MS` を調整する |
-| PB 直後の立ち上がりだけ問題 | `VIBRATO_ATTACK_DELAY_MS`（即時経路。TickVibrato 下限とは独立） |
-
-数値は `config.h` を正とし、実機試聴で更新する。
+負荷の目安: 最大 24 Voice × 更新レート（既定 50 Hz）で、典型 8 音なら CPU 数 % 未満。
 
 ---
 
-## 11. YM2608 ハードウェア LFO の扱い
+## 10. YM2608 ハードウェア LFO の扱い
 
 ソフトウェア LFO 採用後もチップには LFO レジスタが存在するため、寄生変調の防止のみ行う。
 
@@ -447,22 +371,16 @@ YM2203 等 LFO 未実装ドライバでは no-op。
 
 ---
 
-## 12. ビルド設定
+## 11. ビルド設定
 
 `src/app/config.h` のビブラート関連定数（現行値）:
 
 ```c
 #define VIBRATO_PERIOD_MS            20
 #define VIBRATO_DT_SEC               (VIBRATO_PERIOD_MS / 1000.0f)
-#define VIBRATO_TICK_HZ              (1000 / VIBRATO_PERIOD_MS)
 #define VIBRATO_RATE_MIN_HZ          3.0f
 #define VIBRATO_RATE_MAX_HZ          12.0f
 #define VIBRATO_DEPTH_MAX_CENTS      50
-#define VIBRATO_ATTACK_DELAY_MS      12
-#define VIBRATO_HIGH_NOTE_KEY        72
-#define VIBRATO_HIGH_NOTE_EXTRA_MS   16
-#define VIBRATO_MIN_SOUNDING_MS      50
-#define VIBRATO_HIGH_MIN_SOUNDING_MS 75
 ```
 
 - `VIBRATO_PERIOD_MS` を調整する場合、`phase_inc`・Task 周期・負荷見積の tick レートはすべてこの値から導出されるため、他の変更は不要（[6.2 節](#62-位相増分レート)）

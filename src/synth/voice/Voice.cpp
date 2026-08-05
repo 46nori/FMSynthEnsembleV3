@@ -6,11 +6,8 @@
 //
 #include "Voice.h"
 
-#include "FreeRTOS.h"
-#include "task.h"
-
 Voice::Voice(bool type, int id)
-    : note_on_count(0), type(type), midi_ch(-1), pitch_attack_start_tick_(0), bk_program(-1),
+    : note_on_count(0), type(type), midi_ch(-1), bk_program(-1),
       volume(-1), velocity(-1), key(-1), id(id) {
 }
 
@@ -23,17 +20,8 @@ void Voice::Reset() {
     bk_program    = -1;
     volume        = -1;
     velocity      = -1;
-    key                      = -1;
-    note_on_count            = 0;
-    pitch_attack_start_tick_ = 0;
-}
-
-void Voice::MarkPitchAttackStart() {
-    pitch_attack_start_tick_ = static_cast<uint32_t>(xTaskGetTickCount());
-}
-
-uint32_t Voice::GetPitchAttackStartTick() const {
-    return pitch_attack_start_tick_;
+    key           = -1;
+    note_on_count = 0;
 }
 
 bool Voice::GetType() {
