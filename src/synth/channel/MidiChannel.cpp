@@ -25,9 +25,9 @@ MidiChannel::MidiChannel(int no)
       rel_success_count(0),
       rel_fail_count(0) {
     effect.Init();
-    // 奇数MIDIチャンネルはL、偶数MIDIチャンネルはRに出力
-    // (no, outputLRの基数は0なのに注意)
-    outputLR = (no % 2 ? R : L);
+    // CC#10未設定時はセンター(LR両方)を初期値とする。
+    // 片側固定にすると単一チャンネル使用時に音場が偏るため
+    outputLR = LR;
 }
 
 MidiChannel::~MidiChannel() {
@@ -36,7 +36,7 @@ MidiChannel::~MidiChannel() {
 void MidiChannel::Reset() {
     AllNoteOff();
     ResetAllController();
-    outputLR          = (channel % 2 ? R : L);
+    outputLR          = LR;
     volume            = -1;
     expression        = -1;
     pan               = -1;

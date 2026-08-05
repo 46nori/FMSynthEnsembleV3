@@ -214,11 +214,12 @@ public:
     /**
      * @brief CC#10 Pan
      * @param val Pan value
-     * @details パンを active・hold の全 Voice に即座に適用する。
-     * ハード的な制約で連続表現できないため、センター 64 対称 (W=21) で分割する。
+     * @details ハード的な制約で連続表現できないため、センター 64 対称 (W=21) で分割する。
      *    0 - 42 : L
      *   43 - 85 : LR
      *   86 -127 : R
+     * 発音中・保持中の Voice には反映しない（次回 Note On から適用）。
+     * サステイン中に音像が切り替わる不自然さを避けるため。
      */
     virtual void SetPan(uint8_t val) override;
 
