@@ -290,6 +290,11 @@ static int16_t PitchCalcVibDiff(int k, int16_t vib_cents);
 
 - CC#10 / `outputLR` は `fm_set_output_lr` のみで反映する（`SetPan`）
 - ビブラート深さとは無関係
+- ハード（`fm_set_output_lr`）は L/R/LR の3値切替のみで連続パンを表現できない。
+  サステイン中の Voice に即座に反映すると音像が不自然に切り替わるため、
+  `SetPan` は `outputLR` の更新のみ行い、既存の active/hold Voice には反映しない。
+  反映は次回 Note On から
+- CC#10 未設定時（`pan == -1`）の初期値はセンター出力（`LR`）とする。
 
 ---
 
@@ -306,7 +311,7 @@ static int16_t PitchCalcVibDiff(int k, int16_t vib_cents);
 | PBS / coarse (Data Entry) | `pbs` / `coarse_tune` | active + hold |
 | ResetAllController | `effect.Init()` + `lfo.phase=0` | active + hold |
 | Note On / Retrigger | `MarkPitchAttackStart()`（D6） | 必須（[8.3 節](#83-note-on--retrigger-時)） |
-| SetPan (CC#10) | `outputLR` | active + hold（Pan のみ `SetPan`） |
+| SetPan (CC#10) | `outputLR` | 不要（次回 Note On から反映。[7.3 節](#73-pan)） |
 
 ### 8.1 `ApplyPitchToVoices`
 

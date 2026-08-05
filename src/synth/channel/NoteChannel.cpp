@@ -676,12 +676,7 @@ void NoteChannel::SetPan(uint8_t val) {
         } else {
             outputLR = MidiChannel::Output::LR;
         }
-        for (auto& voice : activeQueue) {
-            voice->SetPan(outputLR);
-        }
-        for (auto& voice : holdQueue) {
-            voice->SetPan(outputLR);
-        }
+        // 発音中・保持中のVoiceには反映しない。次回Note Onから新しいoutputLRを使う
         pan = val;
     }
 }
