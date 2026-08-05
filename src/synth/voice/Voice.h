@@ -34,7 +34,6 @@ private:
     int note_on_count;  // NoteOn回数 (Keyオーバーラップ時のカウント用)
     const bool type;    // true:CsmVoice, false:NoteVoice
     int midi_ch;        // 属しているMIDI Channel No.
-    uint32_t pitch_attack_start_tick_;  // ビブラート Attack 遅延の基準 (FreeRTOS tick)
 
 protected:
     int32_t bk_program;  // Bank/Program No.
@@ -109,12 +108,6 @@ public:
      * @return MIDI Velocity
      */
     int GetVelocity();
-
-    /** @brief KeyOn 直後のビブラート遅延タイマを開始する */
-    void MarkPitchAttackStart();
-
-    /** @brief MarkPitchAttackStart() で記録した tick */
-    uint32_t GetPitchAttackStartTick() const;
 
     /**
      * @brief Note On のリファレンスカウンタのセット

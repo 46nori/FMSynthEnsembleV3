@@ -10,9 +10,6 @@
 #include "config.h"
 #include "debugger.h"
 
-#include "FreeRTOS.h"
-#include "task.h"
-
 namespace {
 
 // sin(2π·i/256)·32767, Q15
@@ -107,7 +104,6 @@ NoteChannel::NoteChannel(int no, VoiceAllocator& allocator)
     freeQueue.reserve(VoiceLimits::kMaxVoices);
     lfo_.phase            = 0;
     lfo_.phase_inc        = VibratoCalcPhaseInc(effect.vbrate);
-    last_vib_cents_sent_  = 0;
 }
 
 NoteChannel::~NoteChannel() {
@@ -119,8 +115,7 @@ void NoteChannel::updateLfoPhaseInc() {
 
 void NoteChannel::Reset() {
     MidiChannel::Reset();
-    bCsmVoiceMode        = false;
-    last_vib_cents_sent_ = 0;
+    bCsmVoiceMode = false;
 }
 
 void NoteChannel::moveVoice(VoiceQueue& src, VoiceQueue::iterator it, VoiceQueue& dst) {
@@ -300,8 +295,7 @@ void NoteChannel::SetExpression(int val) {
 void NoteChannel::ResetAllController() {
     releaseHoldQueue();
     MidiChannel::ResetAllController();
-    lfo_.phase           = 0;
-    last_vib_cents_sent_ = 0;
+    lfo_.phase = 0;
     updateLfoPhaseInc();
     for (auto& voice : activeQueue) {
         voice->SetVolume(EffectiveVolume(voice->GetVelocity()));
@@ -325,107 +319,12 @@ int16_t NoteChannel::ComputeVibCents() const {
     return static_cast<int16_t>((peak_cents * kSinLut[index]) >> 15);
 }
 
-bool NoteChannel::IsVoiceInAttackDelay(const Voice* voice) const {
-#if VIBRATO_ATTACK_DELAY_MS <= 0
-    (void)voice;
-    return false;
-#else
-    const TickType_t elapsed_ticks =
-        xTaskGetTickCount() - static_cast<TickType_t>(voice->GetPitchAttackStartTick());
-    return (elapsed_ticks * portTICK_PERIOD_MS) <
-           static_cast<TickType_t>(VIBRATO_ATTACK_DELAY_MS);
-#endif
-}
-
-bool NoteChannel::IsVoiceInVibratoFmDelay(const Voice* voice) const {
-    const uint32_t delay_ms = VibratoFmStartDelayMs(voice);
-    if (delay_ms == 0) {
-        return false;
-    }
-    const TickType_t elapsed_ticks =
-        xTaskGetTickCount() - static_cast<TickType_t>(voice->GetPitchAttackStartTick());
-    return (elapsed_ticks * portTICK_PERIOD_MS) < static_cast<TickType_t>(delay_ms);
-}
-
-uint32_t NoteChannel::VibratoFmStartDelayMs(const Voice* voice) const {
-    uint32_t delay_ms = static_cast<uint32_t>(VIBRATO_ATTACK_DELAY_MS);
-#if VIBRATO_HIGH_NOTE_EXTRA_MS > 0
-    const int key = voice->GetKey();
-    if (key >= VIBRATO_HIGH_NOTE_KEY) {
-        delay_ms += static_cast<uint32_t>(VIBRATO_HIGH_NOTE_EXTRA_MS);
-    }
-#if VIBRATO_HIGH_MIN_SOUNDING_MS > 0
-    if (key >= VIBRATO_HIGH_NOTE_KEY &&
-        delay_ms < static_cast<uint32_t>(VIBRATO_HIGH_MIN_SOUNDING_MS)) {
-        delay_ms = static_cast<uint32_t>(VIBRATO_HIGH_MIN_SOUNDING_MS);
-    }
-#endif
-#else
-    (void)voice;
-#endif
-#if VIBRATO_MIN_SOUNDING_MS > 0
-    if (delay_ms < static_cast<uint32_t>(VIBRATO_MIN_SOUNDING_MS)) {
-        delay_ms = static_cast<uint32_t>(VIBRATO_MIN_SOUNDING_MS);
-    }
-#endif
-    return delay_ms;
-}
-
-bool NoteChannel::ShouldAdvanceLfoPhase() const {
-#if VIBRATO_ATTACK_DELAY_MS <= 0 && VIBRATO_MIN_SOUNDING_MS <= 0
-    return true;
-#else
-    bool has_sounding = false;
+void NoteChannel::ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup) {
     for (auto& voice : activeQueue) {
-        has_sounding = true;
-        const TickType_t elapsed_ticks =
-            xTaskGetTickCount() - static_cast<TickType_t>(voice->GetPitchAttackStartTick());
-        const uint32_t elapsed_ms = elapsed_ticks * portTICK_PERIOD_MS;
-        if (elapsed_ms >= VibratoFmStartDelayMs(voice)) {
-            return true;
-        }
+        voice->ApplyPitch(effect, vib_cents, allow_vib_dedup);
     }
     for (auto& voice : holdQueue) {
-        has_sounding = true;
-        const TickType_t elapsed_ticks =
-            xTaskGetTickCount() - static_cast<TickType_t>(voice->GetPitchAttackStartTick());
-        const uint32_t elapsed_ms = elapsed_ticks * portTICK_PERIOD_MS;
-        if (elapsed_ms >= VibratoFmStartDelayMs(voice)) {
-            return true;
-        }
-    }
-    return !has_sounding;
-#endif
-}
-
-void NoteChannel::ApplyPitchToVoices(int16_t vib_cents, bool skip_attack_voices) {
-    for (auto& voice : activeQueue) {
-        if (skip_attack_voices) {
-            if (IsVoiceInVibratoFmDelay(voice)) {
-                continue;
-            }
-            voice->ApplyPitch(effect, vib_cents, true);
-            continue;
-        }
-        if (IsVoiceInAttackDelay(voice)) {
-            voice->ApplyPitch(effect, 0);
-            continue;
-        }
-        voice->ApplyPitch(effect, vib_cents);
-    }
-    for (auto& voice : holdQueue) {
-        if (skip_attack_voices) {
-            if (IsVoiceInVibratoFmDelay(voice)) {
-                continue;
-            }
-            voice->ApplyPitch(effect, vib_cents, true);
-            continue;
-        }
-        if (IsVoiceInAttackDelay(voice)) {
-            voice->ApplyPitch(effect, 0);
-            continue;
-        }
-        voice->ApplyPitch(effect, vib_cents);
+        voice->ApplyPitch(effect, vib_cents, allow_vib_dedup);
     }
 }
 
@@ -436,12 +335,8 @@ void NoteChannel::TickVibrato(uint32_t phase_ticks) {
     if (phase_ticks == 0) {
         phase_ticks = 1;
     }
-    if (ShouldAdvanceLfoPhase()) {
-        lfo_.phase += lfo_.phase_inc * phase_ticks;
-    }
-    const int16_t vib_cents = ComputeVibCents();
-    ApplyPitchToVoices(vib_cents, true);
-    last_vib_cents_sent_ = vib_cents;
+    lfo_.phase += lfo_.phase_inc * phase_ticks;
+    ApplyPitchToVoices(ComputeVibCents(), /*allow_vib_dedup=*/true);
 }
 
 int NoteChannel::NoteOn(int key, int velocity) {
@@ -484,8 +379,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
     // D1: チャンネル無音（active + hold が空）からの Note On のみ位相リセット。
     // 和音中の新音で裏旋律など既存 Voice のビブラート位相を乱さない。
     if (activeQueue.empty() && holdQueue.empty()) {
-        lfo_.phase           = 0;
-        last_vib_cents_sent_ = 0;
+        lfo_.phase = 0;
     }
 
     int mid = -1;  // 最近使ったmoduleが不明
@@ -493,7 +387,6 @@ int NoteChannel::NoteOn(int key, int velocity) {
     // holdQueue内の同一keyのVoiceを探して再利用 (TryRetrigger)
     for (auto it = holdQueue.begin(); it != holdQueue.end(); ++it) {
         if ((*it)->GetKey() == key) {
-            (*it)->MarkPitchAttackStart();
             if (!(*it)->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
                                      outputLR)) {
                 continue;
@@ -502,8 +395,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
             (*it)->SetVelocity(velocity);
             DPRINTF(3, " H%02d ", (*it)->id);
             moveVoice(holdQueue, it, activeQueue);  // activeQueueに移動
-            last_vib_cents_sent_ = ComputeVibCents();
-            ApplyPitchToVoices(last_vib_cents_sent_);
+            ApplyPitchToVoices(ComputeVibCents());
             return 1;
         }
         mid = (*it)->GetModuleId();  // 最近使ったmodule
@@ -511,7 +403,6 @@ int NoteChannel::NoteOn(int key, int velocity) {
     // activeQueue内の同一keyのVoiceを探して再利用
     for (auto& voice : activeQueue) {
         if (voice->GetKey() == key) {
-            voice->MarkPitchAttackStart();
             if (!voice->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
                                      outputLR)) {
                 mid = voice->GetModuleId();
@@ -520,8 +411,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
             // TryRetrigger成功時のみ再利用
             voice->SetVelocity(velocity);
             DPRINTF(3, " A%02d ", voice->id);
-            last_vib_cents_sent_ = ComputeVibCents();
-            ApplyPitchToVoices(last_vib_cents_sent_);
+            ApplyPitchToVoices(ComputeVibCents());
             return 1;
         }
         mid = voice->GetModuleId();  // 最近使ったmodule
@@ -547,11 +437,9 @@ int NoteChannel::NoteOn(int key, int velocity) {
     }
     // 新規にAllocateしたVoiceをActiveキューに追加
     voice->SetVelocity(velocity);
-    voice->MarkPitchAttackStart();
     voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR);
     activeQueue.push_back(voice);
-    last_vib_cents_sent_ = ComputeVibCents();
-    ApplyPitchToVoices(last_vib_cents_sent_);
+    ApplyPitchToVoices(ComputeVibCents());
 
     return 1;
 }
@@ -632,25 +520,21 @@ void NoteChannel::DataEntry_MSB(uint8_t val) {
             // 64以下は深さ0、65以上は超過分(+1..+63)を 0..126 へスケールする
             effect.vbdepth = (val > 64) ? static_cast<uint8_t>((val - 64) * 2) : 0;
             if (EffectiveVbdepth(effect.vbdepth) == 0) {
-                last_vib_cents_sent_ = 0;
                 ApplyPitchToVoices(0);
             } else {
-                last_vib_cents_sent_ = ComputeVibCents();
-                ApplyPitchToVoices(last_vib_cents_sent_);
+                ApplyPitchToVoices(ComputeVibCents());
             }
         }
     }
     if (pitch_changed) {
-        last_vib_cents_sent_ = ComputeVibCents();
-        ApplyPitchToVoices(last_vib_cents_sent_);
+        ApplyPitchToVoices(ComputeVibCents());
     }
 }
 
 void NoteChannel::PitchBend(int16_t val) {
     if (effect.pbv != val) {  // 変化があった時のみ適用
         effect.pbv = val;
-        last_vib_cents_sent_ = ComputeVibCents();
-        ApplyPitchToVoices(last_vib_cents_sent_);
+        ApplyPitchToVoices(ComputeVibCents());
     }
 }
 
@@ -658,11 +542,9 @@ void NoteChannel::SetModulation(uint8_t val) {
     if (effect.vbdepth != val) {  // 変化があった時のみ適用
         effect.vbdepth = val;
         if (EffectiveVbdepth(effect.vbdepth) == 0) {
-            last_vib_cents_sent_ = 0;
             ApplyPitchToVoices(0);
         } else {
-            last_vib_cents_sent_ = ComputeVibCents();
-            ApplyPitchToVoices(last_vib_cents_sent_);
+            ApplyPitchToVoices(ComputeVibCents());
         }
     }
 }

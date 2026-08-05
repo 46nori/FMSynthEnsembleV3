@@ -109,10 +109,10 @@ void RunVibrato(MidiEngineTaskContext* ctx, uint32_t phase_ticks) {
     }
 }
 
-bool ServiceVibratoIfDue(MidiEngineTaskContext* ctx, uint32_t& next_vibrato_us) {
+void ServiceVibratoIfDue(MidiEngineTaskContext* ctx, uint32_t& next_vibrato_us) {
     const uint32_t now_us = static_cast<uint32_t>(time_us_64());
     if (!TimeReached(next_vibrato_us, now_us)) {
-        return false;
+        return;
     }
 
     const uint32_t period = VibratoPeriodUs();
@@ -123,7 +123,6 @@ bool ServiceVibratoIfDue(MidiEngineTaskContext* ctx, uint32_t& next_vibrato_us) 
     } else {
         next_vibrato_us += period;
     }
-    return true;
 }
 
 constexpr uint32_t kIdleFmReconcilePeriodUs = 50000u;
@@ -314,7 +313,7 @@ void MidiEngineTask(void* param) {
         (void)DrainEffectQueue(ctx, MIDI_EFFECT_BATCH_MAX, now_us);
         HandleControlAndReset(ctx);
         DrainPendingNoteOffsIfQueueEmpty(ctx);
-        (void)ServiceVibratoIfDue(ctx, next_vibrato_us);
+        ServiceVibratoIfDue(ctx, next_vibrato_us);
         MaybeReconcileIdleFmKeys(ctx, next_reconcile_us);
 
         if (HasPendingMidiWork()) {
