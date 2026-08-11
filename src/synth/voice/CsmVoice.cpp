@@ -79,10 +79,13 @@ CsmVoice::CsmVoice(std::array<OpnBase*, 4>& modules, int id)
       lastFrame(0),
       isLastFrame(false),
       running(false) {
-    // 実装済みの物理Dockを先頭から順にスキャンし、dock_indicesに記録する
-    // 中間Dockが欠けた構成 (例: Dock0=null, Dock1=null, Dock2=valid) にも対応
+    // CSM対応 (has_csm()) の物理Dockを先頭から順にスキャンし、dock_indicesに記録する。
+    // 中間Dockが欠けた構成 (例: Dock0=null, Dock1=null, Dock2=valid) にも対応。
+    // has_csm()==falseのモジュール (YMF288等) はここで除外する。MidiFactoryのCH3(ch2)予約判定
+    // (has_csm() && csm_reserved_modules < kCsmReservedModules) と同じ条件・同じdock順で
+    // 選ばないと、CSM未予約のch2 (NoteVoice化済み) をCsmVoiceが上書きしてしまう。
     for (int i = 0; i < static_cast<int>(modules.size()); ++i) {
-        if (modules[i] != nullptr) {
+        if (modules[i] != nullptr && modules[i]->has_csm()) {
             dock_indices[num_modules++] = i;
         }
     }
@@ -108,10 +111,10 @@ void CsmVoice::Reset() {
     CsmSignalStop();
 
     // コンストラクタと同じ設定にする
-    SetNoteOnCount(0);
     SetChannel(-1);
     bk_program   = -1;
     volume       = -1;
+    velocity     = -1;
     key          = -1;
     SetProgram(0);
     SetVolume(100);
@@ -127,12 +130,12 @@ void CsmVoice::SetProgram(int32_t no) {
 }
 
 void CsmVoice::SetVolume(int vol) {
+    if (vol < 0) return;  // volume=-1は現在の設定を維持（NoteVoiceと同じ扱い）
     volume = vol;
 }
 
 void CsmVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect, uint8_t lr) {
     (void)effect;
-    IncrementNoteOnCount();
     CsmSignalStart(note, bk_program, volume, lr);
 }
 
@@ -146,7 +149,6 @@ bool CsmVoice::TryRetrigger(int note, int32_t program, int vol, ChannelEffects& 
 }
 
 void CsmVoice::NoteOff() {
-    SetNoteOnCount(0);
 #if ENABLE_CSM_STOP_IMMEDIATE != 0
     CsmSignalStop();
 #endif

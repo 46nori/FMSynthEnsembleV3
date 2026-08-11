@@ -175,7 +175,7 @@ public:
     /**
      * @brief Note Off
      * @param key MIDI Note No.
-     * @return -1:Fail, 0:NoteOff
+     * @return -1:Fail, 0:NoteOff, 1:Keep NoteOn（Hold1でNoteOffを保留した場合）
      */
     int NoteOff(int key) override;
 
@@ -233,8 +233,11 @@ public:
     /** @brief MidiEngineTask から呼ぶ（phase_ticks 周期分の LFO 位相を進める） */
     void TickVibrato(uint32_t phase_ticks) override;
 
-    /** @brief activeQueue / holdQueue のいずれかに Voice がある */
-    bool IsVoiceSounding(const Voice* voice) const;
+    /** @brief 現在のLFO位相からビブラート偏差を再計算し、active/hold の全 Voice に適用する */
+    void RefreshPitch() override;
+
+    /** @brief active・hold の全 Voice へ現在の音量設定を再適用する（FM TL Trim 切替用） */
+    void RefreshActiveFmVolume() override;
 
     // Debug
     void dump() override;

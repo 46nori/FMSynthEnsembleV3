@@ -25,3 +25,7 @@
 - [YM2608データシート(日本語版)](./YM2608_DataSheet_jp.pdf) : FM音源 OPNA
 - [YM2608アプリケーションマニュアル(日本語版)](./YM2608_ApplicationManual_jp.pdf)
 - [YM3016データシート](./YM3016_DataSheet_jp.pdf) (D/Aコンバータ)
+
+### YMF288 (OPN3-L)
+- [YMF288データシート(日本語版)](./YMF288_jp.pdf)
+- [BU9480Fデータシート](./BU9480F_jp.pdf) （D/Aコンバータ)

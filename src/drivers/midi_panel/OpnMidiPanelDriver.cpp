@@ -5,7 +5,6 @@
 // See LICENSE file for details.
 //
 #include "OpnMidiPanelDriver.h"
-#include "OpnBase.h"
 
 #include "hardware/timer.h"
 #include "pico/time.h"
@@ -23,8 +22,8 @@ constexpr uint8_t kPbBit7LedModeMask = 0x80;
 
 } 
 
-OpnMidiPanelDriver::OpnMidiPanelDriver(OpnBase& opn)
-    : opn_(opn),
+OpnMidiPanelDriver::OpnMidiPanelDriver(IIoPort& io)
+    : io_(io),
       config_{.debounce_ms = 20, .toggle_hold_ms = 30, .long_press_ms = 2000, .settle_us = 100},
       host_led_bitmap_(0),
       switch_bitmap_(0xffff),  // 全 CH トグル ON
@@ -40,8 +39,8 @@ OpnMidiPanelDriver::OpnMidiPanelDriver(OpnBase& opn)
 }
 
 void OpnMidiPanelDriver::Initialize() {
-    opn_.set_port_direction(true, false);
-    opn_.write_port_a(kBlankPortA);
+    io_.set_port_direction(true, false);
+    io_.write_port_a(kBlankPortA);
 
     // 1 フレーム分スキャンして初期押下状態を確定
     for (int i = 0; i < 4; ++i) {
@@ -120,13 +119,13 @@ void OpnMidiPanelDriver::Tick() {
     const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
 
     // 列切替と PB 安定待ち
-    opn_.write_port_a(kColumnPortA[prev_col]);
-    opn_.write_port_a(kColumnPortA[col]);
+    io_.write_port_a(kColumnPortA[prev_col]);
+    io_.write_port_a(kColumnPortA[col]);
     if (config_.settle_us > 0) {
         busy_wait_us(config_.settle_us);
     }
 
-    const uint8_t pb_raw = opn_.read_port_b();
+    const uint8_t pb_raw = io_.read_port_b();
     const uint8_t pressed_rows = static_cast<uint8_t>((~pb_raw) & 0x0Fu);
     const bool led_mode_midi = (pb_raw & kPbBit7LedModeMask) == 0u;  // PB bit7: Low=モードB
 
@@ -151,9 +150,9 @@ void OpnMidiPanelDriver::Tick() {
 
     if (led_row != 0) {
         const uint8_t pa = static_cast<uint8_t>((led_row << 4) | kColumnPortA[col]);
-        opn_.write_port_a(pa);
+        io_.write_port_a(pa);
     } else {
-        opn_.write_port_a(kBlankPortA);  // 当列 LED なし
+        io_.write_port_a(kBlankPortA);  // 当列 LED なし
     }
 
     scan_column_ = static_cast<uint8_t>((col + 1u) % 4u);

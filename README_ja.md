@@ -4,15 +4,15 @@
 
 **[English version is here](README.md)**
 
-![](./doc/image/YM2608.jpeg)
+![](./doc/image/FMSynthEnsembleV3.jpeg)
 
-YAMAHAのFM音源LSIを使ったUSB MIDIシンセサイザ。
+YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ。
 
 - システムコントローラ: **Raspberry Pi Pico**（RP2040 / RP2350A 対応）
-- FM 音源 LSI: **YM2608 (OPNA)** または **YM2203 (OPN)** を最大 4 基搭載（混在可）
+- FM 音源 LSI: **YM2608 (OPNA)** / **YM2203 (OPN)** / **YMF288　（OPN3-L)** を最大 4 基搭載（混在可・自動識別）
 - MIDI: 16 チャンネル、最大 24 音のマルチティンバー・ポリフォニック
-  - YM2608 × 4基の場合。YM2203は1基あたりFM3音
-- CSM（複合正弦波）音声合成に対応
+  - YM2608 または YMF288 × 4基の場合。YM2203は1基あたりFM3音
+- CSM（複合正弦波）音声合成に対応 (YM2608/YM2203)
 
 設計ドキュメント・回路図の一覧は [doc/README.md](doc/README.md) を参照。
 
@@ -152,14 +152,10 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/overview_1.jpeg"><img src="doc/image/overview_1.jpeg" width="280" alt="全体像 1"></a><br>
+      <a href="doc/image/FMSynthEnsembleV3.jpeg"><img src="doc/image/FMSynthEnsembleV3.jpeg" width="280" alt="全体像 1"></a><br>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/overview_2.jpeg"><img src="doc/image/overview_2.jpeg" width="280" alt="全体像 2"></a><br>
-    </td>
-    <td align="center" width="33%">
-      <a href="doc/image/overview_3.jpeg"><img src="doc/image/overview_3.jpeg" width="280" alt="全体像 3"></a><br>
-      <sub>MIDI接続・再生</sub>
+      <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="全体像 2"></a><br>
     </td>
   </tr>
 </table>
@@ -169,54 +165,62 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/module_controller.jpeg"><img src="doc/image/module_controller.jpeg" width="280" alt="コントローラモジュール"></a><br>
-      <b>コントローラモジュール</b><br>
-      <sub>Raspberry Pi Pico2<br>OPNAモジュール用コネクタ(裏面)</sub>
-    </td>
-    <td align="center" width="33%">
-      <a href="doc/image/module_ym2608.jpeg"><img src="doc/image/module_ym2608.jpeg" width="280" alt="OPNA モジュール"></a><br>
-      <b>OPNAモジュール</b><br>
+      <a href="doc/image/YM2608_Module.jpeg"><img src="doc/image/YM2608_Module.jpeg" width="280" alt="OPNA モジュール"></a><br>
+      <b>YM2608モジュール</b><br>
       <sub>YM2608B + YM3016<br>MIDI Panel接続コネクタ</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/module_mixer.jpeg"><img src="doc/image/module_mixer.jpeg" width="280" alt="ミキサーモジュール"></a><br>
-      <b>ミキサーモジュール</b><br>
-      <sub>OPNAモジュール出力の<br>オーディオミックス<br>LINE IN/OUT</sub>
+      <a href="doc/image/YM2203_Module.jpeg"><img src="doc/image/YM2203_Module.jpeg" width="280" alt="YM2203 モジュール"></a><br>
+      <b>YM2203モジュール</b><br>
+      <sub>YM2203 + YM3014B<br>MIDI Panel接続コネクタ</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/YMF288_Module.jpeg"><img src="doc/image/YMF288_Module.jpeg" width="280" alt="YMF288 モジュール"></a><br>
+      <b>YMF288モジュール</b><br>
+      <sub>YMF288 + BU9480F</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/module_power.jpeg"><img src="doc/image/module_power.jpeg" width="280" alt="電源モジュール"></a><br>
+      <a href="doc/image/Main_Module.jpeg"><img src="doc/image/Main_Module.jpeg" width="280" alt="コントローラモジュール"></a><br>
+      <b>コントローラモジュール</b><br>
+      <sub>Raspberry Pi Pico2<br>FM音源モジュール用コネクタ(裏面)</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/AudioMixer_Module.jpeg"><img src="doc/image/AudioMixer_Module.jpeg" width="280" alt="ミキサーモジュール"></a><br>
+      <b>ミキサーモジュール</b><br>
+      <sub>FM音源モジュール出力の<br>オーディオミックス</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/Power_Module.jpeg"><img src="doc/image/Power_Module.jpeg" width="280" alt="電源モジュール"></a><br>
       <b>電源モジュール</b><br>
       <sub>+6V, 2A入力<br>+5V / ±12V 出力</sub>
     </td>
+  </tr>
+  <tr>
     <td align="center" width="33%">
-      <a href="doc/image/module_midi_panel.jpeg"><img src="doc/image/module_midi_panel.jpeg" width="280" alt="MIDI パネル"></a><br>
+      <a href="doc/image/MIDIPanel.jpeg"><img src="doc/image/MIDIPanel.jpeg" width="280" alt="MIDI パネル"></a><br>
       <b>MIDIパネルモジュール</b><br>
-      <sub>16CH ON/OFF + LED<br>OPNAモジュールへ接続</sub>
+      <sub>16CH ON/OFF + LED<br>YM2608/YM2203モジュールへ接続</sub>
     </td>
+    <td></td>
     <td></td>
   </tr>
 </table>
 
-### スタック構成　/ Dock接続
+### モジュール接続
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/stack_1.jpeg"><img src="doc/image/stack_1.jpeg" width="280" alt="スタック上面"></a><br>
-      <b>上面</b><br>
-      <sub>コントローラと電源モジュール<br>のサイドスタック</sub>
+      <a href="doc/image/StackedModules.jpeg"><img src="doc/image/StackedModules.jpeg" width="280" alt="スタック上面"></a><br>
+      <b>スタック</b><br>
+      <sub>FM音源モジュールを4枚まで接続可能<br></sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/stack_2.jpeg"><img src="doc/image/stack_2.jpeg" width="280" alt="スタック側面"></a><br>
-      <b>側面</b><br>
-      <sub>OPNAモジュールの接続</sub>
-    </td>
-    <td align="center" width="33%">
-      <a href="doc/image/stack_3.jpeg"><img src="doc/image/stack_3.jpeg" width="280" alt="Dock接続"></a><br>
+      <a href="doc/image/BackPlane.jpeg"><img src="doc/image/BackPlane.jpeg" width="280" alt="Dock接続"></a><br>
       <b>Dock 接続</b><br>
-      <sub>OPNAモジュールのDock接続</sub>
+      <sub>コントローラモジュールの裏面</sub>
     </td>
   </tr>
 </table>

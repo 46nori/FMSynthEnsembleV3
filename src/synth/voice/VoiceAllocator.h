@@ -6,13 +6,10 @@
 //
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <vector>
 #include "CsmVoice.h"
 #include "IVoiceReclaimable.h"
-#include "MidiChannel.h"
-#include "NoteVoice.h"
 #include "config.h"
 
 /**
@@ -84,14 +81,6 @@ public:
      * @details MIDI Channelに割り当て済みのVoiceを解放し、全Voiceをリセットする
      */
     void Reset();
-
-    /**
-     * @brief 発音中のNoteVoiceへ現在の音量設定を再適用する
-     */
-    void RefreshActiveFmVolume();
-
-    /** @brief active/hold 外の NoteVoice へ KeyOff を送る（ゴースト音対策） */
-    void ReconcileIdleFmKeys(const std::array<MidiChannel*, MIDI_CHANNELS>& channels);
 
     //
     // For debug

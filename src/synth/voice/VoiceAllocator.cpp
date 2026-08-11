@@ -9,9 +9,6 @@
 #include "config.h"
 #include "VoiceLimits.h"
 #include "VoiceAllocator.h"
-#include "NoteVoice.h"
-#include "NoteChannel.h"
-#include "RhythmChannel.h"
 #include "debugger.h"
 
 VoiceAllocator::VoiceAllocator() : failed_count(0) {
@@ -104,41 +101,6 @@ void VoiceAllocator::Reset() {
     // 全Voiceをリセット
     for (auto& voice : voice_pool) {
         voice->Reset();
-    }
-}
-
-void VoiceAllocator::RefreshActiveFmVolume() {
-    for (auto* voice : voice_pool) {
-        if (voice->GetType() || voice->GetNoteOnCount() == 0) {
-            continue;
-        }
-        static_cast<NoteVoice*>(voice)->RefreshVolume();
-    }
-}
-
-void VoiceAllocator::ReconcileIdleFmKeys(const std::array<MidiChannel*, MIDI_CHANNELS>& channels) {
-    for (Voice* voice : voice_pool) {
-        if (voice->GetType()) {
-            continue;
-        }
-        const auto* nv = static_cast<const NoteVoice*>(voice);
-        if (!nv->ShouldReconcileSilence()) {
-            continue;
-        }
-        bool sounding = false;
-        for (int ch = 0; ch < MIDI_CHANNELS; ++ch) {
-            if (ch == RhythmChannel::MIDI_RHYTHM_CHANNEL) {
-                continue;
-            }
-            const auto* nc = static_cast<const NoteChannel*>(channels[ch]);
-            if (nc->IsVoiceSounding(voice)) {
-                sounding = true;
-                break;
-            }
-        }
-        if (!sounding) {
-            static_cast<NoteVoice*>(voice)->ForceSilenceHardwareKey();
-        }
     }
 }
 

@@ -12,9 +12,13 @@
  */
 class YM2203 : public OpnBase {
 public:
-    YM2203(const fm_device_t *dev, int id) : OpnBase(dev, id) {}
+    YM2203(const fm_device_t *dev, int id);
     YM2203() = delete;
     virtual ~YM2203() {}
 
-    virtual int fm_get_channels() override { return 3; }
+    virtual int fm_get_channels() override { return kFmChannels; }
+    virtual void init() override;
+
+private:
+    static constexpr int kFmChannels = 3;
 };

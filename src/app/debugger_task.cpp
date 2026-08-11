@@ -430,7 +430,11 @@ int c_trim(token_list* t) {
             return ERR_PARAM_VAL;
         }
         OpnBase::SetTLTrimEnabled(mode != 0);
-        VoiceAllocator::GetInstance().RefreshActiveFmVolume();
+        if (gDebuggerCtx != nullptr && gDebuggerCtx->channels != nullptr) {
+            for (auto* ch : *gDebuggerCtx->channels) {
+                ch->RefreshActiveFmVolume();
+            }
+        }
     }
     std::printf("FM TL Trim: %s\n", OpnBase::IsTLTrimEnabled() ? "ON" : "OFF");
 #else

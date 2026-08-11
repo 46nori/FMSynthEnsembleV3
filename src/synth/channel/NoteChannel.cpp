@@ -131,7 +131,6 @@ void NoteChannel::releaseHoldQueue() {
 }
 
 void NoteChannel::finishNoteOff(VoiceQueue& queue, VoiceQueue::iterator it) {
-    (*it)->SetNoteOnCount(0);
     (*it)->NoteOff();
     moveVoice(queue, it, freeQueue);
 }
@@ -142,29 +141,11 @@ Voice* NoteChannel::stealVoiceFromQueue(VoiceQueue& queue, bool type) {
             continue;
         }
         Voice* voice = *it;
-        voice->SetNoteOnCount(0);
         voice->NoteOff();
         queue.erase(it);
         return voice;
     }
     return nullptr;
-}
-
-bool NoteChannel::IsVoiceSounding(const Voice* voice) const {
-    if (voice == nullptr) {
-        return false;
-    }
-    for (const Voice* v : activeQueue) {
-        if (v == voice) {
-            return true;
-        }
-    }
-    for (const Voice* v : holdQueue) {
-        if (v == voice) {
-            return true;
-        }
-    }
-    return false;
 }
 
 Voice* NoteChannel::scanFreeVoice(int start_index, int step, int mid, bool type) {
@@ -328,6 +309,19 @@ void NoteChannel::ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup) {
     }
 }
 
+void NoteChannel::RefreshPitch() {
+    ApplyPitchToVoices(ComputeVibCents());
+}
+
+void NoteChannel::RefreshActiveFmVolume() {
+    for (auto& voice : activeQueue) {
+        voice->RefreshVolume();
+    }
+    for (auto& voice : holdQueue) {
+        voice->RefreshVolume();
+    }
+}
+
 void NoteChannel::TickVibrato(uint32_t phase_ticks) {
     if (EffectiveVbdepth(effect.vbdepth) == 0 || !IsActive()) {
         return;
@@ -450,12 +444,12 @@ int NoteChannel::NoteOff(int key) {
             if (hold1 == false) {
                 DPRINTF(3, " -%02d ", (*it)->id);
                 finishNoteOff(activeQueue, it);
-            } else {
-                // Hold状態なのでNoteOffを保留する
-                DPRINTF(3, " H%02d ", (*it)->id);
-                moveVoice(activeQueue, it, holdQueue);
+                return 0;
             }
-            return 0;
+            // Hold状態なのでNoteOffを保留する
+            DPRINTF(3, " H%02d ", (*it)->id);
+            moveVoice(activeQueue, it, holdQueue);
+            return 1;
         }
         ++it;
     }
@@ -481,7 +475,7 @@ void NoteChannel::AllNoteOff() {
         auto it = activeQueue.begin();
         finishNoteOff(activeQueue, it);
     }
-    // freeQueue内のVoiceはfinishNoteOff()で既にSetNoteOnCount(0)/NoteOff()済みのため、
+    // freeQueue内のVoiceはfinishNoteOff()で既にNoteOff()済みのため、
     // ここでの再処理は不要（KeyOffのFM再送はバス帯域の無駄になる）。
 }
 

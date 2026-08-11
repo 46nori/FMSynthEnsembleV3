@@ -35,10 +35,10 @@
   Raspberry Pi Pico (RP2350 or RP2040)
 
   PIO0 ─── FM Bus (8-bit data, addr, CS×4, RD/WR, IRQ)
-               ├── Dock0: YM2608 / YM2203
-               ├── Dock1: YM2608 / YM2203
-               ├── Dock2: YM2608 / YM2203
-               └── Dock3: YM2608 / YM2203
+               ├── Dock0: YM2608 / YM2203 / YMF288
+               ├── Dock1: YM2608 / YM2203 / YMF288
+               ├── Dock2: YM2608 / YM2203 / YMF288
+               └── Dock3: YM2608 / YM2203 / YMF288
 
   PIO1 ─── 2-wire serial → NJU72343 (電子ボリューム)
 
@@ -62,7 +62,7 @@ FMSynthEnsembleV3/
 │   ├── midi/              MIDI パース・ルーティングレイヤ
 │   ├── synth/             シンセサイザー抽象化レイヤ
 │   ├── drivers/           デバイスドライバレイヤ
-│   │   ├── fm/            FM音源ドライバ (YM2608, YM2203, OpnBase, opn_piolib)
+│   │   ├── fm/            FM音源ドライバ (YM2203, YM2608, YMF288, OpnBase, opn_piolib)
 │   │   ├── midi_panel/    MIDI パネルドライバ (FM 経由 LED matrix + スイッチ)
 │   │   ├── storage/       ストレージドライバ (FatFs)
 │   │   └── usb/           USB MIDI ドライバ (TinyUSB)
@@ -153,9 +153,10 @@ synth/
 
 | ファイル | 役割 |
 |---------|------|
-| `OpnBase.h/cpp` | YM2203/YM2608 共通インターフェース（抽象基底クラス） |
-| `YM2203.h` | YM2203 固有実装 |
-| `YM2608.h/cpp` | YM2608 固有実装（FM 6ch + Rhythm + ADPCM） |
+| `OpnBase.h/cpp` | YM2203/YM2608/YMF288 共通インターフェース（抽象基底クラス） |
+| `YM2203.h/cpp` | YM2203 固有実装（FM 3ch + SSG） |
+| `YM2608.h/cpp` | YM2608 固有実装（FM 6ch + Rhythm + SSG + LFO） |
+| `YMF288.h/cpp` | YMF288 固有実装（FM 6ch + Rhythm + SSG + LFO、I/O ポートなし） |
 | `tone/tone_table.inc` | FM パラメータテーブル（インクルードデータ） |
 | `opn_piolib/` | PIO を使った FM 音源 LSI のバス操作ライブラリ |
 

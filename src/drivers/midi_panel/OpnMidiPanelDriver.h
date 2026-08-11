@@ -9,20 +9,20 @@
 #include <cstdint>
 
 #include "IMidiPanelDriver.h"
-
-class OpnBase;
+#include "OpnFeatures.h"
 
 /**
  * @brief OPN PortA/B 経由の PanelSubsystem 具象ドライバ
  * @details マトリックススキャン・ソフトトグル・PB bit7 LED モード（A/B）を担当する。
+ *          IIoPort フィーチャを持つモジュール（YM2203 / YM2608）専用。
  */
 class OpnMidiPanelDriver final : public IMidiPanelDriver {
 public:
     /**
      * @brief コンストラクタ
-     * @param [in] opn PortA/B を持つ FM モジュール
+     * @param [in] io SSG I/O ポートフィーチャ（io_port() が非 null のもの）
      */
-    explicit OpnMidiPanelDriver(OpnBase& opn);
+    explicit OpnMidiPanelDriver(IIoPort& io);
 
     bool IsAvailable() const override { return true; }
 
@@ -58,7 +58,7 @@ private:
     void UpdateChannelInput(int ch_index, bool raw_pressed, uint32_t now_ms);
     void RebuildSwitchBitmap();
 
-    OpnBase& opn_;
+    IIoPort& io_;
     HardwareConfig config_;
     uint16_t host_led_bitmap_;   ///< SetLedBitmap で受け取る（モード B 用）
     uint16_t switch_bitmap_;     ///< トグル後 CH ON/OFF
