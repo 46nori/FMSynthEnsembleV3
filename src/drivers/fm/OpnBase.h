@@ -6,7 +6,9 @@
 //
 #pragma once
 #include <cstdint>
+#include <memory>
 
+#include "OpnFeatures.h"
 #include "opn_piolib.h"
 
 // Enable Total level equalization (TL Trim)
@@ -25,6 +27,14 @@ private:
 protected:
     const fm_device_t *dev;
 
+    // フィーチャ（オプション機能）: nullptr のチップにはその機能がない
+    std::unique_ptr<IRhythm> rhythm_feature_;
+    std::unique_ptr<IIoPort> io_feature_;
+    ChipKind kind_        = ChipKind::YM2203;
+    bool     csm_capable_ = true;
+
+    // プリスケーラ書き込みは各具象クラスが init() で行う。
+
 public:
     const int id;  // debug
 
@@ -39,8 +49,16 @@ public:
     virtual ~OpnBase() {}
 
     /**
-     * @brief Initialize 
-     * @details Trun off key of FM and SSG
+     * @brief 共通初期化（SSG・全 FM チャンネルのミュート等）
+     * @details FM チャンネル数は fm_get_channels() で自動解決する。
+     *
+     * ### override 規約
+     * 具象クラスが init() を override する場合、必ず OpnBase::init() を呼ぶこと。
+     * 呼び出し順序は以下の通り:
+     *   1. チップ固有モード設定（プリスケーラ等）
+     *   2. チップ固有リセット（LFO 状態等）
+     *   3. OpnBase::init()  ← ここで FM/SSG 共通初期化
+     *   4. チップ固有後処理（モード/IRQ レジスタ・リズムミュート等）
      */
     virtual void init();
 
@@ -49,6 +67,16 @@ public:
      * @return Number of FM channels
      */
     virtual int fm_get_channels();
+
+    // ---- フィーチャ照会 ----
+    /** @brief リズム音源フィーチャ。nullptr = リズム非搭載 (YM2203 等) */
+    IRhythm* rhythm()   const { return rhythm_feature_.get(); }
+    /** @brief SSG I/O ポートフィーチャ。nullptr = I/O ポートなし (YMF288 等) */
+    IIoPort* io_port()  const { return io_feature_.get(); }
+    /** @brief CSM モード対応チップなら true */
+    bool     has_csm() const { return csm_capable_; }
+    /** @brief チップ種別 */
+    ChipKind chip_kind() const { return kind_; }
 
     /////////////////////////////////////////////////////////
     // FM
@@ -285,36 +313,6 @@ public:
     void set_fmch3_mode(uint8_t mode);
 
     /////////////////////////////////////////////////////////
-    // I/O PORT
-    /////////////////////////////////////////////////////////
-    /**
-     * @brief Set I/O port direction
-     * @param [in] pa : PORT A true:OUT, false:IN
-     * @param [in] pb : PORT B true:OUT, false:IN
-     */
-    void set_port_direction(bool pa, bool pb);
-
-    /**
-     * Write to I/O port A
-     */
-    void write_port_a(uint8_t data);
-
-    /**
-     * @brief Write to I/O port B
-     */
-    void write_port_b(uint8_t data);
-
-    /**
-     * @brief Read I/O port A
-     */
-    uint8_t read_port_a();
-
-    /**
-     * @brief Read I/O port B
-     */
-    uint8_t read_port_b();
-
-    /////////////////////////////////////////////////////////
     // Status
     /////////////////////////////////////////////////////////
     /**
@@ -325,19 +323,13 @@ public:
     uint8_t read_status(int a1 = 0);
 
     /////////////////////////////////////////////////////////
-    // YM2608
+    // YM2608 / YMF288 (LFO/LR — YM2203 では書かない; harm は小さい)
     /////////////////////////////////////////////////////////
-    // LFO
     virtual void fm_turnon_LFO(uint8_t freq) {}
     virtual void fm_turnoff_LFO() {}
     virtual void fm_set_LFO_PMS(uint8_t ch, uint8_t pms, uint8_t lr = 0xc0) {}
     virtual void fm_set_LFO_AMS(uint8_t ch, uint8_t op, uint8_t ams, uint8_t lr = 0xc0) {}
     virtual void fm_set_output_lr(uint8_t ch, uint8_t lr) {}
-    // Rhythm
-    virtual void rtm_turnon_key(int rtm) {}
-    virtual void rtm_damp_key(int rtm) {}
-    virtual void rtm_set_total_level(uint8_t tl) {}
-    virtual void rtm_set_inst_level(int rtm, uint8_t tl, uint8_t lr = 0xc0) {}
 
     /* FM pitch table */
     static constexpr uint16_t fm_pitch_table[] = {

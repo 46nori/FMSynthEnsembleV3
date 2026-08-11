@@ -26,10 +26,10 @@ OpnBase::OpnBase(const fm_device_t *dev, int id)
 }
 
 void OpnBase::init() {
+    // 呼び出し順序は OpnBase.h の override 規約を参照。
     ch3_mode   = 0;  // Set FM CH3 normal mode
     timer_mode = 0;  // Reset timer settings
 
-    ::write_reg(dev, 0x2d, 0, 0x00);  // Set Prescaler 1/6
     ::write_reg(dev, 0x27, 0, 0x30);  // Normal mode, Reset Timer and IRQ and flags
 
     ::write_reg(dev, 0x07, 0, 0xff);  // SSG noise/tone off
@@ -37,8 +37,7 @@ void OpnBase::init() {
     ::write_reg(dev, 0x09, 0, 0x00);  // SSG Channel B volume 0
     ::write_reg(dev, 0x0a, 0, 0x00);  // SSG Channel C volume 0
 
-    // default for OPN
-    for (int ch = 0; ch < 3; ch++) {
+    for (int ch = 0; ch < fm_get_channels(); ch++) {
         fm_turnoff_key(ch);        // Turn Off Key
         fm_set_fnumber(ch, 0, 0);  // Block/F-Number
         for (int op = 0; op < 4; op++) {
@@ -375,41 +374,6 @@ void OpnBase::set_fmch3_mode(uint8_t mode) {
         ch3_mode = mode << 6;
         ::write_reg(dev, 0x27, 0, ch3_mode | timer_mode);
     }
-}
-
-/////////////////////////////////////////////////////////
-// I/O PORT
-/////////////////////////////////////////////////////////
-void OpnBase::set_port_direction(bool pa, bool pb) {
-    uint8_t data = ::read_reg(dev, 0x07, 0) & 0x3f;
-    // D6=IOA, D7=IOB: 1=output, 0=input
-    if (pa) {
-        data |= 0x40;
-    } else {
-        data &= 0xbf;
-    }
-    if (pb) {
-        data |= 0x80;
-    } else {
-        data &= 0x7f;
-    }
-    ::write_reg(dev, 0x07, 0, data);
-}
-
-void OpnBase::write_port_a(uint8_t data) {
-    ::write_reg(dev, 0x0e, 0, data);
-}
-
-void OpnBase::write_port_b(uint8_t data) {
-    ::write_reg(dev, 0x0f, 0, data);
-}
-
-uint8_t OpnBase::read_port_a() {
-    return ::read_reg(dev, 0x0e, 0);
-}
-
-uint8_t OpnBase::read_port_b() {
-    return ::read_reg(dev, 0x0f, 0);
 }
 
 /////////////////////////////////////////////////////////

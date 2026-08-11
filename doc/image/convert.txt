@@ -1,0 +1,14 @@
+README.mdで使用している写真を以下のようにファイル名を差し替えて。古い名前のファイルは削除して。
+
+module_controller.jpeg    →   Main_Module.jpeg
+module_midi_panel.jpeg    →   MIDIPanel.jpeg 
+module_mixer.jpeg         →   AudioMixer_Module.jpeg
+module_power.jpeg         →   Power_Module.jpeg
+module_ym2608.jpeg        →   YM2608_Module.jpeg
+overview_1.jpeg           →   FMSynthEnsembleV3.jpeg
+overview_2.jpeg           →   ConnectedModules.jpeg 
+overview_3.jpeg           →   削除
+stack_1.jpeg              →   StackedModules.jpeg
+stack_2.jpeg              →   削除
+stack_3.jpeg              →   BackPlane.jpeg
+YM2608.jpeg               →   FMSynthEnsembleV3.jpeg

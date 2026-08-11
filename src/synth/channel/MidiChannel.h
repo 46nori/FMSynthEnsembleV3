@@ -209,6 +209,19 @@ public:
     }
 
     /**
+     * @brief 現在のビブラート位相からピッチを再計算し、発音中・保持中の Voice に再適用する
+     * @details 既定は非対応(no-op)。ピッチ制御を持つ派生（NoteChannel）でoverrideする。
+     */
+    virtual void RefreshPitch() {}
+
+    /**
+     * @brief 発音中・保持中の Voice へ現在の音量設定を再適用する
+     * @details 既定は非対応(no-op)。Voice を持つ派生（NoteChannel）でoverrideする。
+     *          FM TL Trim の実行時切替（デバッガ `trim` コマンド）用。
+     */
+    virtual void RefreshActiveFmVolume() {}
+
+    /**
      * @brief CC#121 Reset All Controller
      * @details Program, Volume, Panはリセットされない
      */

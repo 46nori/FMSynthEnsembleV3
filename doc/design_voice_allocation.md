@@ -104,13 +104,10 @@ Note On ごとに以下を実施する。
 
 ## 6. 状態と不変条件
 
-Voice の状態は ACTIVE / HOLD / FREE の 3 つ。補助属性として `midi_ch`, `note_no`, `note_on_count`, `module_id` を持つ。
+Voice の状態は ACTIVE（`activeQueue`）/ HOLD（`holdQueue`）/ FREE（`freeQueue`）の 3 つ。どのキューに属するかがそのまま状態を表す。補助属性として `midi_ch`, `note_no`, `module_id` を持つ。
 
 不変条件:
 
-- `note_on_count >= 0`
-- HOLD/FREE では `note_on_count == 0`
-- ACTIVE では `note_on_count >= 1`
 - CsmVoice は同音再利用（Retrigger）の対象外とする
 
 ## 7. イベント処理
@@ -142,9 +139,9 @@ flowchart TD
 ### 7.2 Note Off
 
 1. activeQueue から一致 Voice を取得する
-2. `note_on_count` を減算する
-3. 0 より大きければ発音を継続する
-4. 0 なら Hold1 状態に応じて holdQueue（Hold1 ON）または freeQueue（Hold1 OFF、KeyOff 実行）へ遷移する
+2. Hold1 が OFF なら、KeyOff を実行して freeQueue へ遷移する
+3. Hold1 が ON なら、KeyOff は送らず holdQueue へ移動するのみ
+4. activeQueue に一致がなく Hold1 が OFF なら holdQueue も探索し、一致すれば同様に freeQueue へ遷移する
 
 ### 7.3 CC64 (Hold1)
 
@@ -165,7 +162,6 @@ flowchart TD
 
 - 本実装のチャンネル番号は 0..15 前提で扱う
 - 調停対象から req_ch を除外する条件を必ず保持する
-- `note_on_count` の下限ガードを省略しない
 - キュー操作はクリティカルセクションで保護する
 - `AddReclaimTarget()` の登録順は ch 昇順を維持し、調停順序 ch=15 → ch=0 を不変に保つ
 - 同音再利用で Retrigger を使うのは NoteVoice のみに限定する

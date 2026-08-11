@@ -21,7 +21,7 @@ private:
     int operators;                      // 使用するオペレータ数
     int num_modules;                    // 使用するFM音源モジュール数 (Init()で確定)
     int modTB;                          // Timer Bを使用するFM音源モジュールの物理Dockインデックス
-    std::array<int, 4> dock_indices;    // 実装済みモジュールの物理Dockインデックス一覧 (コンストラクタで確定)
+    std::array<int, 4> dock_indices;    // CSM対応モジュールの物理Dockインデックス一覧 (コンストラクタで確定)
 
     int frame;         // 現在再生中のフレーム
     int interp_count;  // 現在の補間回数
@@ -113,7 +113,7 @@ public:
      * @details PitchBendを指定しない場合はeffect.pbv=0とする
      */
     void ApplyPitch(const ChannelEffects& fx, int16_t vib_cents,
-                    bool allow_vib_dedup = false) override;
+                    bool allow_vib_dedup) override;
 
     void SetPan(uint8_t lr) override;
 

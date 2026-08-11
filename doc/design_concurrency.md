@@ -119,8 +119,6 @@ flowchart TD
 
 本設計では演奏中のレイテンシを優先し、Reset / DebugDump / DebugStats などの制御イベントは MIDI イベント処理の後に扱う。Reset は多少の遅延を許容するが、各ループで最大 1 件の制御イベントを確認するため、連続 MIDI 受信中でも制御イベントが無期限に滞留することはない。
 
-このほか、有効チャンネルがすべて無音のときは周期的に `VoiceAllocator::ReconcileIdleFmKeys()` を呼び、FM 側の KeyOn 残留を解消する（実装は `midi_engine_task.cpp`）。
-
 ### 3.3 UsbMidiTask（Core0 固定）
 
 **役割**: TinyUSB スタック維持と MIDI メッセージの前処理。

@@ -5,64 +5,18 @@
 // See LICENSE file for details.
 //
 #include "YM2608.h"
+#include "OpnRhythm.h"
+#include "OpnSsgIoPort.h"
 
 YM2608::YM2608(const fm_device_t *dev, int id) : OpnBase(dev, id) {
-}
-
-YM2608::~YM2608() {
-}
-
-void YM2608::rtm_turnon_key(int rtm) {
-    const int inst = rtm & 0x3f;
-    // 複数ビット (0x3f 等) の誤 Key On を防ぐ — 1 種類のみ
-    if (inst == 0 || (inst & (inst - 1)) != 0) {
-        return;
-    }
-    write_reg(dev, 0x10, 0, inst);
-}
-
-void YM2608::rtm_damp_key(int rtm) {
-    const int inst = rtm & 0x3f;
-    if (inst == 0) {
-        return;
-    }
-    // damp は複数楽器同時 (AllNoteOff 等) を許可
-    write_reg(dev, 0x10, 0, inst | 0x80);
-}
-
-void YM2608::rtm_set_total_level(uint8_t tl) {
-    write_reg(dev, 0x11, 0, tl);
-}
-
-void YM2608::rtm_set_inst_level(int rtm, uint8_t tl, uint8_t lr) {
-    tl = lr | (tl & 0x1f);
-    switch (rtm) {
-    case BD:
-        write_reg(dev, 0x18, 0, tl);
-        break;
-    case SD:
-        write_reg(dev, 0x19, 0, tl);
-        break;
-    case TOP:
-        write_reg(dev, 0x1a, 0, tl);
-        break;
-    case HH:
-        write_reg(dev, 0x1b, 0, tl);
-        break;
-    case TOM:
-        write_reg(dev, 0x1c, 0, tl);
-        break;
-    case RIM:
-        write_reg(dev, 0x1d, 0, tl);
-        break;
-    default:
-        break;
-    }
+    kind_           = ChipKind::YM2608;
+    csm_capable_    = true;
+    io_feature_     = std::make_unique<OpnSsgIoPort>(dev);
+    rhythm_feature_ = std::make_unique<OpnRhythm>(dev, id);
 }
 
 void YM2608::init() {
-    // Init CH0-2
-    OpnBase::init();
+    write_reg(dev, 0x2d, 0, 0x00);  // Set Prescaler 1/6
 
     // Reset LFO state (OPNA-specific, not managed by OpnBase)
     for (int ch = 0; ch < kFmChannels; ++ch) {
@@ -71,26 +25,19 @@ void YM2608::init() {
     }
     fm_turnoff_LFO();
 
+    OpnBase::init();
+
     // OPNA mode, Enable TB IRQ
     write_reg(dev, 0x29, 0, 0x82);
 
-    // Init CH3-5
-    for (int ch = 3; ch < 6; ch++) {
-        fm_turnoff_key(ch);        // Turn Off Key
-        fm_set_fnumber(ch, 0, 0);  // Block/F-Number
-        for (int op = 0; op < 4; op++) {
-            fm_set_total_level(ch, op, 0x7f);  // Total Level(mute)
-        }
-    }
-
     // Mute Rhythm volume
-    rtm_set_total_level(0x00);              // RTL(mute)
-    rtm_set_inst_level(RtmInst::BD, 0x00);  // IL(mute)
-    rtm_set_inst_level(RtmInst::SD, 0x00);
-    rtm_set_inst_level(RtmInst::TOP, 0x00);
-    rtm_set_inst_level(RtmInst::HH, 0x00);
-    rtm_set_inst_level(RtmInst::TOM, 0x00);
-    rtm_set_inst_level(RtmInst::RIM, 0x00);
+    rhythm_feature_->rtm_set_total_level(0x00);                   // RTL(mute)
+    rhythm_feature_->rtm_set_inst_level(RtmInst::BD, 0x00);  // IL(mute)
+    rhythm_feature_->rtm_set_inst_level(RtmInst::SD, 0x00);
+    rhythm_feature_->rtm_set_inst_level(RtmInst::TOP, 0x00);
+    rhythm_feature_->rtm_set_inst_level(RtmInst::HH, 0x00);
+    rhythm_feature_->rtm_set_inst_level(RtmInst::TOM, 0x00);
+    rhythm_feature_->rtm_set_inst_level(RtmInst::RIM, 0x00);
 }
 
 void YM2608::fm_turnon_LFO(uint8_t freq) {

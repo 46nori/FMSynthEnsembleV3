@@ -24,6 +24,7 @@ public:
         None = 0,
         YM2203,
         YM2608,
+        YMF288,
     };
 
     struct VolumeValue {
@@ -76,7 +77,12 @@ public:
 
     /**
      * @brief Set all connected FM/SSG channels in dB.
-     * @details Unavailable dock inputs and YM2203 FM-R inputs remain muted.
+     * @details Unavailable dock inputs and YMF288 SSG inputs remain muted.
+     *          YMF288 SSG is driven to GND level on the module itself (not an
+     *          open mixer input), so muting it merely avoids amplifying a
+     *          known-silent signal. YM2203 FM-R defaults to carrying the same
+     *          signal as FM-L (module-configurable to GND) and is treated as
+     *          available like FM-L.
      *          Values are rounded to the nearest 0.5dB step.
      */
     void SetFmSsgVolumeDb(float db);

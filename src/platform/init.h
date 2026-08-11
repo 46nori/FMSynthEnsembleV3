@@ -31,7 +31,7 @@ enum class Error {
 struct FmSystem {
     fm_bus_t bus;
     std::array<fm_device_t, 4> devices{};
-    std::array<std::unique_ptr<OpnBase>, 4> module_storage{};
+    std::array<std::unique_ptr<OpnBase>, 4> module_ptr{};
     std::array<OpnBase*, 4> modules{};
 };
 

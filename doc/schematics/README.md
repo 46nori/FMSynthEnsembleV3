@@ -3,7 +3,9 @@
 | 回路 | 内容 |
 |---|---|
 | [Main](#main) | コントローラモジュール　(RaspberryPi Pico) |
-| [OPNA_Unit](#opna_unit) | OPNA(YM2608) FM音源モジュール |
+| [YM2608_Unit](#YM2608_Unit) | YM2608(OPNA) FM音源モジュール |
+| [YM2203_Unit](#YM2203_Unit) | YM2203(OPN) FM音源モジュール |
+| [YMF288_Unit](#YMF288_Unit) | YMF288(OPN3-L) FM音源モジュール |
 | [Mixer](#mixer) | オーディオミキサモジュール |
 | [PowerSupply_Unit](#power_supply_unit) | 電源モジュール |
 | [PanelSubsystem](#panel_subsystem) | MIDI パネルサブシステム（[spec_midi_panel.md](../spec_midi_panel.md) 参照） |
@@ -16,13 +18,29 @@
 
 [Main.pdf](./Main.pdf)
 
-<a id="opna_unit"></a>
+<a id="YM2608_Unit"></a>
 
-### OPNA_Unit — OPNA FM音源モジュール
+### YM2608_Unit — OPNA FM音源モジュール
 
-<a href="./OPNA_Unit.pdf"><img src="./OPNA_Unit.svg" alt="OPNA_Unit" width="900"></a>
+<a href="./YM2608_Unit.pdf"><img src="./YM2608_Unit.svg" alt="YM2608_Unit" width="900"></a>
 
-[OPNA_Unit.pdf](./OPNA_Unit.pdf)
+[YM2608_Unit.pdf](./YM2608_Unit.pdf)
+
+<a id="YM2203_Unit"></a>
+
+### YM2203_Unit — OPN FM音源モジュール
+
+<a href="./YM2203_Unit.pdf"><img src="./YM2203_Unit.svg" alt="YM2203_Unit" width="900"></a>
+
+[YM2203_Unit.pdf](./YM2203_Unit.pdf)
+
+<a id="YMF288_Unit"></a>
+
+### YMF288_Unit — OPN3-L FM音源モジュール
+
+<a href="./YMF288_Unit.pdf"><img src="./YMF288_Unit.svg" alt="YMF288_Unit" width="900"></a>
+
+[YMF288_Unit.pdf](./YMF288_Unit.pdf)
 
 <a id="mixer"></a>
 

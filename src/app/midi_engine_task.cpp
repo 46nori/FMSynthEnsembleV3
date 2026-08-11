@@ -105,7 +105,7 @@ void RunVibrato(MidiEngineTaskContext* ctx, uint32_t phase_ticks) {
         if ((enable_bits & (1u << ch)) == 0) {
             continue;
         }
-        static_cast<NoteChannel*>((*ctx->channels)[ch])->TickVibrato(phase_ticks);
+        (*ctx->channels)[ch]->TickVibrato(phase_ticks);
     }
 }
 
@@ -124,8 +124,6 @@ void ServiceVibratoIfDue(MidiEngineTaskContext* ctx, uint32_t& next_vibrato_us) 
         next_vibrato_us += period;
     }
 }
-
-constexpr uint32_t kIdleFmReconcilePeriodUs = 50000u;
 
 size_t DrainNoteQueue(MidiEngineTaskContext* ctx, size_t max_batch, uint32_t now_us) {
     MidiEvent evt{};
@@ -167,9 +165,7 @@ void RefreshAllNoteChannelPitch(MidiEngineTaskContext* ctx) {
         if (ch == RhythmChannel::MIDI_RHYTHM_CHANNEL) {
             continue;
         }
-        auto* nc = static_cast<NoteChannel*>((*ctx->channels)[ch]);
-        const int16_t vib_cents = nc->ComputeVibCents();
-        nc->ApplyPitchToVoices(vib_cents);
+        (*ctx->channels)[ch]->RefreshPitch();
     }
 }
 
@@ -256,30 +252,6 @@ bool HasPendingMidiWork() {
            uxQueueMessagesWaiting(gMidiEventQueue) > 0;
 }
 
-void MaybeReconcileIdleFmKeys(MidiEngineTaskContext* ctx, uint32_t& next_reconcile_us) {
-    if (HasPendingMidiWork()) {
-        return;
-    }
-    const uint16_t enable_bits = ctx->processor->GetChannelEnableBits();
-    for (int ch = 0; ch < MIDI_CHANNELS; ++ch) {
-        if (ch == RhythmChannel::MIDI_RHYTHM_CHANNEL) {
-            continue;
-        }
-        if ((enable_bits & (1u << ch)) == 0) {
-            continue;
-        }
-        if (static_cast<NoteChannel*>((*ctx->channels)[ch])->IsActive()) {
-            return;
-        }
-    }
-    const uint32_t now_us = static_cast<uint32_t>(time_us_64());
-    if (!TimeReached(next_reconcile_us, now_us)) {
-        return;
-    }
-    VoiceAllocator::GetInstance().ReconcileIdleFmKeys(*ctx->channels);
-    next_reconcile_us = now_us + kIdleFmReconcilePeriodUs;
-}
-
 TickType_t MsToTicksCeil(uint32_t ms) {
     const TickType_t ticks = pdMS_TO_TICKS(ms);
     return ticks > 0 ? ticks : 1;
@@ -293,7 +265,6 @@ void MidiEngineTask(void* param) {
     MidiEvent  wait_evt{};
     uint16_t   prevChannelBitmap = 0xffff;
     uint32_t   next_vibrato_us    = static_cast<uint32_t>(time_us_64()) + VibratoPeriodUs();
-    uint32_t   next_reconcile_us  = static_cast<uint32_t>(time_us_64()) + kIdleFmReconcilePeriodUs;
 
     ctx->processor->SetChannelEnable(gPanelChannelBitmap);
     prevChannelBitmap = gPanelChannelBitmap;
@@ -314,7 +285,6 @@ void MidiEngineTask(void* param) {
         HandleControlAndReset(ctx);
         DrainPendingNoteOffsIfQueueEmpty(ctx);
         ServiceVibratoIfDue(ctx, next_vibrato_us);
-        MaybeReconcileIdleFmKeys(ctx, next_reconcile_us);
 
         if (HasPendingMidiWork()) {
             ApplyPanelNoteOnBitmap(now_us);

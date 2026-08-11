@@ -75,7 +75,6 @@ NoteVoice::NoteVoice(OpnBase& module, uint8_t ch, int id)
     : Voice(false, id),  // NoteType
       module(module),
       fm_ch(ch),
-      hw_key_off_sent_(false),
       last_fm_vib_cents_(INT16_MIN) {
     SetProgram(0);   // デフォルト音色
     SetVolume(100);  // デフォルト音量
@@ -85,7 +84,6 @@ NoteVoice::~NoteVoice() {
 }
 
 void NoteVoice::Reset() {
-    hw_key_off_sent_     = false;
     last_fm_vib_cents_   = INT16_MIN;
     // コンストラクタと同じ設定にする
     // 外部キーボードから使用するときなどのために音色をデフォルトに戻しておく
@@ -129,46 +127,19 @@ void NoteVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects&
     SetProgram(bk_program);
     SetVolume(volume);  // must be after SetProgram()
     key = note;
-    ClearHardwareKeyOffSent();
     last_fm_vib_cents_ = INT16_MIN;
     module.fm_turnoff_key(fm_ch);
     // Keep at least one FM register write between KeyOff and KeyOn so the EG restart is stable.
     module.fm_set_output_lr(fm_ch, lr);
     // KeyOn 前に基準ピッチ（PB・coarse tune のみ）を設定し、立ち上がりの音程ジャンプを防ぐ
-    ApplyPitch(effect, 0);
+    ApplyPitch(effect, 0, false);
     module.fm_turnon_key(fm_ch);
     // ビブラートは NoteChannel::ApplyPitchToVoices(ComputeVibCents()) が KeyOn 後に適用する
-    IncrementNoteOnCount();
 }
 
 void NoteVoice::NoteOff() {
     module.fm_turnoff_key(fm_ch);
-    MarkHardwareKeyOffSent();
     last_fm_vib_cents_ = INT16_MIN;
-    SetNoteOnCount(0);
-}
-
-void NoteVoice::ForceSilenceHardwareKey() {
-    module.fm_turnoff_key(fm_ch);
-    MarkHardwareKeyOffSent();
-    last_fm_vib_cents_ = INT16_MIN;
-}
-
-bool NoteVoice::ShouldReconcileSilence() const {
-    // NoteOff 済み Voice は減衰を自然終了させる（Reconcile による打ち切り防止）
-    return !hw_key_off_sent_;
-}
-
-bool NoteVoice::WasHardwareKeyOffSent() const {
-    return hw_key_off_sent_;
-}
-
-void NoteVoice::MarkHardwareKeyOffSent() {
-    hw_key_off_sent_ = true;
-}
-
-void NoteVoice::ClearHardwareKeyOffSent() {
-    hw_key_off_sent_ = false;
 }
 
 bool NoteVoice::TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
@@ -176,12 +147,11 @@ bool NoteVoice::TryRetrigger(int note, int32_t bk_program, int volume, ChannelEf
     SetProgram(bk_program);
     SetVolume(volume);
     key = note;
-    ClearHardwareKeyOffSent();
     last_fm_vib_cents_ = INT16_MIN;
     module.fm_turnoff_key(fm_ch);
     // Keep at least one FM register write between KeyOff and KeyOn so the EG restart is stable.
     module.fm_set_output_lr(fm_ch, lr);
-    ApplyPitch(effect, 0);
+    ApplyPitch(effect, 0, false);
     module.fm_turnon_key(fm_ch);
     return true;
 }

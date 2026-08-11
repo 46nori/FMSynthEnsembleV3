@@ -151,8 +151,16 @@ void VolumeController::SetFmSsgVolumeDb(float db) {
         }
 
         const auto module_type = dock_module_types_[connection.dock];
+        // YMF288 はFM・リズム・SSGをチップ内部でディジタルミックスしてFM-L/FM-Rの
+        // 1系統ステレオ出力のみ持つ（spec_opn.md参照）。SSG単独の出力はないため、
+        // モジュール側でSSG出力ピンをGNDレベルで駆動しており、該当dockのSSG入力には
+        // GNDレベルの信号が供給される（オープンではない）。
+        // YM2203はデフォルト設定でFM-RにFM-Lと同一信号を出力する
+        // （モジュール上でGNDレベルへ切替可能。design_volume_controller.md参照）。
         const bool available = (module_type == DockModuleType::YM2608) ||
-                               (module_type == DockModuleType::YM2203 && connection.signal != SignalType::FmR);
+                               (module_type == DockModuleType::YM2203) ||
+                               (module_type == DockModuleType::YMF288 &&
+                                connection.signal != SignalType::Ssg);
         if (available) {
             SetChannelVolumeDb(connection.chip_addr, connection.channel, db);
         } else {

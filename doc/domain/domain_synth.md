@@ -37,6 +37,8 @@ classDiagram
         +RPN_MSB/LSB(val) / NRPN_MSB/LSB(val) / DataEntry_MSB(val)
         +Hold1(val) / ResetAllController() / Reset()
         +TickVibrato(phase_ticks)
+        +RefreshPitch()
+        +RefreshActiveFmVolume()
         +IsActive() bool
     }
 
@@ -95,7 +97,6 @@ classDiagram
 classDiagram
     class Voice {
         <<abstract>>
-        -note_on_count : int
         -type : bool
         -midi_ch : int
         #bk_program : int32_t
@@ -107,7 +108,7 @@ classDiagram
         +SetVolume(vol)*
         +GetModuleId() int*
         +MarkPitchAttackStart()
-        +IncrementNoteOnCount() / DecrementNoteOnCount()
+        +RefreshVolume()
     }
 
     class NoteVoice {

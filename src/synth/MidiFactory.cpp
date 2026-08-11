@@ -29,7 +29,7 @@ MidiFactory::MidiFactory(std::array<OpnBase*, 4>& modules) : modules_(modules) {
             module->init();
             for (int ch = 0; ch < module->fm_get_channels(); ++ch) {
 #if ENABLE_CSM != 0
-                if (ch == 2 && csm_reserved_modules < kCsmReservedModules) {
+                if (ch == 2 && module->has_csm() && csm_reserved_modules < kCsmReservedModules) {
                     ++csm_reserved_modules;
                     continue;
                 }

@@ -4,15 +4,15 @@
 
 **[日本語版はこちら](README_ja.md)**
 
-![](./doc/image/YM2608.jpeg)
+![](./doc/image/FMSynthEnsembleV3.jpeg)
 
-A USB MIDI synthesizer using YAMAHA FM sound LSIs.
+A USB MIDI synthesizer using YAMAHA OPN-series FM sound chip.
 
 - System controller: **Raspberry Pi Pico** (RP2040 / RP2350A)
-- FM sound LSIs: up to four **YM2608 (OPNA)** or **YM2203 (OPN)** chips (mixed configurations supported)
+- FM sound chip: up to four **YM2608 (OPNA)** / **YM2203 (OPN)** / **YMF288 (OPN3-L)** chips (mixed configurations supported, auto-detected)
 - MIDI: 16 channels, multi-timbral polyphonic playback with up to 24 voices
-  - With four YM2608 chips. YM2203 provides 3 FM voices per chip
-- Supports CSM (Composite Sinusoidal Modeling) speech synthesis
+  - With four YM2608 or YMF288 chips. YM2203 provides 3 FM voices per chip
+- Supports CSM (Composite Sinusoidal Modeling) speech synthesis (YM2608/YM2203)
 
 See [doc/README.md](doc/README.md) for design documentation and schematics.
 
@@ -152,14 +152,10 @@ Option values are managed in two places. **Keep them identical.**
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/overview_1.jpeg"><img src="doc/image/overview_1.jpeg" width="280" alt="Overview 1"></a><br>
+      <a href="doc/image/FMSynthEnsembleV3.jpeg"><img src="doc/image/FMSynthEnsembleV3.jpeg" width="280" alt="Overview 1"></a><br>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/overview_2.jpeg"><img src="doc/image/overview_2.jpeg" width="280" alt="Overview 2"></a><br>
-    </td>
-    <td align="center" width="33%">
-      <a href="doc/image/overview_3.jpeg"><img src="doc/image/overview_3.jpeg" width="280" alt="Overview 3"></a><br>
-      <sub>MIDI connection and playback</sub>
+      <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="Overview 2"></a><br>
     </td>
   </tr>
 </table>
@@ -169,54 +165,62 @@ Option values are managed in two places. **Keep them identical.**
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/module_controller.jpeg"><img src="doc/image/module_controller.jpeg" width="280" alt="Controller module"></a><br>
-      <b>Controller module</b><br>
-      <sub>Raspberry Pi Pico 2<br>OPNA module connector (rear)</sub>
-    </td>
-    <td align="center" width="33%">
-      <a href="doc/image/module_ym2608.jpeg"><img src="doc/image/module_ym2608.jpeg" width="280" alt="OPNA module"></a><br>
-      <b>OPNA module</b><br>
+      <a href="doc/image/YM2608_Module.jpeg"><img src="doc/image/YM2608_Module.jpeg" width="280" alt="OPNA module"></a><br>
+      <b>YM2608 module</b><br>
       <sub>YM2608B + YM3016<br>MIDI panel connector</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/module_mixer.jpeg"><img src="doc/image/module_mixer.jpeg" width="280" alt="Mixer module"></a><br>
-      <b>Mixer module</b><br>
-      <sub>Mixes OPNA module outputs<br>LINE IN / LINE OUT</sub>
+      <a href="doc/image/YM2203_Module.jpeg"><img src="doc/image/YM2203_Module.jpeg" width="280" alt="YM2203 module"></a><br>
+      <b>YM2203 module</b><br>
+      <sub>YM2203 + YM3014B<br>MIDI panel connector</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/YMF288_Module.jpeg"><img src="doc/image/YMF288_Module.jpeg" width="280" alt="YMF288 module"></a><br>
+      <b>YMF288 module</b><br>
+      <sub>YMF288 + BU9480F</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/module_power.jpeg"><img src="doc/image/module_power.jpeg" width="280" alt="Power module"></a><br>
+      <a href="doc/image/Main_Module.jpeg"><img src="doc/image/Main_Module.jpeg" width="280" alt="Controller module"></a><br>
+      <b>Controller module</b><br>
+      <sub>Raspberry Pi Pico 2<br>FM sound module connector (rear)</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/AudioMixer_Module.jpeg"><img src="doc/image/AudioMixer_Module.jpeg" width="280" alt="Mixer module"></a><br>
+      <b>Mixer module</b><br>
+      <sub>Mixes FM sound module outputs</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/Power_Module.jpeg"><img src="doc/image/Power_Module.jpeg" width="280" alt="Power module"></a><br>
       <b>Power module</b><br>
       <sub>+6V, 2A input<br>+5V / ±12V output</sub>
     </td>
+  </tr>
+  <tr>
     <td align="center" width="33%">
-      <a href="doc/image/module_midi_panel.jpeg"><img src="doc/image/module_midi_panel.jpeg" width="280" alt="MIDI panel"></a><br>
+      <a href="doc/image/MIDIPanel.jpeg"><img src="doc/image/MIDIPanel.jpeg" width="280" alt="MIDI panel"></a><br>
       <b>MIDI panel module</b><br>
-      <sub>16-ch ON/OFF + LED<br>Connects to OPNA module</sub>
+      <sub>16-ch ON/OFF + LED<br>Connects to YM2608/YM2203 module</sub>
     </td>
+    <td></td>
     <td></td>
   </tr>
 </table>
 
-### Stack Assembly / Dock Connection
+### Module Connection
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/stack_1.jpeg"><img src="doc/image/stack_1.jpeg" width="280" alt="Top view"></a><br>
-      <b>Top view</b><br>
-      <sub>Side stack of controller<br>and power modules</sub>
+      <a href="doc/image/StackedModules.jpeg"><img src="doc/image/StackedModules.jpeg" width="280" alt="Top view"></a><br>
+      <b>Stack</b><br>
+      <sub>Up to four FM sound modules can be connected<br></sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/stack_2.jpeg"><img src="doc/image/stack_2.jpeg" width="280" alt="Side view"></a><br>
-      <b>Side view</b><br>
-      <sub>OPNA module connections</sub>
-    </td>
-    <td align="center" width="33%">
-      <a href="doc/image/stack_3.jpeg"><img src="doc/image/stack_3.jpeg" width="280" alt="Dock connection"></a><br>
+      <a href="doc/image/BackPlane.jpeg"><img src="doc/image/BackPlane.jpeg" width="280" alt="Dock connection"></a><br>
       <b>Dock connection</b><br>
-      <sub>OPNA modules docked<br>to the backplane</sub>
+      <sub>Rear of the controller module</sub>
     </td>
   </tr>
 </table>

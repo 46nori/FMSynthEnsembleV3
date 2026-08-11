@@ -15,6 +15,7 @@
 #include "opn_piolib.h"
 #include "YM2608.h"
 #include "YM2203.h"
+#include "YMF288.h"
 #include "volume_controller.h"
 #if BUILD_SD_CARD
 #include "ff.h"
@@ -35,6 +36,7 @@ constexpr uint32_t kFmBusClock  = 150000000u;   // PIO    clock: 150MHz (RP2350 
 #else
 constexpr uint32_t kFmBusClock  = 120000000u;   // PIO    clock: 120MHz (RP2040: 120/8=15, 120/4=30 整数分周)
 #endif
+constexpr uint32_t kYmf288Clock =   8000000u;   // YMF288 clock:   8MHz
 constexpr uint32_t kYm2608Clock =   8000000u;   // YM2608 clock:   8MHz
 constexpr uint32_t kYm2203Clock =   4000000u;   // YM2203 clock:   4MHz
 constexpr uint32_t kProbeClock  = kYm2203Clock; // probe at the lower of the two
@@ -153,6 +155,28 @@ bool HasRespondingSsg(const fm_device_t* dev) {
     return read0 == kBitPattern0 && read1 == kBitPattern1;
 }
 
+bool IsYmf288(const fm_device_t* dev) {
+    // レジスタ 0x20 の D1(NEW)=1 を書いてネイティブモードへ切替を試みる。
+    // YM2608/YM2203 では 0x20 は未定義につき書き込みは無害。
+    write_reg(dev, 0x20, 0, 0x02);
+    sleep_us(10);
+    // デバイス ID が 0x02 に変化すれば YMF288
+    constexpr int kMaxAttempts = 8;
+    constexpr int kRequiredConsecutiveMatches = 2;
+    int consecutive_matches = 0;
+    for (int i = 0; i < kMaxAttempts; ++i) {
+        if (read_reg(dev, 0xff, 0) == 0x02) {
+            if (++consecutive_matches >= kRequiredConsecutiveMatches) {
+                return true;
+            }
+        } else {
+            consecutive_matches = 0;
+        }
+        sleep_us(10);
+    }
+    return false;
+}
+
 bool IsYm2608(const fm_device_t* dev) {
     constexpr int kMaxAttempts = 8;
     constexpr int kRequiredConsecutiveMatches = 2;
@@ -224,7 +248,7 @@ std::unique_ptr<FmSystem> SetupFmModules(Error* out_error) {
         return nullptr;
     }
 
-    // 各ドックに対してYM2608/YM2203の接続を判別
+    // 各ドックに対してYM2608/YM2203/YMF288の接続を判別
     bool has_any = false;
     for (int dock = 0; dock < static_cast<int>(fs->devices.size()); ++dock) {
         // YM2203/YM2608 両方に安全なクロックでプローブ
@@ -237,20 +261,27 @@ std::unique_ptr<FmSystem> SetupFmModules(Error* out_error) {
             std::printf("Dock%d: None\n", dock);
             continue;
         }
-        if (IsYm2608(&fs->devices[dock])) {
+        if (IsYmf288(&fs->devices[dock])) {
+            // YMF288 を検出（ネイティブモード確立済み）。
+            // タイミングは YM2608 と同等で安全。
+            fm_device_init(&fs->devices[dock], &fs->bus, dock, FM_DEVICE_YM2608, kYmf288Clock);
+            fs->module_ptr[dock] = std::make_unique<YMF288>(&fs->devices[dock], dock);
+            dock_module_types[dock] = VolumeController::DockModuleType::YMF288;
+            std::printf("Dock%d: YMF288\n", dock);
+        } else if (IsYm2608(&fs->devices[dock])) {
             // YM2608を検出: 本来のクロックで再初期化
             fm_device_init(&fs->devices[dock], &fs->bus, dock, FM_DEVICE_YM2608, kYm2608Clock);
-            fs->module_storage[dock] = std::make_unique<YM2608>(&fs->devices[dock], dock);
+            fs->module_ptr[dock] = std::make_unique<YM2608>(&fs->devices[dock], dock);
             dock_module_types[dock] = VolumeController::DockModuleType::YM2608;
             std::printf("Dock%d: YM2608\n", dock);
         } else {
             // YM2203を検出: 正しいdevice typeで再初期化
             fm_device_init(&fs->devices[dock], &fs->bus, dock, FM_DEVICE_YM2203, kYm2203Clock);
-            fs->module_storage[dock] = std::make_unique<YM2203>(&fs->devices[dock], dock);
+            fs->module_ptr[dock] = std::make_unique<YM2203>(&fs->devices[dock], dock);
             dock_module_types[dock] = VolumeController::DockModuleType::YM2203;
             std::printf("Dock%d: YM2203\n", dock);
         }
-        fs->modules[dock] = fs->module_storage[dock].get();
+        fs->modules[dock] = fs->module_ptr[dock].get();
         has_any = true;
     }
     VolumeController::GetInstance().SetDockModuleTypes(dock_module_types);

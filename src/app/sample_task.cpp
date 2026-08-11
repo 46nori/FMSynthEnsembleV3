@@ -24,6 +24,7 @@
 
 #include "sample_task.h"
 #include "OpnBase.h"
+#include "OpnFeatures.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -41,30 +42,33 @@ constexpr uint32_t kPortSettleUs = 100;  // OpnMidiPanelDriverのsettle_usと同
 constexpr uint8_t kBlankPortA = 0x0F;
 constexpr uint8_t kColumnPortA[4] = {0x0E, 0x0D, 0x0B, 0x07};
 
-void PortAWriteOnlyStep(OpnBase* module, uint8_t& col) {
-    module->write_port_a(kColumnPortA[col]);
+void PortAWriteOnlyStep(IIoPort* io, uint8_t& col) {
+    if (io == nullptr) return;
+    io->write_port_a(kColumnPortA[col]);
     busy_wait_us(kPortSettleUs);
-    module->write_port_a(kBlankPortA);
+    io->write_port_a(kBlankPortA);
     col = static_cast<uint8_t>((col + 1) % 4);
 }
 
 // PortBデータレジスタ(0x0f)への書き込み。IOB=入力のままなのでラッチ書き込みのみ
-void PortBWriteOnlyStep(OpnBase* module, uint8_t& col) {
-    module->write_port_b(kColumnPortA[col]);
+void PortBWriteOnlyStep(IIoPort* io, uint8_t& col) {
+    if (io == nullptr) return;
+    io->write_port_b(kColumnPortA[col]);
     busy_wait_us(kPortSettleUs);
-    module->write_port_b(kBlankPortA);
+    io->write_port_b(kBlankPortA);
     col = static_cast<uint8_t>((col + 1) % 4);
 }
 
 // 指定周期(period_us)で1回ずつstepを実行し、残り時間は待つ。
 // period_us=4000（実機のMidiPanelTask周期相当）なら、旧テストと同じデューティ比になる。
-void DutyCycledAccess(OpnBase* module, uint32_t duration_ms, uint32_t period_us,
-                       void (*step)(OpnBase*, uint8_t&)) {
+void DutyCycledAccess(IIoPort* io, uint32_t duration_ms, uint32_t period_us,
+                       void (*step)(IIoPort*, uint8_t&)) {
+    if (io == nullptr) return;
     uint8_t col = 0;
     const absolute_time_t deadline = make_timeout_time_ms(duration_ms);
     while (!time_reached(deadline)) {
         const absolute_time_t step_start = get_absolute_time();
-        step(module, col);
+        step(io, col);
         const int64_t elapsed_us = absolute_time_diff_us(step_start, get_absolute_time());
         const int64_t remain_us = static_cast<int64_t>(period_us) - elapsed_us;
         if (remain_us > 0) {
@@ -77,7 +81,7 @@ constexpr uint32_t kRealisticPeriodUs = 4000;  // 実機MidiPanelTask周期相�
 
 struct AccessStage {
     const char* label;
-    void (*step)(OpnBase*, uint8_t&);
+    void (*step)(IIoPort*, uint8_t&);
 };
 
 constexpr AccessStage kAccessStages[] = {
@@ -113,10 +117,15 @@ void FreeRtosSampleTask(void* param) {
                     continue;
                 }
 
+                IIoPort* io = module->io_port();
+                if (io == nullptr) {
+                    std::printf("Panel/FM burst test: dock%zu skip (no I/O port)\n", dock);
+                    continue;
+                }
                 std::printf("Panel/FM burst test: dock%zu FM CH%d scale start [%s]\n",
                             dock, kFmCh, access.label);
-                module->set_port_direction(true, false);  // IOA=output, IOB=input
-                module->write_port_a(kBlankPortA);
+                io->set_port_direction(true, false);  // IOA=output, IOB=input
+                io->write_port_a(kBlankPortA);
                 module->fm_set_tone(kFmCh, kToneDefault);
                 module->fm_set_output_lr(kFmCh, 0xc0);
 
@@ -126,11 +135,11 @@ void FreeRtosSampleTask(void* param) {
                         const uint8_t oct = static_cast<uint8_t>(kOctave4 + note / 12);
 
                         module->fm_turnoff_key(kFmCh);
-                        DutyCycledAccess(module, kEdgeBurstMs, kRealisticPeriodUs, access.step);
+                        DutyCycledAccess(io, kEdgeBurstMs, kRealisticPeriodUs, access.step);
                         module->fm_set_pitch(kFmCh, pitch, oct);
-                        DutyCycledAccess(module, kEdgeBurstMs, kRealisticPeriodUs, access.step);
+                        DutyCycledAccess(io, kEdgeBurstMs, kRealisticPeriodUs, access.step);
                         module->fm_turnon_key(kFmCh);
-                        DutyCycledAccess(module, kNoteMs - 2 * kEdgeBurstMs, kRealisticPeriodUs,
+                        DutyCycledAccess(io, kNoteMs - 2 * kEdgeBurstMs, kRealisticPeriodUs,
                                          access.step);
                     }
                 }

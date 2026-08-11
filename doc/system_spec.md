@@ -8,6 +8,7 @@
 - FM音源LSIは以下をサポートする。
   - YAMAHA YM2203 (OPN)
   - YAMAHA YM2608 (OPNA)
+  - YAMAHA YMF288 (OPN3-L)
 - MIDIインターフェースはRaspberryPi PicoのUSBインターフェースを使用する。
 - microSDHCインターフェースはSPI0を使用する。
 - 標準出力としてUART0を使用する。
@@ -85,10 +86,11 @@ OPNA/OPNからの割り込み信号はオープンドレインなので、すべ
 
 供給するマスタークロック（$\phi M$）は以下の通り。
 
-|  供給先        | $\phi M$ |
-| :-----------: | :------: |
-|  YM2203(OPN)  |  4MHz    |
-|  YM2608(OPNA) |  8MHz    |
+|      供給先      | $\phi M$ |
+| :--------------: | :------: |
+|   YM2203(OPN)    |  4MHz    |
+|   YM2608(OPNA)   |  8MHz    |
+|  YMF288(OPN3-L)  |  8MHz    |
 
 16MHz発信器出力を74HC74で分周し、8MHzと4MHzを生成する。
 

@@ -9,6 +9,7 @@
 #include <vector>
 #include "MidiChannel.h"
 #include "IVoiceReclaimable.h"
+#include "OpnFeatures.h"
 #include "config.h"
 
 class OpnBase;
@@ -23,10 +24,10 @@ class RhythmChannel : public MidiChannel, public IVoiceReclaimable {
 private:
     static constexpr int kRtmInstSlots = 6;
 
-    std::vector<OpnBase*> modules;              // 使用可能なモジュール(YM2608)
+    std::vector<IRhythm*> modules;              // 使用可能なリズムモジュール (rhythm() != nullptr)
     int16_t last_exclusive_note[6] = {-1, -1, -1, -1, -1, -1};
     uint8_t last_exclusive_module[6] = {0};     // 排他グループごとの直前発音モジュール
-    // 各 YM2608 上で最後に鳴らした RtmInst (BD=0x01 等)。別楽器の減衰混入・再トリガ防止用
+    // モジュールごとに最後に鳴らした RtmInst (BD=0x01 等)。別楽器の減衰混入・再トリガ防止用
     std::array<int16_t, 4> last_rtm_on_module = {-1, -1, -1, -1};
     // 打楽器種別ごとに初回割当した modules[] の添字（接続台数に応じて動的、固定マップなし）
     std::array<int8_t, kRtmInstSlots> inst_module_ = {-1, -1, -1, -1, -1, -1};

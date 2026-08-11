@@ -31,7 +31,6 @@ struct ChannelEffects {
  */
 class Voice {
 private:
-    int note_on_count;  // NoteOn回数 (Keyオーバーラップ時のカウント用)
     const bool type;    // true:CsmVoice, false:NoteVoice
     int midi_ch;        // 属しているMIDI Channel No.
 
@@ -110,33 +109,6 @@ public:
     int GetVelocity();
 
     /**
-     * @brief Note On のリファレンスカウンタのセット
-     * @details Note Offされずに同一NoteのNote Onが発生した場合の管理用カウンタ
-     */
-    void SetNoteOnCount(int val);
-
-    /**
-     * @brief Note On のリファレンスカウンタの取得
-     * @return リファレンスカウンタ
-     * @details Note Offされずに同一NoteのNote Onが発生した場合の管理用カウンタ
-     */
-    int GetNoteOnCount();
-
-    /**
-     * @brief Note On のリファレンスカウンタのインクリメント
-     * @return リファレンスカウンタ
-     * @details Note Offされずに同一NoteのNote Onが発生した場合の管理用カウンタ
-     */
-    int IncrementNoteOnCount();
-
-    /**
-     * @brief Note On のリファレンスカウンタのデクリメント
-     * @return リファレンスカウンタ
-     * @details Note Offされずに同一NoteのNote Onが発生した場合の管理用カウンタ
-     */
-    int DecrementNoteOnCount();
-
-    /**
      * @brief Module IDを返す
      * @return Module ID
      */
@@ -178,6 +150,7 @@ public:
      * @brief PB・coarse tune・ビブラートを合成してピッチを設定する
      * @param fx       チャンネルエフェクト（pbv/pbs/coarse_tune）
      * @param vib_cents  ビブラート偏差（セント、符号付き）
+     * @param allow_vib_dedup true のとき、直前と同じ vib_cents なら FM 書き込みを省略する
      */
     virtual void ApplyPitch(const ChannelEffects& fx, int16_t vib_cents, bool allow_vib_dedup = false) = 0;
 
@@ -199,6 +172,12 @@ public:
      */
     virtual bool TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
                               uint8_t lr);
+
+    /**
+     * @brief 現在の音量設定を再適用する
+     * @details TL TrimのON/OFF切替時などに使用する。既定は非対応。
+     */
+    virtual void RefreshVolume() {}
 
     virtual void dump();
 };
