@@ -352,16 +352,11 @@ int c_volume_table(token_list* t) {
 namespace {
 
 bool volume_chip_addr(unsigned int chip_idx, uint8_t* chip_addr) {
-    switch (chip_idx) {
-    case 0:
-        *chip_addr = NJU72343::CHIP_ADR0;
-        return true;
-    case 1:
-        *chip_addr = NJU72343::CHIP_ADR1;
-        return true;
-    default:
+    if (chip_idx >= Platform::VolumeController::kChipCount) {
         return false;
     }
+    *chip_addr = Platform::VolumeController::kChipAddr[chip_idx];
+    return true;
 }
 
 }  // namespace
@@ -537,19 +532,7 @@ int c_midi_stats(token_list* t) {
         return NO_ERROR;
     }
 
-    const MidiIpcStats midiIpcStats = MidiIpcGetStats();
-    std::printf("\nVoice allocation failure: %d\n", VoiceAllocator::GetInstance().GetFailedCount());
-    std::printf("midi_ipc queue drops: effect=%lu note=%lu control=%lu reset=%lu\n",
-                static_cast<unsigned long>(midiIpcStats.midi_event_queue_drop_count),
-                static_cast<unsigned long>(midiIpcStats.midi_note_queue_drop_count),
-                static_cast<unsigned long>(midiIpcStats.midi_control_queue_drop_count),
-                static_cast<unsigned long>(midiIpcStats.midi_reset_queue_drop_count));
-    std::printf("midi_ipc note_off protect: reserve_drop=%lu fallback=%lu\n",
-                static_cast<unsigned long>(midiIpcStats.midi_note_on_reserve_drop_count),
-                static_cast<unsigned long>(midiIpcStats.midi_note_off_fallback_count));
-    for (auto* ch : *gDebuggerCtx->channels) {
-        ch->stats();
-    }
+    Debugger::PrintMidiStats(*gDebuggerCtx->channels);
     return NO_ERROR;
 }
 

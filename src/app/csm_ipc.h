@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include "FreeRTOS.h"
+#include "ICsmEventSink.h"
 #include "queue.h"
 
 enum class CsmEventType : uint8_t {
@@ -62,3 +63,16 @@ void CsmSignalStop(void);
  * @details MidiEngineTask からの初回CSMフレーム処理を開始
  */
 void CsmSignalStart(int note, int32_t program, int volume, uint8_t lr);
+
+/**
+ * @brief ICsmEventSink の実体（CsmSignalStart/Stopへ転送する）
+ * @details CsmVoice::SetEventSink() で注入するために app 層が持つ。
+ *          synth は ICsmEventSink インターフェース越しにのみこれを使う。
+ */
+class CsmEventSink : public ICsmEventSink {
+public:
+    void SignalCsmStart(int note, int32_t program, int volume, uint8_t lr) override;
+    void SignalCsmStop() override;
+};
+
+extern CsmEventSink gCsmEventSink;

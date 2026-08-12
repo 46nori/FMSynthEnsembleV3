@@ -382,3 +382,36 @@ void OpnBase::set_fmch3_mode(uint8_t mode) {
 uint8_t OpnBase::read_status(int a1) {
     return ::read_status(dev, (uint8_t)a1);
 }
+
+/////////////////////////////////////////////////////////
+// YM2608 / YMF288 (LFO/LR)
+/////////////////////////////////////////////////////////
+void OpnBase::fm_turnon_LFO(uint8_t freq) {
+    if (lfo_feature_) {
+        lfo_feature_->TurnOn(freq);
+    }
+}
+
+void OpnBase::fm_turnoff_LFO() {
+    if (lfo_feature_) {
+        lfo_feature_->TurnOff();
+    }
+}
+
+void OpnBase::fm_set_LFO_PMS(uint8_t ch, uint8_t pms, uint8_t lr) {
+    if (lfo_feature_) {
+        lfo_feature_->SetPMS(ch, pms, lr);
+    }
+}
+
+void OpnBase::fm_set_LFO_AMS(uint8_t ch, uint8_t op, uint8_t ams, uint8_t lr) {
+    if (lfo_feature_) {
+        lfo_feature_->SetAMS(ch, op, ams, lr);
+    }
+}
+
+void OpnBase::fm_set_output_lr(uint8_t ch, uint8_t lr) {
+    if (lfo_feature_) {
+        lfo_feature_->SetOutputLR(ch, lr);
+    }
+}

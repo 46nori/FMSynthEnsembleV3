@@ -45,11 +45,22 @@ classDiagram
         +CsmSignalStart() / CsmSignalStop()
     }
 
+    class CsmEventSink {
+        <<implements ICsmEventSink>>
+        +SignalCsmStart(note, program, volume, lr)
+        +SignalCsmStop()
+    }
+
     class UsbMidiTask {
         <<task Core0>>
-        TinyUSB keep-alive / Stream assemble
-        MidiParser / MidiRoutingPolicy
-        Enqueue
+        TinyUSB keep-alive
+        MidiStreamAssembler::PushByte
+    }
+
+    class UsbMidiStreamSink {
+        <<implements IMidiStreamSink（midi層）>>
+        OnMidiEvent → Enqueue
+        OnProfileReset / OnVendorSysEx
     }
 
     class MidiEngineTask {
@@ -102,11 +113,15 @@ classDiagram
     main ..> MidiPanelTask : creates
     main ..> CsmFrameTask : creates
     main ..> DebugTask : creates
-    UsbMidiTask --> midi_ipc : enqueue
+    UsbMidiTask --> UsbMidiStreamSink : owns
+    UsbMidiTask --> MidiStreamAssembler : PushByte（midi層、詳細はdomain_midi.md）
+    UsbMidiStreamSink --> midi_ipc : enqueue
     MidiEngineTask --> midi_ipc : drain
     MidiPanelTask --> midi_ipc : bitmap / Reset
     CsmFrameTask --> csm_ipc : wait
-    UsbMidiTask --> Debugger : SysEx
+    CsmEventSink --> csm_ipc : forwards
+    main ..> CsmEventSink : CsmVoiceへ注入
+    UsbMidiStreamSink --> Debugger : SysEx
     DebugTask --> Debugger
 ```
 
@@ -115,6 +130,8 @@ classDiagram
 | `main` | `main.cpp` | 初期化・マスターボリューム復帰・タスク生成・スケジューラ起動 |
 | `midi_ipc` | `midi_ipc.h/cpp` | MIDI 用 Core 間キュー、NoteOff 保護、統計 |
 | `csm_ipc` | `csm_ipc.h/cpp` | CSM フレームイベントキューとシグナル API |
+| `CsmEventSink` | `csm_ipc.h/cpp` | `synth` の `ICsmEventSink` を実装し `CsmSignalStart`/`CsmSignalStop` へ転送（[design_csm_frame.md](../design_csm_frame.md)） |
+| `UsbMidiStreamSink` | `usb_midi_task.cpp` | `midi` の `IMidiStreamSink` を実装し、確定したイベント/SysExをIPCキュー送信・`Debugger::HandleSysEx`へ転送（バイトストリーム組立自体は`MidiStreamAssembler`、[domain_midi.md](domain_midi.md)参照） |
 | 各タスク | `*_task.h/cpp` | [design_concurrency.md](../design_concurrency.md) のタスク構成を実装 |
 | `Debugger` | `debugger.h/cpp` | 対話型デバッガ・独自 SysEx 処理 |
 | `config.h` / `task_config.h` | — | 実行時ポリシー定数とタスク設定の唯一の定義元 |

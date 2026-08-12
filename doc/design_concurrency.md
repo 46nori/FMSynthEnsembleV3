@@ -126,11 +126,11 @@ flowchart TD
 処理フロー:
 
 1. `USB_MIDI_IRQ_DRIVEN` に応じて `tud_task_ext(1, false)`（イベント待機）または `tud_task()`（ポーリング）を実行
-2. `tud_midi_n_available()` を確認し、データがあれば `tud_midi_n_stream_read` で最大 32 バイトのチャンクを読み出してパース処理
-3. `MidiParser` でパース、`MidiRoutingPolicy` でルーティング判定
-4. NoteOn/Off は `gMidiNoteQueue`（`timestamp_us` 付与）、それ以外は `gMidiEventQueue` へ投入（ノンブロッキング）。満杯時の NoteOff 保護は [4.2 節](#42-gmidinotequeue) を参照
-5. 標準リセット SysEx は `gMidiControlQueue` へ `MidiControlEvent::Reset` を投入
-6. `HandleOnCore0` 判定の SysEx は Debugger SysEx ハンドラへ渡す
+2. `tud_midi_n_available()` を確認し、データがあれば `tud_midi_n_stream_read` で最大 32 バイトのチャンクを読み出し、1 バイトずつ `MidiStreamAssembler::PushByte()`（`src/midi/`、pico-sdk/FreeRTOS非依存）へ渡す
+3. `MidiStreamAssembler` 内部で `MidiParser` パース・`MidiRoutingPolicy` ルーティング判定を行い、確定したイベント/SysExを `IMidiStreamSink`（実装は `UsbMidiTask` 内の `UsbMidiStreamSink`）へ通知する。詳細は [design_midi_message.md](design_midi_message.md#5-core0-処理フロー) を参照
+4. `UsbMidiStreamSink::OnMidiEvent`: NoteOn/Off は `gMidiNoteQueue`（`timestamp_us` 付与）、それ以外は `gMidiEventQueue` へ投入（ノンブロッキング）。満杯時の NoteOff 保護は [4.2 節](#42-gmidinotequeue) を参照
+5. `UsbMidiStreamSink::OnProfileReset`: 標準リセット SysEx を受けて `gMidiControlQueue` へ `MidiControlEvent::Reset` を投入
+6. `UsbMidiStreamSink::OnVendorSysEx`: `HandleOnCore0` 判定の SysEx を Debugger SysEx ハンドラへ渡す
 7. Realtime / 不明メッセージは Drop
 8. データが空の場合: ポーリングモード（`USB_MIDI_IRQ_DRIVEN=OFF`）では `vTaskDelay(1ms)`。イベント待機モードでは `tud_task_ext` が待機済みのため追加待機なし
 
@@ -155,7 +155,7 @@ CMake オプション `USB_MIDI_IRQ_DRIVEN` で TinyUSB の OSAL モードを切
 処理フロー:
 
 1. `vTaskDelayUntil()` で `MIDI_PANEL_PERIOD_MS` 周期を維持
-2. 未接続ならスキップ
+2. デバッガコマンドで Panel Mode が無効化されている、または未接続ならスキップ
 3. `MidiPanelController::Tick(gLastNoteOnBitmap)` — 内部で `SetLedBitmap` → `driver->Tick()`（1 列スロット）
 4. `gPanelChannelBitmap` ← `GetChannelEnableBitmap()`
 5. `IsMidiReset()` の立ち上がりエッジで `MidiControlType::Reset` を IPC 送信

@@ -91,6 +91,7 @@ int main()
         std::printf("CSM IPC initialization failed.\n");
         while (1);
     }
+    factory->GetCsmVoice()->SetEventSink(&gCsmEventSink);
 #endif
 
     // 接続されているFM/SSG系入力を0dBに設定

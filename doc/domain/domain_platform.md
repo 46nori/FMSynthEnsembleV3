@@ -15,7 +15,7 @@ classDiagram
     class FmSystem {
         +bus : fm_bus_t
         +devices : fm_device_t[4]
-        +module_storage : unique_ptr~OpnBase~[4]
+        +module_ptr : unique_ptr~OpnBase~[4]
         +modules : OpnBase*[4]
     }
 

@@ -316,12 +316,9 @@ void RhythmChannel::init_volume(uint8_t rtl, uint8_t il) {
     const uint8_t il_reg = RhythmLevelWithOffset(ILvolume[il], 31);
 
     for (auto *m : modules) {
-        m->rtm_set_inst_level(RtmInst::BD, il_reg);
-        m->rtm_set_inst_level(RtmInst::SD, il_reg);
-        m->rtm_set_inst_level(RtmInst::TOP, il_reg);
-        m->rtm_set_inst_level(RtmInst::HH, il_reg);
-        m->rtm_set_inst_level(RtmInst::TOM, il_reg);
-        m->rtm_set_inst_level(RtmInst::RIM, il_reg);
+        for (int inst : kRtmInstList) {
+            m->rtm_set_inst_level(inst, il_reg);
+        }
     }
 }
 

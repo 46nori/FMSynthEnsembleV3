@@ -35,6 +35,14 @@ public:
     static constexpr size_t kChipCount    = 2;  // Number of NJU72343 chips
     static constexpr size_t kChannelCount = 8;  // Number of input channels(A-H)
     static constexpr size_t kDockCount    = 4;  // Number of docks(0-3)
+
+    /**
+     * @brief NJU72343 chip I2C addresses, indexed by chip index (0/1).
+     * @details Exposed so callers (debugger) can select a chip without
+     *          depending on `extern/NJU72343-library` directly.
+     */
+    static constexpr std::array<uint8_t, kChipCount> kChipAddr = {NJU72343::CHIP_ADR0,
+                                                                  NJU72343::CHIP_ADR1};
     using VolumeTable = std::array<std::array<VolumeValue, kChannelCount>, kChipCount>;
     using DockModuleTypes = std::array<DockModuleType, kDockCount>;
 

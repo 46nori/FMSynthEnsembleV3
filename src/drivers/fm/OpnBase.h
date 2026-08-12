@@ -30,6 +30,7 @@ protected:
     // フィーチャ（オプション機能）: nullptr のチップにはその機能がない
     std::unique_ptr<IRhythm> rhythm_feature_;
     std::unique_ptr<IIoPort> io_feature_;
+    std::unique_ptr<ILfo>    lfo_feature_;
     ChipKind kind_        = ChipKind::YM2203;
     bool     csm_capable_ = true;
 
@@ -323,13 +324,18 @@ public:
     uint8_t read_status(int a1 = 0);
 
     /////////////////////////////////////////////////////////
-    // YM2608 / YMF288 (LFO/LR — YM2203 では書かない; harm は小さい)
+    // YM2608 / YMF288 (LFO/LR — YM2203 では lfo_feature_ が null のため no-op)
     /////////////////////////////////////////////////////////
-    virtual void fm_turnon_LFO(uint8_t freq) {}
-    virtual void fm_turnoff_LFO() {}
-    virtual void fm_set_LFO_PMS(uint8_t ch, uint8_t pms, uint8_t lr = 0xc0) {}
-    virtual void fm_set_LFO_AMS(uint8_t ch, uint8_t op, uint8_t ams, uint8_t lr = 0xc0) {}
-    virtual void fm_set_output_lr(uint8_t ch, uint8_t lr) {}
+    /** @brief LFO ON。lfo_feature_ が null のチップでは no-op */
+    void fm_turnon_LFO(uint8_t freq);
+    /** @brief LFO OFF。lfo_feature_ が null のチップでは no-op */
+    void fm_turnoff_LFO();
+    /** @brief チャンネルの Phase Modulation Sensitivity。lfo_feature_ が null のチップでは no-op */
+    void fm_set_LFO_PMS(uint8_t ch, uint8_t pms, uint8_t lr = 0xc0);
+    /** @brief チャンネルの Amplitude Modulation Sensitivity。lfo_feature_ が null のチップでは no-op */
+    void fm_set_LFO_AMS(uint8_t ch, uint8_t op, uint8_t ams, uint8_t lr = 0xc0);
+    /** @brief 出力 L/R 設定。lfo_feature_ が null のチップでは no-op */
+    void fm_set_output_lr(uint8_t ch, uint8_t lr);
 
     /* FM pitch table */
     static constexpr uint16_t fm_pitch_table[] = {

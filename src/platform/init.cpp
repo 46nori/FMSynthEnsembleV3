@@ -79,8 +79,8 @@ constexpr uint kFM_IRQ   = FM_IRQ;      // isr.h
  * @brief GPIO の初期化
  */
 void InitGpio() {
-    // Init GPIO (GPIO2-14: FM bus, GPIO22: /IC, GPIO26: /IRQ)
-    gpio_init_mask(0b0000'0100'0100'0000'0111'1111'1111'1100);
+    // Init GPIO (GPIO2-15: FM bus, GPIO22: /IC, GPIO26: /IRQ)
+    gpio_init_mask(0b0000'0100'0100'0000'1111'1111'1111'1100);
 
     // Disable pull up/down
     constexpr uint pins[] = {kFM_D0, kFM_D1, kFM_D2, kFM_D3, 
@@ -91,9 +91,9 @@ void InitGpio() {
         gpio_disable_pulls(pins[i]);
     }
 
-    // Set direction (GPIO2-14,GPIO22 OUT by default, GPIO26 /IRQ IN)
-    gpio_set_dir_masked(0b0000'0100'0100'0000'0111'1111'1111'1100,
-                        0b0000'0000'0100'0000'0111'1111'1111'1100);
+    // Set direction (GPIO2-15,GPIO22 OUT by default, GPIO26 /IRQ IN)
+    gpio_set_dir_masked(0b0000'0100'0100'0000'1111'1111'1111'1100,
+                        0b0000'0000'0100'0000'1111'1111'1111'1100);
 
     // CS0=L, CS1=L, /WR=H, /RD=H, /IC=H, A0=L, A1=L (FM#0 selected, bus inactive)
     gpio_put_masked(0b0000'0000'0100'0000'1111'1100'0000'0000,

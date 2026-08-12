@@ -87,7 +87,7 @@ drivers → extern, pico-sdk（platform には依存しない）
 
 - `app/`: ハード直接操作禁止。`Platform::*` と `synth` API のみ
 - `midi/`: pico-sdk・FreeRTOS・ドライバに依存しない。Single Parse Rule（Core0 のみパース）
-- `synth/`: FM アクセスは `drivers/fm` 経由
+- `synth/`: FM アクセスは `drivers/fm` 経由。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
 - `platform/`: ピン割り当て・PIO 所有・初期化順を集約。GPIO は上位でハードコードしない
 - `extern/`: 直接編集禁止。ラッパー（主に `platform`）経由で利用
 

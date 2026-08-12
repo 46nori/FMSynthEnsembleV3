@@ -205,7 +205,7 @@ const uint16_t effective_led = led_mode_midi ? host_led_bitmap_ : switch_bitmap_
 
 ```mermaid
 flowchart TD
-    A["列切替（kColumnPortA[prev] → [col]）"] --> B["settle_us 待ち"]
+    A["列切替（PortA = kColumnPortA[col]）"] --> B["settle_us 待ち"]
     B --> C["read PortB"]
     C --> D["スイッチ（下位 4bit）・PB bit7（LED モード）"]
     D --> E["トグル・長押し FSM 更新"]
@@ -316,13 +316,15 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[vTaskDelayUntil] --> B{IsConnected?}
+    A[vTaskDelayUntil] --> B{Panel Mode 有効 かつ IsConnected?}
     B -- No --> A
     B -- Yes --> C["Tick(gLastNoteOnBitmap)"]
     C --> D["gPanelChannelBitmap = GetChannelEnableBitmap()"]
     D --> E["IsMidiReset 立ち上がり → MIDI Reset IPC"]
     E --> A
 ```
+
+Panel Mode はデバッガコマンドで無効化できる（[design_concurrency.md](design_concurrency.md#34-midipaneltaskcore0-固定) 3.4節）。無効時は `IsConnected()` の結果によらずスキップする。
 
 ### 7.2 `main.cpp`
 
@@ -376,7 +378,7 @@ flowchart LR
 
 | レベル | 内容 |
 |--------|------|
-| ユニット | 列パターン（`kColumnPortA`）、PortA 組み立て、トグル FSM |
+| ユニット | 列パターン（`kColumnPortA`）、PortA 組み立て、デバウンス、トグル FSM、長押し Reset、LED モード A/B 切替（`tests/unit/drivers/midi_panel/test_opn_midi_panel_driver.cpp`。`IIoPort` フェイクと pico-sdk 時刻 API のフェイクで実機非依存に検証） |
 | 結合 | `MidiPanelController` の呼び順 |
 | 実機 | 全 CH トグル、長押し Reset、PB bit7 による LED モード A/B |
 
