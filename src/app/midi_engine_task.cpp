@@ -11,6 +11,7 @@
 #include "NoteChannel.h"
 #include "VoiceAllocator.h"
 #include "config.h"
+#include "debugger.h"
 #include "midi_ipc.h"
 #include "MidiMessage.h"
 #include "task_config.h"
@@ -188,22 +189,7 @@ void handle_control_event(const MidiControlEvent& ctl, MidiEngineTaskContext* ct
         VoiceAllocator::GetInstance().dump();
         break;
     case MidiControlType::DebugStats:
-        {
-            const MidiIpcStats midiIpcStats = MidiIpcGetStats();
-            std::printf("\nVoice allocation failure: %d\n",
-                        VoiceAllocator::GetInstance().GetFailedCount());
-            std::printf("midi_ipc queue drops: effect=%lu note=%lu control=%lu reset=%lu\n",
-                        static_cast<unsigned long>(midiIpcStats.midi_event_queue_drop_count),
-                        static_cast<unsigned long>(midiIpcStats.midi_note_queue_drop_count),
-                        static_cast<unsigned long>(midiIpcStats.midi_control_queue_drop_count),
-                        static_cast<unsigned long>(midiIpcStats.midi_reset_queue_drop_count));
-            std::printf("midi_ipc note_off protect: reserve_drop=%lu fallback=%lu\n",
-                        static_cast<unsigned long>(midiIpcStats.midi_note_on_reserve_drop_count),
-                        static_cast<unsigned long>(midiIpcStats.midi_note_off_fallback_count));
-        }
-        for (auto* ch : *ctx->channels) {
-            ch->stats();
-        }
+        Debugger::PrintMidiStats(*ctx->channels);
         break;
     case MidiControlType::DebugVibratoOverride:
         if (ctl.channel <= static_cast<uint8_t>(VibOverride::Auto)) {

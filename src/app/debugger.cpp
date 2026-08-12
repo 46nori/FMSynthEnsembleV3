@@ -14,6 +14,8 @@
 #include "task.h"             // taskYIELD()
 #include "pico/stdlib.h"      // getchar_timeout_us(), PICO_ERROR_TIMEOUT
 #include "midi_ipc.h"
+#include "MidiChannel.h"
+#include "VoiceAllocator.h"
 
 namespace {
 
@@ -123,15 +125,8 @@ constexpr uint8_t DEBUGGER_STATS        = 0x04;
 }  // namespace
 
 void Debugger::HandleSysEx(const uint8_t* raw, uint16_t len) {
-    if (raw == nullptr || len < 6) {
-        return;
-    }
-
-    // Expected format: F0 7D 46 4D <cmd> <payload...> F7
-    if (raw[0] != 0xf0 || raw[1] != 0x7d || raw[2] != 0x46 || raw[3] != 0x4d || raw[len - 1] != 0xf7) {
-        return;
-    }
-
+    // Header match (F0 7D 46 4D ... F7) and len>=6 are guaranteed by the
+    // caller via MidiRoutingPolicy::DecideForSysEx(); not re-checked here.
     const uint8_t cmd = raw[4];
     switch (cmd) {
     case DEBUGGER_MIDI_RESET:
@@ -150,5 +145,21 @@ void Debugger::HandleSysEx(const uint8_t* raw, uint16_t len) {
         break;
     default:
         break;
+    }
+}
+
+void Debugger::PrintMidiStats(const std::array<MidiChannel*, MIDI_CHANNELS>& channels) {
+    const MidiIpcStats midiIpcStats = MidiIpcGetStats();
+    std::printf("\nVoice allocation failure: %d\n", VoiceAllocator::GetInstance().GetFailedCount());
+    std::printf("midi_ipc queue drops: effect=%lu note=%lu control=%lu reset=%lu\n",
+                static_cast<unsigned long>(midiIpcStats.midi_event_queue_drop_count),
+                static_cast<unsigned long>(midiIpcStats.midi_note_queue_drop_count),
+                static_cast<unsigned long>(midiIpcStats.midi_control_queue_drop_count),
+                static_cast<unsigned long>(midiIpcStats.midi_reset_queue_drop_count));
+    std::printf("midi_ipc note_off protect: reserve_drop=%lu fallback=%lu\n",
+                static_cast<unsigned long>(midiIpcStats.midi_note_on_reserve_drop_count),
+                static_cast<unsigned long>(midiIpcStats.midi_note_off_fallback_count));
+    for (auto* ch : channels) {
+        ch->stats();
     }
 }

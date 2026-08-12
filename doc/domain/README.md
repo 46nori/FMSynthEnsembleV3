@@ -18,6 +18,7 @@ flowchart TD
     app --> platform
     app -- "drivers/usb (TinyUSB API)" --> drivers
     synth -- "drivers/fm · drivers/midi_panel<br>(via interfaces)" --> drivers
+    synth -. "CsmVoice: FM /IRQ ISR登録のみ（例外）" .-> platform
     platform --> drivers
     platform --> ext
     drivers --> ext
@@ -29,7 +30,7 @@ flowchart TD
 依存制約（[AGENTS.md](../../AGENTS.md) と同一）:
 
 - `app` → `midi`, `synth`, `platform`, `drivers/usb`
-- `synth` → `drivers/fm`, `drivers/midi_panel`（インターフェース経由）
+- `synth` → `drivers/fm`, `drivers/midi_panel`（インターフェース経由）。例外: `CsmVoice` の FM `/IRQ` ISR 登録・`FrameTick` 通知のみ `platform`/`app` に直接依存する（[domain_synth.md](domain_synth.md)、[design_csm_frame.md](../design_csm_frame.md) 7章）
 - `platform` → `drivers`, `extern`, pico-sdk
 - `drivers` → `extern`, pico-sdk（`platform` には依存しない）
 - `midi` → pico-sdk・FreeRTOS・ドライバに非依存

@@ -5,9 +5,12 @@
 // See LICENSE file for details.
 //
 #pragma once
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include "config.h"
+
+class MidiChannel;
 
 /**
  *   Debugger macros
@@ -62,9 +65,18 @@ void SendCommand(DebugCommandId id, uint8_t value);
 
 /**
  * @brief SystemExclusive message を処理する
- * @param raw SysExバイト列へのポインタ (raw[0]==0xF0、raw[len-1]==0xF7 であること)
+ * @param raw SysExバイト列へのポインタ
  * @param len バイト列の長さ
+ * @details 呼び出し前に `MidiRoutingPolicy::DecideForSysEx()` が
+ *          `F0 7D 46 4D <cmd> ... F7` ヘッダ一致と最小長 (len>=6) を
+ *          確認済みであること（本関数側では再チェックしない）。
  */
 void HandleSysEx(const uint8_t* raw, uint16_t len);
+
+/**
+ * @brief MIDI統計情報（Voiceアロケート失敗数・IPCキュードロップ数・チャンネル別統計）を出力する
+ * @param channels 全 MIDI チャンネルの配列
+ */
+void PrintMidiStats(const std::array<MidiChannel*, MIDI_CHANNELS>& channels);
 
 }  // namespace Debugger

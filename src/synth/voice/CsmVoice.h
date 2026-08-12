@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include "config.h"
+#include "ICsmEventSink.h"
 #include "OpnBase.h"
 #include "Voice.h"
 
@@ -41,6 +42,9 @@ private:
 
     int irq_gpio_ = -1;
     static void IrqTickThunk(void* ctx);
+
+    // Start/Stop の送信先（app層が実体を持つ。ISR経由のFrameTickは対象外）
+    ICsmEventSink* event_sink_ = nullptr;
 
 public:
     /**
@@ -121,6 +125,13 @@ public:
      * @brief CSMモードの初期化（GPIO26 IRQ はティック通知のみ。フレーム処理は CsmFrameTask）
      */
     void Init();
+
+    /**
+     * @brief Start/Stopイベントの送信先を設定する
+     * @param sink app層が実装するICsmEventSink（所有権は呼び出し側）
+     * @details CsmFrameTask生成前、MidiFactory構築後に一度だけ呼ぶ想定。
+     */
+    void SetEventSink(ICsmEventSink* sink);
 
     /**
      * @brief 再生開始とフレームの更新処理

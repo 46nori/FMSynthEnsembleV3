@@ -12,165 +12,45 @@
 #include "tusb.h"
 #include "config.h"
 #include "debugger.h"
-#include "MidiParser.h"
-#include "MidiRoutingPolicy.h"
+#include "MidiStreamAssembler.h"
 
 #include "pico/time.h"
 
 namespace {
 
-constexpr uint16_t kMaxSysExLength = 256;
-
-struct StreamState {
-    bool inSysEx = false;
-    bool sysExOverflow = false;
-    uint16_t sysExLength = 0;
-    uint8_t sysEx[kMaxSysExLength] = {0};
-
-    uint8_t runningStatus = 0;
-    uint8_t msg[3] = {0};
-    uint8_t msgLength = 0;
-    uint8_t expectedLength = 0;
-};
-
-uint8_t expected_length_for_status(uint8_t status) {
-    const uint8_t high = static_cast<uint8_t>(status & 0xf0);
-    if (high == 0xc0 || high == 0xd0) {
-        return 2;
-    }
-    if (high >= 0x80 && high <= 0xe0) {
-        return 3;
-    }
-    return 0;
-}
-
-void reset_sysex(StreamState& st) {
-    st.inSysEx = false;
-    st.sysExOverflow = false;
-    st.sysExLength = 0;
-}
-
-void handle_complete_sysex(const StreamState& st) {
-    if (st.sysExLength == 0 || st.sysExOverflow) {
-        return;
+// バイトストリーム組立（runningStatus管理・SysEx組立・暗黙終了）は
+// MidiStreamAssembler(src/midi/)に切り出し済み。ここではIPC送信・
+// Debugger呼び出しなどpico-sdk/FreeRTOS依存の副作用だけを担う。
+class UsbMidiStreamSink : public IMidiStreamSink {
+public:
+    void OnMidiEvent(const MidiEvent& event) override {
+        MidiEvent evt = event;
+        if (MidiEventIsNote(evt)) {
+            evt.timestamp_us = static_cast<uint32_t>(time_us_64());
+            (void)MidiIpcSendMidiNoteEvent(evt);
+        } else {
+            (void)MidiIpcSendMidiEvent(evt);
+        }
     }
 
-    if (MidiRoutingPolicy::IsProfileResetSysEx(st.sysEx, st.sysExLength)) {
+    void OnProfileReset() override {
         MidiControlEvent ctl{};
         ctl.type = MidiControlType::Reset;
         ctl.channel = 0;
         ctl.timestamp_us = 0;
         (void)MidiIpcSendMidiControl(ctl);
-        return;
     }
 
-    if (MidiRoutingPolicy::DecideForSysEx(st.sysEx, st.sysExLength) ==
-        MidiRouteDecision::HandleOnCore0) {
-        Debugger::HandleSysEx(st.sysEx, st.sysExLength);
+    void OnVendorSysEx(const uint8_t* raw, uint16_t len) override {
+        Debugger::HandleSysEx(raw, len);
     }
-}
-
-void enqueue_event_if_needed(const uint8_t* raw, uint8_t len) {
-    MidiEvent evt{};
-    if (!MidiParser::TryParseEvent(raw, len, evt)) {
-        return;
-    }
-    if (MidiRoutingPolicy::DecideForEvent(evt) != MidiRouteDecision::ForwardToEngine) {
-        return;
-    }
-    if (MidiEventIsNote(evt)) {
-        evt.timestamp_us = static_cast<uint32_t>(time_us_64());
-        (void)MidiIpcSendMidiNoteEvent(evt);
-    } else {
-        (void)MidiIpcSendMidiEvent(evt);
-    }
-}
-
-void handle_data_byte(StreamState& st, uint8_t value) {
-    if (st.runningStatus == 0 || st.expectedLength < 2) {
-        return;
-    }
-
-    st.msg[st.msgLength++] = value;
-    if (st.msgLength < st.expectedLength) {
-        return;
-    }
-
-    enqueue_event_if_needed(st.msg, st.expectedLength);
-
-    // Keep running status for the next data bytes.
-    st.msg[0] = st.runningStatus;
-    st.msgLength = 1;
-}
-
-void handle_status_byte(StreamState& st, uint8_t status) {
-    if (MidiParser::IsRealtimeStatus(status)) {
-        return;
-    }
-
-    if (status == 0xf0) {
-        st.inSysEx = true;
-        st.sysExOverflow = false;
-        st.sysExLength = 0;
-        st.sysEx[st.sysExLength++] = status;
-        st.runningStatus = 0;
-        st.msgLength = 0;
-        st.expectedLength = 0;
-        return;
-    }
-
-    if (status >= 0xf0) {
-        st.runningStatus = 0;
-        st.msgLength = 0;
-        st.expectedLength = 0;
-        return;
-    }
-
-    st.runningStatus = status;
-    st.expectedLength = expected_length_for_status(status);
-    st.msg[0] = status;
-    st.msgLength = 1;
-}
-
-void handle_stream_byte(StreamState& st, uint8_t value) {
-    // Realtime messageはSysEx中でも独立に挿入され得るため、
-    // SysExバッファには積まずここで破棄する。
-    if ((value & 0x80) && MidiParser::IsRealtimeStatus(value)) {
-        return;
-    }
-
-    if (st.inSysEx) {
-        // MIDI 1.0 仕様: SysEx 受信中に非リアルタイムステータス (0x80–0xF6) が来た場合、
-        // SysEx を暗黙終了させ、受信バイトを新規メッセージの先頭として処理する。
-        if ((value & 0x80) && value != 0xf7) {
-            reset_sysex(st);
-            handle_status_byte(st, value);
-            return;
-        }
-        if (st.sysExLength < kMaxSysExLength) {
-            st.sysEx[st.sysExLength++] = value;
-        } else {
-            st.sysExOverflow = true;
-        }
-
-        if (value == 0xf7) {
-            handle_complete_sysex(st);
-            reset_sysex(st);
-        }
-        return;
-    }
-
-    if (value & 0x80) {
-        handle_status_byte(st, value);
-    } else {
-        handle_data_byte(st, value);
-    }
-}
+};
 
 }  // namespace
 
 void UsbMidiTask(void* /*param*/) {
-    static StreamState state{};
+    static UsbMidiStreamSink sink;
+    static MidiStreamAssembler assembler(sink);
     Debugger::gMidiMode = true;         // MIDI処理を有効化
 
     for (;;) {
@@ -191,7 +71,7 @@ void UsbMidiTask(void* /*param*/) {
             const int len = tud_midi_n_stream_read(0, 0, buffer, sizeof(buffer));
             if (len > 0) {
                 for (int i = 0; i < len; ++i) {
-                    handle_stream_byte(state, buffer[i]);
+                    assembler.PushByte(buffer[i]);
                 }
             }
             // データが残っていれば次のループで即処理

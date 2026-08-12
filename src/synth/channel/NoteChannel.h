@@ -230,6 +230,9 @@ public:
      */
     void ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup = false);
 
+    /** @brief active・hold の全 Voice に現在の実効音量（EffectiveVolume）を再適用する */
+    void ApplyVolumeToVoices();
+
     /** @brief MidiEngineTask から呼ぶ（phase_ticks 周期分の LFO 位相を進める） */
     void TickVibrato(uint32_t phase_ticks) override;
 

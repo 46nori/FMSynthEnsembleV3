@@ -69,6 +69,44 @@ public:
 };
 
 /**
+ * @brief LFO フィーチャ
+ * @details LFO 非搭載チップ（YM2203）は OpnBase の no-op 転送で吸収する。
+ */
+class ILfo {
+public:
+    virtual ~ILfo() = default;
+
+    /** @brief LFO ON */
+    virtual void TurnOn(uint8_t freq) = 0;
+
+    /** @brief LFO OFF */
+    virtual void TurnOff() = 0;
+
+    /**
+     * @brief チャンネルの Phase Modulation Sensitivity
+     * @param [in] ch  : Channel number (0-)
+     * @param [in] pms : 0-7
+     * @param [in] lr  : 0xc0=Both, 0x80=L, 0x40=R
+     */
+    virtual void SetPMS(uint8_t ch, uint8_t pms, uint8_t lr) = 0;
+
+    /**
+     * @brief チャンネルの Amplitude Modulation Sensitivity
+     * @param [in] ch  : Channel number (0-)
+     * @param [in] op  : 未使用（将来のオペレータ別AMS拡張用に予約）
+     * @param [in] ams : 0-3
+     * @param [in] lr  : 0xc0=Both, 0x80=L, 0x40=R
+     */
+    virtual void SetAMS(uint8_t ch, uint8_t op, uint8_t ams, uint8_t lr) = 0;
+
+    /** @brief 出力 L/R 設定 */
+    virtual void SetOutputLR(uint8_t ch, uint8_t lr) = 0;
+
+    /** @brief PMS/AMS 状態をクリアして LFO を OFF にする */
+    virtual void Reset() = 0;
+};
+
+/**
  * @brief SSG I/O ポートフィーチャ
  * @details io_port() が nullptr なら I/O ポートなし
  */

@@ -6,7 +6,7 @@
 
 ### 共通構造
 
-`OpnBase` が FM/SSG/Timer/Status の共通実装を持つ。オプション機能（リズム・I/O ポート）はフィーチャとしてコンポジションで保持し、`rhythm()` / `io_port()` で能力を確認する。
+`OpnBase` が FM/SSG/Timer/Status の共通実装を持つ。オプション機能（リズム・I/O ポート・LFO）はフィーチャとしてコンポジションで保持する。リズム・I/O ポートは `rhythm()` / `io_port()` で能力を確認する。LFO は `fm_turnon_LFO` 等の OpnBase メソッドが `lfo_feature_` へ無条件で転送し（null なら no-op）、専用の照会アクセサは持たない。
 
 ```mermaid
 classDiagram
@@ -15,6 +15,7 @@ classDiagram
         #dev : fm_device_t*
         #rhythm_feature_ : unique_ptr~IRhythm~
         #io_feature_ : unique_ptr~IIoPort~
+        #lfo_feature_ : unique_ptr~ILfo~
         #kind_ : ChipKind
         #csm_capable_ : bool
         +id : int
@@ -49,6 +50,14 @@ classDiagram
         +read_port_a() / read_port_b()
     }
 
+    class ILfo {
+        <<interface>>
+        +TurnOn(freq) / TurnOff()
+        +SetPMS(ch, pms, lr) / SetAMS(ch, op, ams, lr)
+        +SetOutputLR(ch, lr)
+        +Reset()
+    }
+
     class opn_piolib {
         <<C API>>
         +fm_bus_init / fm_bus_deinit
@@ -59,6 +68,7 @@ classDiagram
 
     OpnBase *-- IRhythm : rhythm_feature_ (optional)
     OpnBase *-- IIoPort : io_feature_ (optional)
+    OpnBase *-- ILfo : lfo_feature_ (optional)
     OpnBase --> opn_piolib : bus access
 ```
 
@@ -102,11 +112,13 @@ classDiagram
     class YM2608 {
         +fm_get_channels() 6ch
         +init() SCH enable / LFO off / rhythm mute
-        +fm_turnon_LFO / fm_set_LFO_PMS / fm_set_LFO_AMS
-        +fm_set_output_lr
-        RtmInst enum : BD/SD/TOP/HH/TOM/RIM
         kind_ = YM2608
         csm_capable_ = true
+    }
+
+    class RtmInst {
+        <<enumeration, OpnFeatures.h>>
+        BD/SD/TOP/HH/TOM/RIM/NONE
     }
 
     class OpnRhythm {
@@ -121,11 +133,20 @@ classDiagram
         reg 0x07 D6/D7 / 0x0e / 0x0f
     }
 
+    class OpnLfo {
+        <<ILfo>>
+        -dev : fm_device_t*
+        -pms_[6] / ams_[6]
+        reg 0x22, 0xb4-0xb6
+    }
+
     OpnBase <|-- YM2608
     YM2608 ..> OpnRhythm : creates
     YM2608 ..> OpnSsgIoPort : creates
+    YM2608 ..> OpnLfo : creates (lfo_feature_)
     YM2608 --> OpnRhythm : rhythm()
     YM2608 --> OpnSsgIoPort : io_port()
+    OpnRhythm --> RtmInst : uses
 ```
 
 ### YMF288 (OPN3-L)
@@ -141,11 +162,14 @@ classDiagram
     class YMF288 {
         +fm_get_channels() 6ch
         +init() NEW=1 / no prescaler / rhythm mute
-        +fm_turnon_LFO / fm_set_LFO_PMS / fm_set_LFO_AMS
-        +fm_set_output_lr
         kind_ = YMF288
         csm_capable_ = false
         io_port() = nullptr
+    }
+
+    class RtmInst {
+        <<enumeration, OpnFeatures.h>>
+        BD/SD/TOP/HH/TOM/RIM/NONE
     }
 
     class OpnRhythm {
@@ -154,9 +178,18 @@ classDiagram
         reg 0x10-0x1d
     }
 
+    class OpnLfo {
+        <<ILfo>>
+        -dev : fm_device_t*
+        -pms_[6] / ams_[6]
+        reg 0x22, 0xb4-0xb6
+    }
+
     OpnBase <|-- YMF288
     YMF288 ..> OpnRhythm : creates
+    YMF288 ..> OpnLfo : creates (lfo_feature_)
     YMF288 --> OpnRhythm : rhythm()
+    OpnRhythm --> RtmInst : uses
 ```
 
 ### チップ別フィーチャ一覧

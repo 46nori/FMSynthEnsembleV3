@@ -8,17 +8,6 @@
 
 namespace {
 
-uint8_t message_size_for_status(uint8_t status) {
-    const uint8_t type = static_cast<uint8_t>((status >> 4) & 0x0f);
-    if (type == 0x0c || type == 0x0d) {
-        return 2;
-    }
-    if (type >= 0x08 && type <= 0x0e) {
-        return 3;
-    }
-    return 0;
-}
-
 MidiEventType event_type_for_status(uint8_t status, uint8_t data1) {
     const uint8_t type = static_cast<uint8_t>((status >> 4) & 0x0f);
     switch (type) {
@@ -44,6 +33,17 @@ MidiEventType event_type_for_status(uint8_t status, uint8_t data1) {
 
 }  // namespace
 
+uint8_t MidiParser::MessageSizeForStatus(uint8_t status) {
+    const uint8_t type = static_cast<uint8_t>((status >> 4) & 0x0f);
+    if (type == 0x0c || type == 0x0d) {
+        return 2;
+    }
+    if (type >= 0x08 && type <= 0x0e) {
+        return 3;
+    }
+    return 0;
+}
+
 bool MidiParser::TryParseEvent(const uint8_t* raw, uint8_t len, MidiEvent& out) {
     if (raw == nullptr || len == 0) {
         return false;
@@ -54,7 +54,7 @@ bool MidiParser::TryParseEvent(const uint8_t* raw, uint8_t len, MidiEvent& out) 
         return false;
     }
 
-    const uint8_t size = message_size_for_status(status);
+    const uint8_t size = MessageSizeForStatus(status);
     if (size == 0 || len < size) {
         return false;
     }
@@ -66,10 +66,6 @@ bool MidiParser::TryParseEvent(const uint8_t* raw, uint8_t len, MidiEvent& out) 
     out.size         = size;
     out.timestamp_us = 0;
     return true;
-}
-
-bool MidiParser::IsSysEx(const uint8_t* raw, uint8_t len) {
-    return raw != nullptr && len > 0 && raw[0] == 0xf0;
 }
 
 bool MidiParser::IsRealtimeStatus(uint8_t status) {

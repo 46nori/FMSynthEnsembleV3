@@ -253,8 +253,7 @@ void NoteChannel::SetProgram(uint8_t no) {
     bk_program = no;
 }
 
-void NoteChannel::SetVolume(int vol) {
-    volume = vol;
+void NoteChannel::ApplyVolumeToVoices() {
     for (auto& voice : activeQueue) {
         voice->SetVolume(EffectiveVolume(voice->GetVelocity()));
     }
@@ -263,14 +262,14 @@ void NoteChannel::SetVolume(int vol) {
     }
 }
 
+void NoteChannel::SetVolume(int vol) {
+    volume = vol;
+    ApplyVolumeToVoices();
+}
+
 void NoteChannel::SetExpression(int val) {
     expression = val;
-    for (auto& voice : activeQueue) {
-        voice->SetVolume(EffectiveVolume(voice->GetVelocity()));
-    }
-    for (auto& voice : holdQueue) {
-        voice->SetVolume(EffectiveVolume(voice->GetVelocity()));
-    }
+    ApplyVolumeToVoices();
 }
 
 void NoteChannel::ResetAllController() {
@@ -383,6 +382,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
         if ((*it)->GetKey() == key) {
             if (!(*it)->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
                                      outputLR)) {
+                mid = (*it)->GetModuleId();
                 continue;
             }
             // TryRetrigger成功時のみactiveQueueへ移動

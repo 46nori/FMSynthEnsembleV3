@@ -20,7 +20,7 @@ constexpr uint8_t kColumnPortA[4] = {0x0E, 0x0D, 0x0B, 0x07};
 // PB bit7 = LED モード選択（Active Low）
 constexpr uint8_t kPbBit7LedModeMask = 0x80;
 
-} 
+}
 
 OpnMidiPanelDriver::OpnMidiPanelDriver(IIoPort& io)
     : io_(io),
@@ -115,11 +115,9 @@ void OpnMidiPanelDriver::RebuildSwitchBitmap() {
 // 列スロット: マトリックス読取 → トグル更新 → LED 出力
 void OpnMidiPanelDriver::Tick() {
     const uint8_t col = scan_column_;
-    const uint8_t prev_col = static_cast<uint8_t>((col + 3u) % 4u);
     const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
 
     // 列切替と PB 安定待ち
-    io_.write_port_a(kColumnPortA[prev_col]);
     io_.write_port_a(kColumnPortA[col]);
     if (config_.settle_us > 0) {
         busy_wait_us(config_.settle_us);

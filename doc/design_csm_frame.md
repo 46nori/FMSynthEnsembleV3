@@ -26,6 +26,7 @@ OPN の CSM（複合正弦波音声合成）におけるフレーム処理の設
 | フレーム専用タスク | `src/app/csm_frame_task.h`, `src/app/csm_frame_task.cpp` |
 | ボイス／ISR／`UpdateFrame` | `src/synth/voice/CsmVoice.h`, `CsmVoice.cpp` |
 | FM IRQ GPIO・ISR 登録 | `src/platform/isr.h`（`FM_IRQ`）、`Platform::AttachIsrCallback` |
+| Start/Stop 送信先インターフェース | `src/synth/voice/ICsmEventSink.h`（synth 側が定義）、`src/app/csm_ipc.h` の `CsmEventSink`（app 側が実装、`CsmSignalStart`/`CsmSignalStop` へ転送） |
 | タスク優先度・スタック・コア | `src/app/task_config.h`、`src/app/main.cpp` |
 
 MIDI コア間キュー（`gMidiEventQueue` 等）は `midi_ipc.h` で定義され、CSM フレームティックとは別系統である（[3 章](#3-並行性)）。
@@ -124,8 +125,10 @@ sequenceDiagram
 
 ### 5.2 MidiEngineTask / CsmVoice から CsmFrameTask へ渡すもの
 
-- NoteOff・リセット等の停止は `CsmSignalStop()` で順序付きイベントとして伝える。`CsmVoice::NoteOff` / `Reset` は停止イベントを投入し、実際の停止処理は `CsmFrameTask` が行う
-- CSM の NoteOn は `CsmVoice::NoteOn` が `CsmSignalStart()` で開始イベントを投入し、`Start()` / `UpdateFrame(true)` を CsmFrameTask に集約する
+`CsmVoice` は Start/Stop を `ICsmEventSink`（`src/synth/voice/ICsmEventSink.h`）越しに送る。実体は app 層の `CsmEventSink`（`src/app/csm_ipc.h`/`.cpp`）で、`main.cpp` が `CsmVoice::SetEventSink()` で注入する。`synth` は `csm_ipc.h` の関数を直接呼ばない（FrameTick を除く。[4.3 節](#43-fm-irq-割り込みisr)）。
+
+- NoteOff・リセット等の停止は `event_sink_->SignalCsmStop()` で順序付きイベントとして伝える。`CsmVoice::NoteOff` / `Reset` は停止イベントを投入し、実際の停止処理は `CsmFrameTask` が行う。`CsmEventSink::SignalCsmStop()` が `CsmSignalStop()` へ転送する
+- CSM の NoteOn は `CsmVoice::NoteOn` が `event_sink_->SignalCsmStart()` で開始イベントを投入し、`Start()` / `UpdateFrame(true)` を CsmFrameTask に集約する。`CsmEventSink::SignalCsmStart()` が `CsmSignalStart()` へ転送する
 
 ### 5.3 起床後の分岐
 

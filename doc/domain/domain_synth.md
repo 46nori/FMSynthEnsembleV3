@@ -55,7 +55,7 @@ classDiagram
         +NoteOn(key, velocity) int
         +NoteOff(key) int
         +ComputeVibCents() int16_t
-        +ApplyPitchToVoices(vib_cents, skip_attack_voices)
+        +ApplyPitchToVoices(vib_cents, allow_vib_dedup)
         +TickVibrato(phase_ticks)
         +Reclaim(mid, type) Voice*
     }
@@ -107,7 +107,6 @@ classDiagram
         +SetProgram(no)*
         +SetVolume(vol)*
         +GetModuleId() int*
-        +MarkPitchAttackStart()
         +RefreshVolume()
     }
 
@@ -122,9 +121,17 @@ classDiagram
         -modules : OpnBase*[4]
         -frame / lastFrame : int
         -running : bool
-        +NoteOn(...)  enqueue CsmSignalStart
+        -event_sink_ : ICsmEventSink*
+        +SetEventSink(sink)
+        +NoteOn(...)  event_sink_->SignalCsmStart
         +Start() / UpdateFrame(first) / Stop()
         -IrqTickThunk(ctx)$
+    }
+
+    class ICsmEventSink {
+        <<interface>>
+        +SignalCsmStart(note, program, volume, lr)*
+        +SignalCsmStop()*
     }
 
     class VoiceAllocator {
@@ -151,6 +158,7 @@ classDiagram
     VoiceAllocator --> IVoiceReclaimable : cross-channel reclaim
     NoteVoice --> OpnBase : fm_set_*
     CsmVoice --> OpnBase : CH3 / Timer B
+    CsmVoice --> ICsmEventSink : Start/Stop（app層が実装）
 ```
 
 | 要素 | ファイル | 責務 |
@@ -161,5 +169,6 @@ classDiagram
 | `NoteChannel` | `channel/NoteChannel.h/cpp` | メロディ発音、Voice キュー、ソフトウェア LFO |
 | `RhythmChannel` | `channel/RhythmChannel.h/cpp` | ch10 リズム。Voice を使わずチップを直接操作 |
 | `Voice` / `NoteVoice` / `CsmVoice` | `voice/` | 発音単位の抽象と FM / CSM 実装 |
+| `ICsmEventSink` | `voice/ICsmEventSink.h` | CSM Start/Stop 送信先インターフェース（実体は app 層の `CsmEventSink`、[design_csm_frame.md](../design_csm_frame.md)） |
 | `VoiceAllocator` | `voice/VoiceAllocator.h/cpp` | Voice プール所有と横断調停（シングルトン） |
 | `MidiPanelController` | `MidiPanelController.h/cpp` | `IMidiPanelDriver` API の仲介 |

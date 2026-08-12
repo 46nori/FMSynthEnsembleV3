@@ -30,13 +30,13 @@ public:
     static bool TryParseEvent(const uint8_t* raw, uint8_t len, MidiEvent& out);
 
     /**
-     * @brief バイト列が完全な SysEx メッセージか判定する
+     * @brief ステータスバイトからメッセージ長（ステータス込み）を求める
      *
-     * @param[in]  raw  MIDI バイト列の先頭ポインタ (raw[0]==0xF0 を期待)
-     * @param[in]  len  raw の有効バイト数
-     * @return raw[0]==0xF0 かつ raw[len-1]==0xF7 なら true
+     * @param[in]  status  MIDI ステータスバイト
+     * @return Program Change / Channel Aftertouch は 2、他のチャンネルメッセージは 3。
+     *         対象外（SysEx・System Common/Realtime 等）は 0
      */
-    static bool IsSysEx(const uint8_t* raw, uint8_t len);
+    static uint8_t MessageSizeForStatus(uint8_t status);
 
     /**
      * @brief ステータスバイトがリアルタイムメッセージか判定する

@@ -11,7 +11,7 @@ FMSynthEnsembleV3 における MIDI メッセージ処理（パース・ルー�
 1. [設計方針](#1-設計方針)
 2. [メッセージ分類とルーティング](#2-メッセージ分類とルーティング)
 3. [データ構造](#3-データ構造)
-4. [Parser / RoutingPolicy API](#4-parser--routingpolicy-api)
+4. [Parser / RoutingPolicy / StreamAssembler API](#4-parser--routingpolicy--streamassembler-api)
 5. [Core0 処理フロー](#5-core0-処理フロー)
 6. [Core1 処理フロー](#6-core1-処理フロー)
 7. [SysEx 対応方針](#7-sysex-対応方針)
@@ -88,33 +88,43 @@ struct MidiEvent {
 
 ```cpp
 enum class MidiControlType : uint8_t {
-    Reset,             // GM_SYSTEM_ON / XG_RESET / GS_RESET
-    DebugDumpChannel,  // デバッグ: チャンネルダンプ
-    DebugDumpVoice,    // デバッグ: Voice ダンプ
-    DebugStats,        // デバッグ: 統計情報
-    // ほかデバッグ用種別は MidiMessage.h を参照
+    Reset,                 // GM_SYSTEM_ON / XG_RESET / GS_RESET
+    DebugDumpChannel,      // デバッグ: チャンネルダンプ
+    DebugDumpVoice,        // デバッグ: Voice ダンプ
+    DebugStats,            // デバッグ: 統計情報
+    DebugVibratoOverride,  // デバッグ: ビブラート強制モード
 };
 
 struct MidiControlEvent {
     MidiControlType type;
-    uint8_t         channel;    // 対象 MIDI チャンネル (0–15)
+    uint8_t         channel;    // 意味は type ごとに異なる（下表）
     uint8_t         reserved0;
     uint8_t         reserved1;
     uint32_t        timestamp_us;
 };
 ```
 
+`channel` はイベント種別ごとに意味が異なる汎用フィールドで、対象 MIDI チャンネルに限らない。
+
+| `type` | `channel` の意味 |
+|---|---|
+| `Reset` | 未使用 |
+| `DebugDumpChannel` | 対象 MIDI チャンネル (0–15)。`0xff` は全チャンネル |
+| `DebugDumpVoice` | 未使用（全 Voice をダンプ） |
+| `DebugStats` | 未使用 |
+| `DebugVibratoOverride` | ビブラート強制モード値（`VibOverride` 列挙） |
+
 ---
 
-## 4. Parser / RoutingPolicy API
+## 4. Parser / RoutingPolicy / StreamAssembler API
 
-ファイル位置: `src/midi/MidiParser.h/.cpp`, `src/midi/MidiRoutingPolicy.h/.cpp`
+ファイル位置: `src/midi/MidiParser.h/.cpp`, `src/midi/MidiRoutingPolicy.h/.cpp`, `src/midi/MidiStreamAssembler.h/.cpp`
 
 ```cpp
 class MidiParser {
 public:
     static bool TryParseEvent(const uint8_t* raw, uint8_t len, MidiEvent& out);
-    static bool IsSysEx(const uint8_t* raw, uint8_t len);
+    static uint8_t MessageSizeForStatus(uint8_t status);
     static bool IsRealtimeStatus(uint8_t status);
 };
 
@@ -130,15 +140,30 @@ public:
     static MidiRouteDecision DecideForSysEx(const uint8_t* raw, uint16_t len);
     static bool IsProfileResetSysEx(const uint8_t* raw, uint16_t len);
 };
+
+class IMidiStreamSink {
+public:
+    virtual void OnMidiEvent(const MidiEvent& event) = 0;
+    virtual void OnProfileReset() = 0;
+    virtual void OnVendorSysEx(const uint8_t* raw, uint16_t len) = 0;
+};
+
+class MidiStreamAssembler {
+public:
+    explicit MidiStreamAssembler(IMidiStreamSink& sink);
+    void PushByte(uint8_t value);
+};
 ```
 
 ---
 
 ## 5. Core0 処理フロー
 
-UsbMidiTask（`src/app/usb_midi_task.cpp`）は `tud_midi_n_stream_read` で最大 32 バイトのチャンクを一度に読み出し、バイトストリームを 1 バイトずつ `handle_stream_byte()` でアセンブルする。これにより Running Status、SysEx の途中分割受信、長い SysEx（最大 256 バイト）を正しく処理できる。
+UsbMidiTask（`src/app/usb_midi_task.cpp`）は `tud_midi_n_stream_read` で最大 32 バイトのチャンクを一度に読み出し、バイトストリームを 1 バイトずつ `MidiStreamAssembler::PushByte()`（`src/midi/MidiStreamAssembler.h/.cpp`）でアセンブルする。これにより Running Status、SysEx の途中分割受信、長い SysEx（最大 256 バイト）を正しく処理できる。
 
-`handle_stream_byte()` のバイト処理規則:
+`MidiStreamAssembler` は pico-sdk / FreeRTOS に依存しない（AGENTS.md の `midi/` レイヤ制約）。確定したイベント/SysEx は `IMidiStreamSink` インターフェース経由で通知し、IPC キュー送信・`Debugger::HandleSysEx` 呼び出し・タイムスタンプ付与など副作用を伴う処理は、実装（`UsbMidiTask` 内の `UsbMidiStreamSink`）側に閉じる。
+
+`PushByte()` のバイト処理規則:
 
 | バイト種別 | 処理 |
 |---|---|
@@ -156,17 +181,20 @@ UsbMidiTask（`src/app/usb_midi_task.cpp`）は `tud_midi_n_stream_read` で最�
 flowchart TD
     A["Channel Voice / Mode 完成"] --> B["MidiParser::TryParseEvent"]
     B --> C{"MidiRoutingPolicy::DecideForEvent"}
-    C -- ForwardToEngine --> D{"Note?"}
-    D -- NoteOn/Off --> E["timestamp_us 付与 →<br>gMidiNoteQueue"]
-    D -- その他 --> F["gMidiEventQueue"]
+    C -- ForwardToEngine --> D["sink.OnMidiEvent"]
+    D --> D2{"Note?"}
+    D2 -- NoteOn/Off --> E["timestamp_us 付与 →<br>gMidiNoteQueue"]
+    D2 -- その他 --> F["gMidiEventQueue"]
     C -- Drop --> G["破棄"]
 
     H["SysEx 完成"] --> I{"IsProfileResetSysEx?"}
-    I -- yes --> J["MidiControlEvent::Reset →<br>gMidiControlQueue"]
+    I -- yes --> J["sink.OnProfileReset →<br>MidiControlEvent::Reset →<br>gMidiControlQueue"]
     I -- no --> K{"DecideForSysEx"}
-    K -- HandleOnCore0 --> L["Debugger::HandleSysEx"]
+    K -- HandleOnCore0 --> L["sink.OnVendorSysEx →<br>Debugger::HandleSysEx"]
     K -- Drop --> G
 ```
+
+`sink` は `MidiStreamAssembler` が受け取る `IMidiStreamSink&`。Note/Event 振り分けとタイムスタンプ付与は `sink.OnMidiEvent` の実装（app 層）が行う。
 
 キュー投入はすべてノンブロッキングで行う。満杯時の扱い（NoteOff 予約スロット / pending NoteOff 退避）は [design_concurrency.md](design_concurrency.md#42-gmidinotequeue) を参照。
 

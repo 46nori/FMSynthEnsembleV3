@@ -33,6 +33,8 @@ Raspberry Pi Pico 系マイコン（RP2040 / RP2350）の PIO を用いて、YM2
 | `void write_reg(const fm_device_t *dev, uint8_t addr, uint8_t a1, uint8_t data)` | レジスタ書き込み（addr + data、W1/W2 自動）。 |
 | `uint8_t read_status(const fm_device_t *dev, uint8_t a1)` | ステータス読み出し（`a1`: 0=Status0, 1=Status1）。 |
 | `uint8_t read_reg(const fm_device_t *dev, uint8_t addr, uint8_t a1)` | レジスタ読み出し（W1=0 アドレス限定、[10.3 節](#103-read_reg-対象)）。 |
+| `void write_reg_data(const fm_device_t *dev, uint8_t a1, uint8_t data)` | アドレス省略アクセスの書き込み（[8.2 節](#82-main_entry通常書き込み)の idle に data ワード 1 個を投入）。 |
+| `uint8_t read_reg_data(const fm_device_t *dev, uint8_t a1)` | アドレス省略アクセスの読み出し（[8.5 節](#85-アドレス省略アクセスのデータサイクル読み出しdata_read_entry)。呼び出し側が直前にレジスタアドレスをラッチ済みであること）。 |
 
 #### 高レベル API
 
@@ -125,9 +127,10 @@ PIO がバスサイクルを最後まで実行するため、CPU がストロー
 | `main_entry` | **書き込み**（`write_reg` 等）および **アイドル**（`pull block` 待ち） | TX: 2 ワード/トランザクション |
 | `status_entry` | **ステータス read**（CPU が jmp で遷移） | TX: 1 ワード、RX: 1 バイト |
 | `reg_entry` | **レジスタ read**（addr write + data read、CPU が jmp で遷移） | TX: 2 ワード、RX: 1 バイト |
-| `read_strobe` | read 専用: `/RD` Low・サンプル | status/reg から合流 |
+| `data_read_entry` | **アドレス省略アクセスの read**（アドレスサイクルを省略、CPU が jmp で遷移） | TX: 1 ワード、RX: 1 バイト |
+| `read_strobe` | read 専用: `/RD` Low・サンプル | status/reg/data_read から合流 |
 
-**書き込み**は SM が常に `main_entry` の `.wrap` ループで処理する（CPU によるエントリ切替は不要）。**読み出し**だけ CPU が `pio_sm_exec`（side 3 付き jmp）で `status_entry` または `reg_entry` へ分岐し、終了後は `read_strobe` 経由で `main_entry` に戻る。
+**書き込み**は SM が常に `main_entry` の `.wrap` ループで処理する（CPU によるエントリ切替は不要）。**読み出し**だけ CPU が `pio_sm_exec`（side 3 付き jmp）で `status_entry` / `reg_entry` / `data_read_entry` へ分岐し、終了後は `read_strobe` 経由で `main_entry` に戻る。
 
 ```text
                  fm_bus (1 SM)
@@ -136,12 +139,12 @@ PIO がバスサイクルを最後まで実行するため、CPU がストロー
             |                   |
       main_entry            (CPU jmp, side 3)
    write + idle pull              |
-   (.wrap ループ)          +------+------+
-            ^              |             |
-            |         status_entry   reg_entry
-            |         (read 1 word)  (read 2 words)
-            |              |             |
-            |              +------+------+
+   (.wrap ループ)      +----------+----------+
+            ^          |          |          |
+            |    status_entry  reg_entry  data_read_entry
+            |    (read 1 word) (read 2 words) (read 1 word)
+            |          |          |          |
+            |          +----------+----------+
             |                     |
             |               read_strobe
             |               (/RD, in pins)
@@ -150,7 +153,7 @@ PIO がバスサイクルを最後まで実行するため、CPU がストロー
 ```
 
 - **write 経路**: `main_entry` → addr ワード処理（`out pins` + `/WR` Low 57cyc + W 待ち）→ data ワード処理 → 再び `pull`（アイドル）。
-- **read 経路**: idle 中に CPU が `status_entry` / `reg_entry` へ jmp → バス設定 → `read_strobe` → `main_entry` へ復帰。
+- **read 経路**: idle 中に CPU が `status_entry` / `reg_entry` / `data_read_entry` へ jmp → バス設定 → `read_strobe` → `main_entry` へ復帰。
 
 ### 4.3 バス共有モデル
 
@@ -178,7 +181,7 @@ PIO がバスサイクルを最後まで実行するため、CPU がストロー
 
 | 信号 | GPIO | 制御 |
 | --- | --- | --- |
-| D0–D7 | 2–9 | PIO `out pins` / `in pins`；read データ相前に CPU で入力化 |
+| D0–D7 | 2–9 | PIO `out pins` / `in pins`；読み出しのデータサイクル前に CPU で入力化 |
 | A0, A1 | 10–11 | PIO `out pins` |
 | CS0, CS1 | 12–13 | PIO `out pins` |
 | /WR, /RD | 14–15 | PIO `side_set`（2 bit） |
@@ -298,15 +301,19 @@ w_loop:
 
 `write_reg()` は addr ワード（A0=0）と data ワード（A0=1）を連続投入する。
 
+`write_reg_data()`（アドレス省略アクセスの書き込み）は専用エントリを持たず、この `main_entry` の idle 待ち（`pull block`）に **A0=1 の data ワード 1 個だけ**を投入する。SM 側はアドレス/データのワードを区別しないため、1 ワードだけ投入すればアドレスサイクルを省略した単発の `/WR` ストローブになる。
+
 ### 8.3 ステータス read（`status_entry`）
 
-**1 FIFO ワード**（status 専用レイアウト）。OSR 消費順: `out pindirs, 8` → `out pins, 12` → `out x, 12`。
+**1 FIFO ワード**。`reg_entry` の Word 2 と同じ **書き込みワード下位 12 bit レイアウト**（`out pins, 12`）を使う。D0–D7 の入力化は PIO の `out pindirs` ではなく、**CPU が `pio_sm_set_consecutive_pindirs()` でワード投入前に行う**（`reg_entry` と同じ手順）。専用の pindirs ビット消費経路は持たない。
 
 | ビット | 内容 |
 | --- | --- |
-| 7:0 | D0–D7 方向マスク（0 = 入力） |
-| 19:8 | A0=0, A1, CS（D=0） |
-| 31:20 | `Tacc_count`（12 bit） |
+| 7:0 | D0–D7 出力ラッチ値（0 固定。D は CPU が入力化済み） |
+| 8 | A0=0（status read） |
+| 9 | A1 |
+| 11:10 | CS0–CS1 |
+| 31:12 | `Tacc_count` |
 
 ```c
 static inline uint32_t fm_make_read_status_word(uint8_t chip_id, uint8_t a1,
@@ -316,10 +323,17 @@ static inline uint32_t fm_make_read_status_word(uint8_t chip_id, uint8_t a1,
 ```pio
 status_entry:
     pull block          side 3
-    out  pindirs, 8     side 3
+    ; D0-D7 are switched to input by the CPU before this word is pushed.
     out  pins, 12       side 3
     jmp  read_strobe    side 3
 ```
+
+**CPU 側シーケンス**（`fm_read_status_raw`）:
+
+1. `fm_bus_begin_read()` — idle 待ち + `status_entry` へ side 3 jmp
+2. `pio_sm_set_consecutive_pindirs(D0–D7, input)`
+3. ワード投入
+4. RX 回収、`fm_bus_restore_d_output()`、idle 待ち
 
 ### 8.4 レジスタ read（`reg_entry`）
 
@@ -328,7 +342,7 @@ status_entry:
 | ワード | 内容 | 構築 |
 | --- | --- | --- |
 | Word 1 | アドレス書き込み（A0=0） | `fm_make_read_reg_word1()` = `fm_make_write_word(addr, …, w_count=0)` |
-| Word 2 | データ read 相（A0=1） | `fm_make_read_reg_word2()` = `fm_make_write_word(0, chip_id, a0=1, …, tacc)` |
+| Word 2 | データサイクル（読み出し、A0=1） | `fm_make_read_reg_word2()` = `fm_make_write_word(0, chip_id, a0=1, …, tacc)` |
 
 Word 1 は `main_entry` と同型の `/WR` 57 サイクル。W1=0 のアドレス専用（`read_reg` 対象はすべて W1=0）。
 
@@ -353,14 +367,33 @@ reg_wr_low:
 
 1. `fm_bus_begin_read()` — idle 待ち + `reg_entry` へ side 3 jmp
 2. Word 1 投入
-3. `fm_bus_wait_write_idle()` — アドレス相完了（SM が Word 2 の `pull` で停止）
+3. `fm_bus_wait_write_idle()` — アドレスサイクル完了（SM が Word 2 の `pull` で停止）
 4. `pio_sm_set_consecutive_pindirs(D0–D7, input)`
 5. Word 2 投入
 6. RX 回収、`fm_bus_restore_d_output()`、idle 待ち
 
 Word 2 の `Tacc` は bits[31:12] に格納するが、`read_strobe` の `out x, 12` は **下位 12 bit 相当**のみ X に載せる。サポートする `pio_hz` と SSG/ADPCM の Tacc 要件では十分である。
 
-### 8.5 `read_strobe`（共通）
+### 8.5 アドレス省略アクセスのデータサイクル読み出し（`data_read_entry`）
+
+**アドレス省略アクセス**という呼称は、YM2608 アプリケーションマニュアルが定義する「[2) データライトモード](../../../../../doc/spec_opn.md#2-データライトモード)」（[doc/spec_opn.md](../../../../../doc/spec_opn.md) に転記）の「同じアドレスへ連続アクセスする場合、2回目以降のアドレス指定を省略できる」という動作に対応する。ADPCM-DATA（`0x08`）/ PCM DATA（`0x0f`）へのストリーミングアクセス専用。
+
+**1 FIFO ワード**。アドレスサイクルを省略し、直前に別途ラッチ済みのレジスタアドレスに対してデータサイクルのみを読み出す `data_read_entry` 専用のエントリ。`status_entry` と同じ、書き込みワード下位 12 bit レイアウトを使う。対応する公開 API は `read_reg_data()`（`fm_read_reg_data_raw` 経由）。
+
+```pio
+data_read_entry:
+    pull block          side 3          ; Pattern-2 data read (reg addr already latched)
+    out  pins, 12       side 3
+    jmp  read_strobe    side 3
+```
+
+（PIO ソース上のコメントは内部名として `Pattern-2` を使う。本書での呼称「アドレス省略アクセス」と同じものを指す。）
+
+ワード構築は `read_reg` の Word 2 と同じ `fm_make_read_reg_word2()` を再利用する。CPU 側の pindirs 手順は `status_entry` と同様（`pio_sm_set_consecutive_pindirs()` でワード投入前に D0–D7 を入力化）。書き込み側の `write_reg_data()` はこのエントリを使わない（[8.2 節](#82-main_entry通常書き込み)参照）。
+
+`OpnBase`/`YM2608` は現状このアドレス省略アクセス経路を使わない（ADPCM 機能自体が未実装のため）。テストダブルでは明示的に unused として扱う。
+
+### 8.6 `read_strobe`（共通）
 
 ```pio
 read_strobe:
@@ -372,7 +405,7 @@ tacc_loop:
     jmp  main_entry     side 3
 ```
 
-### 8.6 SM 設定
+### 8.7 SM 設定
 
 ```c
 sm_config_set_out_pins(&cfg, FM_GPIO_D0, 12);
@@ -398,7 +431,7 @@ sm_config_set_clkdiv(&cfg, (float)clock_get_hz(clk_sys) / (float)pio_hz);
 
 - `fm_write_reg_raw()`: 投入前・完了後に呼ぶ。
 - `fm_bus_begin_read()`: read 開始前に呼ぶ。
-- `fm_read_reg_raw()`: Word 1 投入後、Word 2 投入前に呼ぶ（アドレス相完了の同期）。
+- `fm_read_reg_raw()`: Word 1 投入後、Word 2 投入前に呼ぶ（アドレスサイクル完了の同期）。
 
 FIFO が空でも W 待ちループ中はアイドルではないため、FIFO レベルだけの判定は使わない。
 
@@ -511,4 +544,4 @@ I/O PortA/B（A1=0, 0x0e/0x0f）はデータシート上SSG扱い（W1=W2=0）�
 
 ## 14. まとめ
 
-共有 FM バスは **PIO プログラム `fm_bus` 1 本と SM 1 個**、および **スピンロック 1 個**で管理する。write / read はいずれも同一 SM が GPIO2–15 を駆動し、アイドル時は CS とアドレス線を保持したままストローブのみ非アクティブにする。read は SM 切替ではなくエントリポイント分岐と FIFO ワード形式の違いで実現し、レジスタ read のデータ相では CPU と PIO が D 方向と A0/CS 駆動を分担する。
+共有 FM バスは **PIO プログラム `fm_bus` 1 本と SM 1 個**、および **スピンロック 1 個**で管理する。write / read はいずれも同一 SM が GPIO2–15 を駆動し、アイドル時は CS とアドレス線を保持したままストローブのみ非アクティブにする。read は SM 切替ではなくエントリポイント分岐と FIFO ワード形式の違いで実現し、レジスタ read のデータサイクルでは CPU と PIO が D 方向と A0/CS 駆動を分担する。

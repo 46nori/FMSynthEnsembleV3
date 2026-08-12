@@ -10,6 +10,7 @@
 #include "config.h"
 
 QueueHandle_t gCsmEventQueue = nullptr;
+CsmEventSink gCsmEventSink;
 
 namespace {
 
@@ -110,4 +111,12 @@ void CsmSignalStart(int note, int32_t program, int volume, uint8_t lr) {
     const CsmEvent event{CsmEventType::Start, 0, note, program, volume, lr};
     (void)send_csm_event(event);
 #endif
+}
+
+void CsmEventSink::SignalCsmStart(int note, int32_t program, int volume, uint8_t lr) {
+    CsmSignalStart(note, program, volume, lr);
+}
+
+void CsmEventSink::SignalCsmStop() {
+    CsmSignalStop();
 }

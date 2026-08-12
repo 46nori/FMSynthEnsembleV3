@@ -106,9 +106,15 @@ CsmVoice::~CsmVoice() {
     }
 }
 
+void CsmVoice::SetEventSink(ICsmEventSink* sink) {
+    event_sink_ = sink;
+}
+
 void CsmVoice::Reset() {
     // CSM再生状態はCsmFrameTaskが所有するため、停止は順序付きイベントで依頼する。
-    CsmSignalStop();
+    if (event_sink_) {
+        event_sink_->SignalCsmStop();
+    }
 
     // コンストラクタと同じ設定にする
     SetChannel(-1);
@@ -136,7 +142,9 @@ void CsmVoice::SetVolume(int vol) {
 
 void CsmVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect, uint8_t lr) {
     (void)effect;
-    CsmSignalStart(note, bk_program, volume, lr);
+    if (event_sink_) {
+        event_sink_->SignalCsmStart(note, bk_program, volume, lr);
+    }
 }
 
 bool CsmVoice::TryRetrigger(int note, int32_t program, int vol, ChannelEffects& effect, uint8_t lr) {
@@ -144,13 +152,17 @@ bool CsmVoice::TryRetrigger(int note, int32_t program, int vol, ChannelEffects& 
     key = note;
     SetProgram(program);
     SetVolume(vol);
-    CsmSignalStart(note, program, vol, lr);
+    if (event_sink_) {
+        event_sink_->SignalCsmStart(note, program, vol, lr);
+    }
     return true;
 }
 
 void CsmVoice::NoteOff() {
 #if ENABLE_CSM_STOP_IMMEDIATE != 0
-    CsmSignalStop();
+    if (event_sink_) {
+        event_sink_->SignalCsmStop();
+    }
 #endif
 }
 
