@@ -51,7 +51,7 @@ static constexpr int16_t kSinLut[256] = {
 static uint32_t VibratoCalcPhaseInc(uint8_t vbrate) {
     const float rate_hz = VIBRATO_RATE_MIN_HZ
         + (VIBRATO_RATE_MAX_HZ - VIBRATO_RATE_MIN_HZ) * (vbrate / 127.0f);
-    return static_cast<uint32_t>(rate_hz * VIBRATO_DT_SEC * 16777216.0f);
+    return static_cast<uint32_t>(static_cast<double>(rate_hz) * VIBRATO_DT_SEC * 4294967296.0);
 }
 
 // GM bank (0:0) の判別

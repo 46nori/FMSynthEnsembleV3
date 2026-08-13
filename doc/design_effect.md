@@ -193,7 +193,7 @@ sin LUT・`VibratoCalcPhaseInc`・`ComputeVibCents` は `NoteChannel.cpp` 内の
 
 ```
 rate_hz   = VIBRATO_RATE_MIN_HZ + (VIBRATO_RATE_MAX_HZ - VIBRATO_RATE_MIN_HZ) * (vbrate / 127.0)
-phase_inc = (uint32_t)(rate_hz * VIBRATO_DT_SEC * 16777216.0)   // 2^24
+phase_inc = (uint32_t)(rate_hz * VIBRATO_DT_SEC * 4294967296.0)  // 2^32
 ```
 
 - `vbrate` 変更（NRPN 1:8）で `phase_inc` を再計算する
