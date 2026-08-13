@@ -129,9 +129,16 @@ public:
     void SetPan(uint8_t lr) override;
 
     /**
-     * @brief CSMモードの初期化（GPIO26 IRQ はティック通知のみ。フレーム処理は CsmFrameTask）
+     * @brief CSMモードの初期化（CH3 / Timer B。IRQ 登録は AttachIrq）
      */
     void Init();
+
+    /**
+     * @brief FM /IRQ を現在コアへ登録する
+     * @details Pico SDK の GPIO IRQ は登録コアで走る。CsmFrameTask（Core1）起動時に呼ぶ。
+     *          Init()（main / Core0）では登録しない。
+     */
+    void AttachIrq();
 
     /**
      * @brief Start/Stopイベントの送信先を設定する

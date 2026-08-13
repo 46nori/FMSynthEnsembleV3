@@ -34,11 +34,14 @@ void IsrHandler(uint gpio, uint32_t events) {
 // ----------------------------------------------------------------------------
 
 /**
- * @brief 割り込みコールバック登録
+ * @brief 割り込みコールバック登録（呼び出しコアで ISR が走る）
+ * @details Core1 は SDK の per-core IRQ priority 初期化を通らない。
+ *          NVIC 優先度が 0 のまま FromISR すると FreeRTOS が assert する。
  */
 void AttachIsrCallback(int gpio, void (*func)(void*), void* context) {
     g_isr_callback = func;
     g_isr_context  = context;
+    irq_set_priority(IO_IRQ_BANK0, PICO_DEFAULT_IRQ_PRIORITY);
     gpio_set_irq_enabled_with_callback(gpio,
                                        GPIO_IRQ_EDGE_FALL,
                                        true,

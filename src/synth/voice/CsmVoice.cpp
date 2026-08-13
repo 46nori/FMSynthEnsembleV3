@@ -212,7 +212,12 @@ void CsmVoice::Init() {
 
     // フレーム周期をTimer Bに設定
     modules[modTB]->set_timer_b(TimerBReloadByte());
+}
 
+void CsmVoice::AttachIrq() {
+    if (num_modules == 0 || irq_gpio_ >= 0) {
+        return;
+    }
     // FM /IRQ は Wired-OR で各 Dock とも同一 GPIO（isr.h）
     irq_gpio_ = FM_IRQ;
     Platform::AttachIsrCallback(FM_IRQ, &CsmVoice::IrqTickThunk, this);

@@ -25,7 +25,7 @@ OPN の CSM（複合正弦波音声合成）におけるフレーム処理の設
 | CSM 用 IPC（キュー・シグナル API） | `src/app/csm_ipc.h`, `src/app/csm_ipc.cpp` |
 | フレーム専用タスク | `src/app/csm_frame_task.h`, `src/app/csm_frame_task.cpp` |
 | ボイス／ISR／`UpdateFrame` | `src/synth/voice/CsmVoice.h`, `CsmVoice.cpp` |
-| FM IRQ GPIO・ISR 登録 | `src/platform/isr.h`（`FM_IRQ`）、`Platform::AttachIsrCallback` |
+| FM IRQ GPIO・ISR 登録 | `src/platform/isr.h`（`FM_IRQ`）、`CsmVoice::AttachIrq()` → `Platform::AttachIsrCallback`（CsmFrameTask 起動時 / Core1） |
 | Start/Stop 送信先インターフェース | `src/synth/voice/ICsmEventSink.h`（synth 側が定義）、`src/app/csm_ipc.h` の `CsmEventSink`（app 側が実装、`CsmSignalStart`/`CsmSignalStop` へ転送） |
 | タスク優先度・スタック・コア | `src/app/task_config.h`、`src/app/main.cpp` |
 
@@ -55,7 +55,7 @@ MIDI コア間キュー（`gMidiEventQueue` 等）は `midi_ipc.h` で定義さ�
 
 | 項目 | 設計 | 実装 |
 |------|------|------|
-| 役割 | CSM の **再生開始・フレーム処理・停止** を担当する | `Start()`、`UpdateFrame(true/false)`、`Stop()` を集約 |
+| 役割 | CSM の **再生開始・フレーム処理・停止** を担当する。起動時に FM `/IRQ` を Core1 へ登録する | `AttachIrq()`、`Start()`、`UpdateFrame(true/false)`、`Stop()` を集約 |
 | アフィニティ | **Core1**（`MidiEngineTask` と同コアでよいが別タスク） | `main.cpp` で `AFFINITY_CORE1` |
 | 優先度 | **`MidiEngineTask` より高い**（フレーム処理を MIDI 処理に食わせない） | `TASK_PRIORITY_CSM` > `TASK_PRIORITY_MIDI_ENGINE`（`task_config.h`） |
 | 待機 | CSM 専用キューで複数イベントを順序付きで待つ（[6 章](#6-同期プリミティブ)） | `CsmIpcReceive(..., portMAX_DELAY)` |
@@ -79,6 +79,7 @@ CSM イベントは `FrameTick` / `Start` / `Stop` の順序が意味を持つ�
 | 項目 | 内容 |
 |------|------|
 | トリガ | FM `/IRQ`（全 Dock の Wired-OR を GPIO26 に接続、`isr.h` の `FM_IRQ`） |
+| 登録 | Pico SDK の GPIO IRQ は登録コアで走る。`CsmVoice::Init()`（main / Core0）では登録せず、`CsmFrameTask` 起動時に `CsmVoice::AttachIrq()` → `Platform::AttachIsrCallback` で Core1 へ登録する。Core1 は SDK の per-core IRQ priority 初期化を通らないため、`IO_IRQ_BANK0` を `PICO_DEFAULT_IRQ_PRIORITY` にする（優先度 0 のまま `xQueueSendToBackFromISR` すると FreeRTOS が assert する） |
 | ISR でやること | フレーム処理は行わない。`CsmSignalFrameTick()` で `FrameTick` イベントを投入し CsmFrameTask を起床させるのみ。実装では `CsmVoice::IrqTickThunk` → `CsmSignalFrameTick()` |
 | ISR でやらないこと | 重い FM アクセス、長い処理、ミューテックス |
 
@@ -179,13 +180,14 @@ EventGroup のビット合流は使わないため、STOP→START、START→STOP
 
 - **CsmFrameTask は `MidiEngineTask` より必ず高優先度**とする。これにより、Core1 上で MIDI の長い処理列が `UpdateFrame` の開始を後ろへ押し出すことを避ける
 - CSM 再生中に CsmFrameTask と同優先度のタスクを増やさない。同一コア上で同優先度が並ぶと時間分割になり、フレームごとの開始時刻がブレる
-- ISR と CsmFrameTask は同一コア（Core1）に寄せる。クロスコアでのタスク割り当てはスケジューリングとキャッシュの観点で追加のばらつき要因になる
+- ISR と CsmFrameTask は同一コア（Core1）に寄せる。クロスコアでのタスク割り当てはスケジューリングとキャッシュの観点で追加のばらつき要因になる。そのため FM `/IRQ` の登録は `CsmFrameTask` 起動時（`CsmVoice::AttachIrq()`）に行う
 
 具体的な優先度値とスタックサイズは `task_config.h` を唯一の定義元とする。本書では「CsmFrameTask を MidiEngineTask より高優先度に置く」という相対方針だけを固定する。
 
 ### 7.4 ISR と通知プリミティブの実装方針
 
 - ISR では CSM イベント投入＋起床に必要な最小のカーネル API のみを使う（`xQueueSendToBackFromISR` と適切な yield 処理）。長い割り込み禁止区間を増やさない
+- `xQueueSendToBackFromISR` を呼ぶ GPIO IRQ は、NVIC 優先度の数値が `configMAX_SYSCALL_INTERRUPT_PRIORITY` 以上であること（Cortex-M では数値が大きいほど優先度が低い）。Core1 登録時は `irq_set_priority(IO_IRQ_BANK0, PICO_DEFAULT_IRQ_PRIORITY)` で明示する
 - FreeRTOS Queue は START/STOP/TICK の順序を保持するために使う
 - ISR から複数タスクを無関係に起こさない（通知対象は CsmFrameTask に限定）
 

@@ -16,6 +16,9 @@ namespace Platform {
  * @param gpio     GPIO pin (FM_IRQ等)
  * @param func     コールバック関数 (ISR 内から呼ばれる)
  * @param context  func に渡す任意のポインタ
+ * @details Pico SDK の GPIO IRQ は登録したコアで走る。FM /IRQ は CsmFrameTask
+ *          （Core1）から呼ぶこと。Core1 では IO_IRQ_BANK0 の NVIC 優先度を
+ *          `PICO_DEFAULT_IRQ_PRIORITY` にする（FromISR を合法にするため）。
  */
 void AttachIsrCallback(int gpio, void (*func)(void*), void* context);
 
