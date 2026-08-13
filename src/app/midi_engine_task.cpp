@@ -220,8 +220,9 @@ void DrainPendingNoteOffsIfQueueEmpty(MidiEngineTaskContext* ctx) {
 }
 
 void HandleControlAndReset(MidiEngineTaskContext* ctx) {
-    if (gPendingReset.load(std::memory_order_acquire)) {
-        gPendingReset.store(false, std::memory_order_relaxed);
+    // load + store(false) だと、その間に Core0 が再度 store(true) した
+    // 後発 Reset を消してしまう。取得とクリアを exchange でアトミックにする。
+    if (gPendingReset.exchange(false, std::memory_order_acq_rel)) {
         ctx->processor->Reset();
         ResetPanelNoteOnState();
         return;
