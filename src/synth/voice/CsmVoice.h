@@ -105,9 +105,16 @@ public:
 
     /**
      * @brief Note Off
-     * @details Note FM音源の発音を停止する
+     * @details ENABLE_CSM_STOP_IMMEDIATE が有効なときのみ Stop を投入する。
+     *          無効時はフレーム終端まで再生を続ける。
      */
     void NoteOff() override;
+
+    /**
+     * @brief All Sound Off / ボイス奪取などで CSM を直ちに停止する
+     * @details ENABLE_CSM_STOP_IMMEDIATE に関わらず Stop イベントを投入する。
+     */
+    void ForceOff() override;
 
     /**
      * @brief 現在のkeyを基準にPitchを設定する

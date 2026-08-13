@@ -103,13 +103,17 @@ sequenceDiagram
         Q->>TASK: FrameTick
         TASK->>VOICE: UpdateFrame(false)
     end
-    ENGINE->>VOICE: NoteOff / Reset
+    ENGINE->>VOICE: NoteOff（通常）
+    Note over VOICE: ENABLE_CSM_STOP_IMMEDIATE 時のみ Stop
+    ENGINE->>VOICE: AllNoteOff / ForceOff / Reset
     VOICE->>Q: CsmSignalStop()
     Q->>TASK: Stop
     TASK->>VOICE: Stop()
 ```
 
 再生データの終端・停止条件を満たせば CsmFrameTask 側で自動的に発音を停止する（フレーム終端・`stop_playback_locked` 等）。このループが CSM 再生中は Timer B に同期して繰り返される。
+
+通常の NoteOff は `ENABLE_CSM_STOP_IMMEDIATE`（既定 0）に従う。無効時はフレーム終端まで再生を続ける。一方 CC#120 All Sound Off / CC#123 All Note Off / チャンネル無効化 / `ForceOff` / `Reset` / ボイス奪取は、同フラグに関わらず `SignalCsmStop()` を投入する。
 
 ### 5.1 CSM 専用キューによる統合
 
@@ -118,7 +122,7 @@ sequenceDiagram
 | イベント | 公開 API | 発行元 | 意味 |
 |----------|---------|--------|--------------|
 | `FrameTick` | `CsmSignalFrameTick()` | ISR | Timer B 周期に相当する `UpdateFrame(false)` 用の 1 ステップ |
-| `Stop` | `CsmSignalStop()` | `CsmVoice::NoteOff` / `Reset` 経路 | 再生中断・ボイス停止を CsmFrameTask に依頼（`voice->Stop()`） |
+| `Stop` | `CsmSignalStop()` | `CsmVoice::ForceOff` / `Reset`、および `ENABLE_CSM_STOP_IMMEDIATE` 時の `NoteOff` | 再生中断・ボイス停止を CsmFrameTask に依頼（`voice->Stop()`） |
 | `Start` | `CsmSignalStart()` | `CsmVoice::NoteOn` | 初回 `UpdateFrame(true)` を含む再生開始の起動 |
 
 待ち合わせには `CsmIpcReceive()` を使用する。FreeRTOS の `xQueueReceive()` でイベントを 1 件ずつ取り出し、1 タスクが一本の待機ループでティック・停止・開始をまとめて扱う。
@@ -127,7 +131,8 @@ sequenceDiagram
 
 `CsmVoice` は Start/Stop を `ICsmEventSink`（`src/synth/voice/ICsmEventSink.h`）越しに送る。実体は app 層の `CsmEventSink`（`src/app/csm_ipc.h`/`.cpp`）で、`main.cpp` が `CsmVoice::SetEventSink()` で注入する。`synth` は `csm_ipc.h` の関数を直接呼ばない（FrameTick を除く。[4.3 節](#43-fm-irq-割り込みisr)）。
 
-- NoteOff・リセット等の停止は `event_sink_->SignalCsmStop()` で順序付きイベントとして伝える。`CsmVoice::NoteOff` / `Reset` は停止イベントを投入し、実際の停止処理は `CsmFrameTask` が行う。`CsmEventSink::SignalCsmStop()` が `CsmSignalStop()` へ転送する
+- All Sound Off・リセット・ボイス奪取等の強制停止は `ForceOff()` → `event_sink_->SignalCsmStop()` で順序付きイベントとして伝える。実際の停止処理は `CsmFrameTask` が行う
+- 通常 NoteOff は `ENABLE_CSM_STOP_IMMEDIATE != 0` のときだけ Stop を投入する。無効時はフレーム終端まで再生を続ける
 - CSM の NoteOn は `CsmVoice::NoteOn` が `event_sink_->SignalCsmStart()` で開始イベントを投入し、`Start()` / `UpdateFrame(true)` を CsmFrameTask に集約する。`CsmEventSink::SignalCsmStart()` が `CsmSignalStart()` へ転送する
 
 ### 5.3 起床後の分岐

@@ -141,7 +141,8 @@ Voice* NoteChannel::stealVoiceFromQueue(VoiceQueue& queue, bool type) {
             continue;
         }
         Voice* voice = *it;
-        voice->NoteOff();
+        // 奪取時は通常 NoteOff ではなく ForceOff（派生 Voice の強制停止経路）
+        voice->ForceOff();
         queue.erase(it);
         return voice;
     }
@@ -470,13 +471,19 @@ int NoteChannel::NoteOff(int key) {
 }
 
 void NoteChannel::AllNoteOff() {
-    Hold1(0);
+    // サスティン解放（releaseHoldQueue = NoteOff）は使わない。
+    // hold 上の Voice も含め ForceOff で強制停止する（CC#120 即停止）。
+    hold1 = false;
+    while (!holdQueue.empty()) {
+        auto it = holdQueue.begin();
+        (*it)->ForceOff();
+        moveVoice(holdQueue, it, freeQueue);
+    }
     while (!activeQueue.empty()) {
         auto it = activeQueue.begin();
-        finishNoteOff(activeQueue, it);
+        (*it)->ForceOff();
+        moveVoice(activeQueue, it, freeQueue);
     }
-    // freeQueue内のVoiceはfinishNoteOff()で既にNoteOff()済みのため、
-    // ここでの再処理は不要（KeyOffのFM再送はバス帯域の無駄になる）。
 }
 
 void NoteChannel::Hold1(int val) {

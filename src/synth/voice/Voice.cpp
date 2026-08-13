@@ -51,6 +51,10 @@ int Voice::GetVelocity() {
     return velocity;
 }
 
+void Voice::ForceOff() {
+    NoteOff();
+}
+
 bool Voice::TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
                          uint8_t lr) {
     (void)note;

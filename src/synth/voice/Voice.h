@@ -147,6 +147,12 @@ public:
     virtual void NoteOff() = 0;
 
     /**
+     * @brief All Sound Off / ボイス奪取など、発音を必ず止める経路
+     * @details 既定は NoteOff() と同じ。派生クラスが NoteOff と挙動を分けてよい。
+     */
+    virtual void ForceOff();
+
+    /**
      * @brief PB・coarse tune・ビブラートを合成してピッチを設定する
      * @param fx       チャンネルエフェクト（pbv/pbs/coarse_tune）
      * @param vib_cents  ビブラート偏差（セント、符号付き）
