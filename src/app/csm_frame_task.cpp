@@ -15,6 +15,9 @@ void CsmFrameTask(void* param) {
     uint32_t activeGeneration = 0;
 #endif
 
+    // GPIO IRQ は登録コアで走る。CsmFrameTask は Core1 固定なのでここで登録する。
+    voice->AttachIrq();
+
     for (;;) {
         CsmEvent event{};
         if (!CsmIpcReceive(event, portMAX_DELAY)) {

@@ -124,7 +124,7 @@ classDiagram
         -event_sink_ : ICsmEventSink*
         +SetEventSink(sink)
         +NoteOn(...)  event_sink_->SignalCsmStart
-        +Start() / UpdateFrame(first) / Stop()
+        +AttachIrq() / Start() / UpdateFrame(first) / Stop()
         -IrqTickThunk(ctx)$
     }
 

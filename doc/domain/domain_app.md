@@ -79,6 +79,7 @@ classDiagram
 
     class CsmFrameTask {
         <<task Core1>>
+        AttachIrq on start
         Wait on gCsmEventQueue
         CsmVoice Start/UpdateFrame/Stop
     }
