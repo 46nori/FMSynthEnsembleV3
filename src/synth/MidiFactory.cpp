@@ -43,10 +43,12 @@ MidiFactory::MidiFactory(std::array<OpnBase*, 4>& modules) : modules_(modules) {
     }
 
 #if ENABLE_CSM != 0
-    // CSM音声合成用
+    // CSM音声合成用 (CSM対応モジュールが1台以上ある場合のみallocatorに登録する)
     csm_voice_ = new (&csm_voice_storage_) CsmVoice(modules_, voice_id++);
     csm_voice_->Init();
-    allocator.AddVoice(csm_voice_);
+    if (csm_reserved_modules > 0) {
+        allocator.AddVoice(csm_voice_);
+    }
 #endif
 
     // MIDIチャンネルのインスタンスを生成
