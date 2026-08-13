@@ -261,7 +261,10 @@ void CsmVoice::Stop() {
 }
 
 void CsmVoice::stop_playback_locked() {
-    for (OpnBase* opn : modules) {
+    // CSM 予約 Dock（dock_indices[0..num_modules)）のみ KeyOff / Timer リセットする。
+    // modules 全走査だと未予約 Dock の CH3（NoteVoice 使用中）やタイマを巻き込む。
+    for (int d = 0; d < num_modules; d++) {
+        OpnBase* opn = modules[dock_indices[d]];
         if (opn) {
             opn->fm_turnoff_key(2);
             opn->set_timer_mode(0x30);
