@@ -1,11 +1,11 @@
 # FMSynthEnsembleV3 — AI エージェント向け作業指針
 
 コーディングエージェント（Cursor、Claude Code、GitHub Copilot、Codex 等）向けの共通指示。
-人向けの概要・ビルド手順は [README.md](README.md) を参照。
+人向けの概要は [README.md](README.md)、ビルド手順は [doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) を参照。
 
 ## プロジェクト概要
 
-Raspberry Pi Pico（RP2040 / RP2350A）上で YAMAHA YM2608（OPNA）/ YM2203（OPN）を最大 4 基駆動する USB MIDI シンセサイザ。
+Raspberry Pi Pico（RP2040 / RP2350A）上で YAMAHA YM2608（OPNA）/ YM2203（OPN）/ YMF288（OPN3-L）を最大 4 基駆動する USB MIDI シンセサイザ。
 FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 
 ## 必須: doc/ を先に読む
@@ -27,22 +27,25 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 | CSM フレーム | [doc/design_csm_frame.md](doc/design_csm_frame.md) |
 | 電子ボリューム | [doc/design_volume_controller.md](doc/design_volume_controller.md) |
 | MIDI パネル | [doc/design_midi_panel.md](doc/design_midi_panel.md)（ハード仕様: [doc/spec_midi_panel.md](doc/spec_midi_panel.md)） |
+| FM LSI 機能差分・混在制約 | [doc/spec_fm_chip.md](doc/spec_fm_chip.md) |
 | FM LSI レジスタ | [doc/spec_opn.md](doc/spec_opn.md) |
 | ドメイン図・クラス図 | [doc/domain/README.md](doc/domain/README.md) |
 | FM バス PIO ライブラリ | [src/drivers/fm/opn_piolib/doc/piolib_spec.md](src/drivers/fm/opn_piolib/doc/piolib_spec.md) |
+| ビルド・CMake 構成 | [doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) |
 
 仕様と実装が食い違う場合は、doc を正とするか実装を正とするかを判断し、必要なら doc 更新を提案する。
 実装を正としてドキュメントを合わせる作業では、推測で仕様を書き足さない。不明点は `src/` を読んで確認する。
 
 ## ドキュメントの書き方
 
-`doc/` を追加・改稿するときの恒常ルール。ルート README（[README.md](README.md) / [README_ja.md](README_ja.md)）はビルド・書き込み・クイックスタート（人向け）、`doc/` は設計・制約・ハード仕様（開発者向け）。重複は削り、相互にリンクする。
+`doc/` を追加・改稿するときの恒常ルール。ルート README（[README.md](README.md) / [README_ja.md](README_ja.md)）は概要・クイックスタート入口・ギャラリー（人向け）、[doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) はビルド・書き込み・CMake 構成、その他の `doc/` は設計・制約・ハード仕様（開発者向け）。重複は削り、相互にリンクする。
 
 ### 命名
 
 ```
 design_<topic>.md   # 設計判断・振る舞い
 spec_<topic>.md     # レジスタ・配線・機械仕様（既存の system_spec.md も同趣旨）
+build.md / build_ja.md  # ビルド・書き込み・CMake 構成（人向け）
 ```
 
 リネームや新規追加時は、`doc/README.md`・本ファイルの参照表・文書間リンクを更新する。
@@ -98,6 +101,8 @@ git submodule update --init --recursive
 cmake --preset default
 ninja -C build
 ```
+
+FreeRTOS-Kernel は submodule ではない。配置は [doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) の CLI 手順を参照。`cmake --preset` には CMake 3.30+ が必要。
 
 - デフォルトターゲット: **RP2350A**（RP2040 は CMake オプションで切替）
 - 生成物: `build/FMSynthEnsembleV3.uf2`, `build/FMSynthEnsembleV3.elf`

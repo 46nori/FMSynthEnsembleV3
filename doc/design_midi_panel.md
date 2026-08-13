@@ -1,6 +1,6 @@
 # MIDI Panel ソフトウェア設計書
 
-PanelSubsystem（MIDI Panel）制御のソフトウェア設計。ハードウェア仕様は [spec_midi_panel.md](spec_midi_panel.md)。
+PanelSubsystem（MIDI Panel）制御のソフトウェア設計。ハードウェア仕様は [spec_midi_panel.md](spec_midi_panel.md)。I/O ポート付きチップが必要なこと、現行の接続先が Dock3 であることは [spec_fm_chip.md](spec_fm_chip.md) を参照。
 
 | 文書 | 役割 |
 |------|------|
@@ -329,7 +329,7 @@ Panel Mode はデバッガコマンドで無効化できる（[design_concurrenc
 ### 7.2 `main.cpp`
 
 ```cpp
-auto driver = CreateMidiPanelDriver(modules[1]);
+auto driver = CreateMidiPanelDriver(modules[3]);
 static MidiPanelController panelController(std::move(driver));
 ```
 

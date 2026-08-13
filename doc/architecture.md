@@ -1,6 +1,6 @@
 # アーキテクチャ設計仕様
 
-プロジェクト全体の構成、各レイヤの役割、依存関係の制約を記述する。プロジェクト概要とビルド方法は [README.md](../README.md) を参照。
+プロジェクト全体の構成、各レイヤの役割、依存関係の制約を記述する。プロジェクト概要は [README.md](../README.md)、ビルド方法は [build.md](build.md) を参照。
 
 ## 目次
 
@@ -47,7 +47,7 @@
   USB  ─── USB MIDI Device (TinyUSB)
 ```
 
-MIDI Panel は FM 音源 LSI の I/O PortA/B を使用する外付けパネルであり、接続先 Dock はシステム仕様として固定しない。`src/app/main.cpp` の `CreateMidiPanelDriver(modules[n])` で Dock を選択する。`modules[n] == nullptr` のときは `NullMidiPanelDriver` が注入され、パネル機能は無効になる。詳細は [design_midi_panel.md](design_midi_panel.md)。
+MIDI Panel は FM 音源 LSI の I/O PortA/B を使用する外付けパネルであり、接続先 Dock はシステム仕様として固定しない。`src/app/main.cpp` の `CreateMidiPanelDriver(modules[n])` で Dock を選択する（現行は Dock3）。`modules[n] == nullptr` のときは `NullMidiPanelDriver` が注入され、パネル機能は無効になる。詳細は [design_midi_panel.md](design_midi_panel.md)。チップ制約は [spec_fm_chip.md](spec_fm_chip.md)。
 
 ---
 
@@ -345,17 +345,3 @@ git submodule add <URL> extern/<ライブラリ名>
 - 新しい発音方式: `synth/voice/` に `Voice` を継承したクラスを追加する
 - 新しいチャンネル種別: `synth/channel/` に `MidiChannel` を継承したクラスを追加する
 - チャンネル構成の変更: `MidiFactory` のコンストラクタやチャンネル生成ロジックを修正する
-
----
-
-## 関連ドキュメント
-
-| ドキュメント | 内容 |
-|------------|------|
-| [system_spec.md](system_spec.md) | システム仕様 |
-| [spec_opn.md](spec_opn.md) | FM 音源 (OPN/OPNA) レジスタ仕様 |
-| [design_concurrency.md](design_concurrency.md) | マルチコア・FreeRTOS タスク設計 |
-| [design_midi_message.md](design_midi_message.md) | MIDI メッセージ処理設計 |
-| [domain/README.md](domain/README.md) | ドメインチャート・クラス図 |
-| [piolib_spec.md](../src/drivers/fm/opn_piolib/doc/piolib_spec.md) | PIO FM バスライブラリ仕様 |
-| [datasheet/](datasheet/) | YM2608, YM2203, YM3014B, YM3016 データシート |

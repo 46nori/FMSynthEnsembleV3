@@ -67,7 +67,7 @@ classDiagram
 | 要素 | ファイル | 責務 |
 |---|---|---|
 | `Platform::Initialize` | `init.cpp` | stdio・GPIO・FM リセット・電子ボリューム早期ミュート・SD・USB の初期化 |
-| `Platform::SetupFmModules` | `init.cpp` | FM バス（PIO0）初期化、モジュール自動識別（YM2608/YM2203/未接続）、`FmSystem` 構築 |
+| `Platform::SetupFmModules` | `init.cpp` | FM バス（PIO0）初期化、モジュール自動識別（YM2608/YM2203/YMF288/未接続）、`FmSystem` 構築 |
 | `Platform::VolumeController` | `volume_controller.h/cpp` | NJU72343 のボード固有ラッパー。PIO1/GPIO27/28 の所有、dock 状態管理、dB 指定 API |
 | `Platform::AttachIsrCallback` 等 | `isr.h/cpp` | GPIO 割り込み登録（`FM_IRQ` = 全 Dock /IRQ の Wired-OR） |
 | FreeRTOS フック | `freertos_hooks.cpp` | スタックオーバーフロー・ヒープ枯渇時の記録 |

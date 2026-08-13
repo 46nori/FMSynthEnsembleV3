@@ -3,7 +3,7 @@
 FM音源LSI（YM2608/YM2203/YMF288）のレジスタ仕様・バス制御・タイミング・音量制御を定義する。
 
 - FM音源LSIをRaspberryPi PicoのGPIOに接続して制御する。接続の詳細は[RaspberryPi Picoとの接続](./system_spec.md#raspberrypi-picoとの接続)を参照。
-- サポートするFM音源LSIは、YM2608(OPNA)、YM2203(OPN)、YMF288(OPN3-L)。チップ間の機能差分とバス・タイミングの扱い方は[YM2203 / YM2608 / YMF288 の差分](#ym2203--ym2608--ymf288-の差分)を参照。
+- サポートするFM音源LSIは、YM2608(OPNA)、YM2203(OPN)、YMF288(OPN3-L)。チップ間の機能差分とバス・タイミングの扱い方は[YM2203 / YM2608 / YMF288 の差分](#ym2203--ym2608--ymf288-の差分)を参照。Dock 混在時のボイス数・リズム・CSM・パネル制約は [spec_fm_chip.md](spec_fm_chip.md)。
 - YM2608はYM2203の上位互換で、基本的に同じ操作でレジスタアクセスが可能。リズム部（A1=0, 0x10-0x1d）、LFO（A1=0, 0x22）、SCH/IRQ制御（A1=0, 0x29）、ステレオ出力・LFO感度（A1=0, 0xb4-0xb6）、FM CH4-6（A1=1）、ADPCM（A1=1）が追加されている。A1=1が必要なのはFM CH4-6とADPCMのみで、他の追加機能はA1=0でアクセスする。
 - YMF288はYM2608BのFM・リズム・SSGとレジスタ互換を保ちつつ、ADPCM・I/Oポート等を削った派生LSI。本システムではネイティブモード（YMF288モード）で動かす前提とする。
 

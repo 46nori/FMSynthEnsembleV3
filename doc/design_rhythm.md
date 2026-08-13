@@ -8,7 +8,7 @@
 - 複数リズムモジュールがある場合、**打楽器種別（BD/SD/…）ごとに 1 チップへバインド**する。
 - **GM 準拠**で個別 Note Off / velocity=0 は音響に効かせない。チョークは **排他グループの Note On 切替** と **AllNoteOff** のみ。
 
-関連: [midi_implementation_chart.md](midi_implementation_chart.md)、[spec_opn.md](spec_opn.md)（RTL/IL・FM とのバランス）、[architecture.md](architecture.md)
+関連: [midi_implementation_chart.md](midi_implementation_chart.md)、[spec_opn.md](spec_opn.md)（RTL/IL・FM とのバランス）、[spec_fm_chip.md](spec_fm_chip.md)（リズムに必要なチップ）、[architecture.md](architecture.md)
 
 ---
 
