@@ -37,7 +37,8 @@ constexpr int MIDI_CHANNELS = 16;
 #define ENABLE_CSM_START_PREEMPT               1
 
 // CSM NoteOffでCSM Voiceの発音を直ちに止める
-// 有効にすると十分な時間KeyOnをキープしないと発音し切らずに途切れてしまうため、通常は無効にする
+// 有効にすると十分な時間KeyOnをキープしないと発音し切らずに途切れてしまうため、通常は無効にする。
+// All Sound Off / ForceOff / Reset / ボイス奪取では本フラグに関わらず常に停止する。
 #define ENABLE_CSM_STOP_IMMEDIATE              0
 
 // ------------------------------

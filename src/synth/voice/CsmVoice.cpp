@@ -112,9 +112,7 @@ void CsmVoice::SetEventSink(ICsmEventSink* sink) {
 
 void CsmVoice::Reset() {
     // CSM再生状態はCsmFrameTaskが所有するため、停止は順序付きイベントで依頼する。
-    if (event_sink_) {
-        event_sink_->SignalCsmStop();
-    }
+    ForceOff();
 
     // コンストラクタと同じ設定にする
     SetChannel(-1);
@@ -160,10 +158,14 @@ bool CsmVoice::TryRetrigger(int note, int32_t program, int vol, ChannelEffects& 
 
 void CsmVoice::NoteOff() {
 #if ENABLE_CSM_STOP_IMMEDIATE != 0
+    ForceOff();
+#endif
+}
+
+void CsmVoice::ForceOff() {
     if (event_sink_) {
         event_sink_->SignalCsmStop();
     }
-#endif
 }
 
 void CsmVoice::ApplyPitch(const ChannelEffects& /*fx*/, int16_t /*vib_cents*/,
