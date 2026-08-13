@@ -89,8 +89,8 @@ CsmVoice::CsmVoice(std::array<OpnBase*, 4>& modules, int id)
             dock_indices[num_modules++] = i;
         }
     }
-    // Timer Bは最初の実装済みDockが担当する
-    modTB = (num_modules > 0) ? dock_indices[0] : 0;
+    // Timer Bは最初の実装済みDockが担当する。CSM対応モジュールが0台のときは -1（無効）。
+    modTB = (num_modules > 0) ? dock_indices[0] : -1;
     SetProgram(0);   // デフォルト音色
     SetVolume(100);  // デフォルト音量
 }
@@ -128,6 +128,9 @@ void CsmVoice::Reset() {
 
 int CsmVoice::GetModuleId() {
     // NoteVoiceと動作を合わせるために、便宜的にModule IDを返す
+    if (modTB < 0 || modules[modTB] == nullptr) {
+        return -1;
+    }
     return modules[modTB]->id;
 }
 
@@ -180,6 +183,11 @@ void CsmVoice::SetPan(uint8_t lr) {
 void CsmVoice::Init() {
     static_assert(CSM_N_MAX >= 1 && CSM_N_MAX <= 16, "CSM_N_MAX must be in range 1..16.");
     static_assert(CSM_N <= CSM_N_MAX, "CSM_N must not exceed CSM_N_MAX.");
+
+    // CSM対応モジュールが1台も無い場合は初期化をスキップする
+    if (num_modules == 0) {
+        return;
+    }
 
     // CSM_N_MAXから予約モジュール数を算出し、実装済み数 (コンストラクタで確定) を上限とする
     const int required = (CSM_N_MAX - 1) / 4 + 1;
@@ -239,6 +247,9 @@ void CsmVoice::Start(int note, int32_t program, int vol, uint8_t lr) {
 }
 
 bool CsmVoice::IsFrameOver() {
+    if (modTB < 0 || modules[modTB] == nullptr) {
+        return false;
+    }
     return modules[modTB]->read_status() & 0x02;
 }
 
