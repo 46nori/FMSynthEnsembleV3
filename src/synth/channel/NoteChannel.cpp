@@ -379,8 +379,9 @@ int NoteChannel::NoteOn(int key, int velocity) {
     int mid = -1;  // 最近使ったmoduleが不明
 
     // holdQueue内の同一keyのVoiceを探して再利用 (TryRetrigger)
+    // 再利用は NoteVoice のみ (CsmVoice は対象外)
     for (auto it = holdQueue.begin(); it != holdQueue.end(); ++it) {
-        if ((*it)->GetKey() == key) {
+        if ((*it)->GetKey() == key && !(*it)->GetType()) {
             if (!(*it)->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
                                      outputLR)) {
                 mid = (*it)->GetModuleId();
@@ -397,7 +398,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
     }
     // activeQueue内の同一keyのVoiceを探して再利用
     for (auto& voice : activeQueue) {
-        if (voice->GetKey() == key) {
+        if (voice->GetKey() == key && !voice->GetType()) {
             if (!voice->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
                                      outputLR)) {
                 mid = voice->GetModuleId();
