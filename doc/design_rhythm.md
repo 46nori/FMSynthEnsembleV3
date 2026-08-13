@@ -297,7 +297,7 @@ flowchart TD
 ### 7.1 NoteOn 全体フロー
 
 1. `percussion_map` で `RtmInst` 決定（`NONE` / vel=0 は別処理）。
-2. `EffectiveVolume(velocity)` → `ILvolume[]` → `RhythmLevelWithOffset`（`g_rhythm_level_offset` / `rmix`）。
+2. velocity → `ILvolume[]` → `RhythmLevelWithOffset`（`g_rhythm_level_offset` / `rmix`）。
 3. `velocity > 0` かつ IL 換算が 0 のとき **IL=1**（低ベロシティ + rmix で無音化しない）。
 4. 排他処理（[6 章](#6-排他ノートマップ)）→ `ResolvePlayModule` → `PrepareRhythmHit` → `rtm_turnon_key`。
 5. `last_rtm_on_module[play_module] = rtm_inst` を更新。
