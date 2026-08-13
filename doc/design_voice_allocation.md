@@ -18,6 +18,8 @@
 
 ## 1. 前提
 
+チップ混在時の NoteVoice 上限（最大 24）と CSM の CH3 リザーブは [spec_fm_chip.md](spec_fm_chip.md)。
+
 この仕様の前提は次の 3 点である。
 
 1. 起動直後、全 Voice はどの MIDI チャンネルにも割り当てられていない

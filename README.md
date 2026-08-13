@@ -6,166 +6,52 @@
 
 ![](./doc/image/FMSynthEnsembleV3.jpeg)
 
-A USB MIDI synthesizer using YAMAHA OPN-series FM sound chip.
+## Features
 
-- System controller: **Raspberry Pi Pico** (RP2040 / RP2350A)
-- FM sound chip: up to four **YM2608 (OPNA)** / **YM2203 (OPN)** / **YMF288 (OPN3-L)** chips (mixed configurations supported, auto-detected)
-- MIDI: 16 channels, multi-timbral polyphonic playback with up to 24 voices
-  - With four YM2608 or YMF288 chips. YM2203 provides 3 FM voices per chip
-- Supports CSM (Composite Sinusoidal Modeling) speech synthesis (YM2608/YM2203)
+A USB MIDI synthesizer using YAMAHA OPN-series FM sound chips.
 
-See [doc/README.md](doc/README.md) for design documentation and schematics.
+- **FM sound chips**
+  - YAMAHA **YM2608 (OPNA) / YM2203 (OPN) / YMF288 (OPN3-L)**
+    - [Up to four (mixed, auto-detected)](doc/spec_fm_chip.md)
+  - CSM speech synthesis (YM2608 / YM2203)
+- **MIDI**
+  - [MIDI implementation chart](./doc/midi_implementation_chart.md)
+  - **16 channels**, multi-timbral, per-channel ON/OFF
+  - **Up to 24 simultaneous voices**
+- **System controller**
+  - **Raspberry Pi Pico** (RP2040 / RP2350A)
+  - High-speed FM bus via Programmable I/O (PIO)
+  - Multicore with FreeRTOS
+- **Audio**
+  - LINE OUT
+  - LINE IN (for ADPCM, with anti-aliasing filter)
+  - Electronic volume / LPF audio mixer
+- **Modular hardware**
+
+## Documentation
+
+- [Document index](./doc/README.md)
+- [Build and flashing](doc/build.md)
+- [Schematics](./doc/schematics/README.md)
 
 ## Quick Start
 
-We recommend building with VS Code and the Raspberry Pi Pico extension.  
-The extension automatically provides pico-sdk, the toolchain, CMake, and Ninja, so you do not need to install them separately. It is available on **macOS, Windows, and Linux**.
+VS Code with the Raspberry Pi Pico extension is recommended (macOS / Windows / Linux). Full steps: [Build and flashing](doc/build.md).
 
-### 1. Setup (first time only)
+1. Clone the repo and run `git submodule update --init --recursive`
+2. Open in VS Code, then Pico view → `Configure CMake` → `Compile Project`
+3. Connect the Pico in `BOOTSEL` mode and copy `build/FMSynthEnsembleV3.uf2` to `RPI-RP2`
 
-1. Install [VS Code](https://code.visualstudio.com/)
-2. Install the official Raspberry Pi extension **Raspberry Pi Pico** (ID: `raspberry-pi.raspberry-pi-pico`) in VS Code, then restart VS Code
-3. Clone the repository and initialize submodules
-
-   ```bash
-   git clone <this-repository>
-   cd FMSynthEnsembleV3
-   git submodule update --init --recursive
-   ```
-
-   On Windows, run this in Git Bash from Git for Windows. On macOS and Linux, use the system terminal.
-
-4. Open this folder in VS Code and run `Configure CMake` from the Raspberry Pi Pico view (Quick Access) in the sidebar
-
-### 2. Build
-
-| OS | Build | Command Palette |
-|---|---|---|
-| macOS | `Cmd+Shift+B` | `Cmd+Shift+P` |
-| Windows / Linux | `Ctrl+Shift+B` | `Ctrl+Shift+P` |
-
-Run `Compile Project`, or use `Compile` from Quick Access.  
-On success, `build/FMSynthEnsembleV3.uf2` is generated.
-
-### 3. Flash firmware
-
-1. Hold the Raspberry Pi Pico `BOOTSEL` button while connecting it to your PC via USB (it appears as the `RPI-RP2` mass-storage device)
-2. Copy `build/FMSynthEnsembleV3.uf2` to `RPI-RP2`
-
-   | OS | Typical destination |
-   |---|---|
-   | macOS | The `RPI-RP2` volume in Finder, or `/Volumes/RPI-RP2/` |
-   | Windows | The `RPI-RP2` drive in Explorer (e.g. `D:\`) |
-   | Linux | The mount point in your file manager (e.g. `/media/<user>/RPI-RP2` or `/run/media/<user>/RPI-RP2`) |
-
-3. After the copy completes, the board reboots automatically and runs the new firmware
-
-That is all. The device appears on your PC as a USB MIDI device.
-
-> The default board is **Raspberry Pi Pico 2 (RP2350A)**. To use Pico (RP2040), see [Switching Boards](#switching-boards).
-
-## Building from the Command Line
-
-If you have pico-sdk 2.2.0, ARM GCC 14.2, CMake 3.13+, and Ninja installed manually, you can build without VS Code.
-
-| OS | Notes |
-|---|---|
-| macOS | Install the toolchain with Homebrew, etc., or point `PICO_SDK_PATH` and related variables at the SDK/toolchain installed by the Pico extension |
-| Linux | Use your distribution packages, or follow the [pico C SDK instructions](https://www.raspberrypi.com/documentation/pico-sdk/) |
-| Windows | Run the commands below in **WSL2** or **MSYS2 / Git Bash**. Native Windows shells make ARM GCC setup cumbersome, so WSL2 is recommended for CLI builds |
-
-```bash
-git submodule update --init --recursive
-
-# Configure (uses the "default" preset in CMakePresets.json)
-cmake --preset default
-
-# Build
-ninja -C build
-```
-
-Configure also generates `build/compile_commands.json`. clangd reads it through `.clangd` at the repository root to resolve include paths for pico-sdk and ARM GCC.
-
-## CI / CD
-
-Push and pull requests to `main` run [`.github/workflows/build.yml`](.github/workflows/build.yml). It builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each.
-
-## Using a Debugger
-
-With a [Raspberry Pi Debug Probe](https://www.raspberrypi.com/products/debug-probe/) connected, you can flash over SWD and use the serial console.
-
-### Flashing the ELF (OpenOCD / picotool)
-
-- Run `Raspberry Pi Pico: Flash Pico Project (SWD)` from the command palette (macOS: `Cmd+Shift+P` / Windows and Linux: `Ctrl+Shift+P`)
-- Or run `picotool load build/FMSynthEnsembleV3.elf -fx` in a terminal (macOS / Linux / WSL2)
-
-Build artifacts:
-
-| File | Purpose |
-|------|---------|
-| `build/FMSynthEnsembleV3.uf2` | Drag-and-drop flashing in BOOTSEL mode |
-| `build/FMSynthEnsembleV3.elf` | Debug flashing with OpenOCD / picotool |
-
-### Serial Console Wiring
-
-Baud rate: 115200.
-
-| Raspberry Pi Pico | Debug Probe |
-|-------------------|-------------|
-| Pin1 (UART0 TX) | Yellow (RX) |
-| Pin2 (UART0 RX) | Orange (TX) |
-| Pin3 (GND) | Black (GND) |
-
-## Build Configuration
-
-### Switching Boards
-
-The default is `pico2` (RP2350), but you can switch to `pico` (RP2040).
-
-In VS Code, run `Raspberry Pi Pico: Switch Board` from the command palette (macOS: `Cmd+Shift+P` / Windows and Linux: `Ctrl+Shift+P`), choose `pico2` or `pico`, then run Configure and Build again.
-
-For manual switching, change the following line in `CMakeLists.txt`, then reconfigure and rebuild.
-
-```cmake
-set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
-```
-
-### Build Options
-
-Main options:
-
-| Option | Default | Description |
-|---|:---:|---|
-| `BUILD_MIDI_PANEL` | `ON` | Enable the MIDI panel controller |
-| `BUILD_SD_CARD` | `OFF` | Enable the SD card module |
-| `USB_MIDI_IRQ_DRIVEN` | `ON` | Run TinyUSB in FreeRTOS integrated (interrupt-driven) mode. `OFF` selects Pico's standard polling mode |
-
-Option values are managed in two places. **Keep them identical.**
-
-| Location | Configure trigger | Purpose |
-|---|---|---|
-| `option()` defaults in `CMakeLists.txt` | Quick Access `Configure CMake` | Normal VS Code builds |
-| `cacheVariables` in `CMakePresets.json` | Task `Configure: Default` / CLI `cmake --preset` | Preset-based builds and configuration reference |
+Default board is **Pico 2 (RP2350A)**. CLI, board switching, debugger, and CI: [doc/build.md](doc/build.md).
 
 ## Gallery
-
-<table>
-  <tr>
-    <td align="center" width="33%">
-      <a href="doc/image/FMSynthEnsembleV3.jpeg"><img src="doc/image/FMSynthEnsembleV3.jpeg" width="280" alt="Overview 1"></a><br>
-    </td>
-    <td align="center" width="33%">
-      <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="Overview 2"></a><br>
-    </td>
-  </tr>
-</table>
 
 ### Modules
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/YM2608_Module.jpeg"><img src="doc/image/YM2608_Module.jpeg" width="280" alt="OPNA module"></a><br>
+      <a href="doc/image/YM2608_Module.jpeg"><img src="doc/image/YM2608_Module.jpeg" width="280" alt="YM2608 module"></a><br>
       <b>YM2608 module</b><br>
       <sub>YM2608B + YM3016<br>MIDI panel connector</sub>
     </td>
@@ -208,19 +94,26 @@ Option values are managed in two places. **Keep them identical.**
   </tr>
 </table>
 
-### Module Connection
+### Module connection
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/StackedModules.jpeg"><img src="doc/image/StackedModules.jpeg" width="280" alt="Top view"></a><br>
+      <a href="doc/image/StackedModules.jpeg"><img src="doc/image/StackedModules.jpeg" width="280" alt="Stack"></a><br>
       <b>Stack</b><br>
-      <sub>Up to four FM sound modules can be connected<br></sub>
+      <sub>Up to four FM sound modules<br></sub>
     </td>
     <td align="center" width="33%">
       <a href="doc/image/BackPlane.jpeg"><img src="doc/image/BackPlane.jpeg" width="280" alt="Dock connection"></a><br>
       <b>Dock connection</b><br>
       <sub>Rear of the controller module</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="Full assembly"></a><br>
+      <b>Full assembly</b><br>
+      <sub>Power, controller,<br>FM sound, mixer</sub>
     </td>
   </tr>
 </table>

@@ -5,7 +5,7 @@
 - システムコントローラは以下に対応する。
   - RaspberryPi Pico (RP2040)
   - RaspberryPi Pico2 (RP2350A)
-- FM音源LSIは以下をサポートする。
+- FM音源LSIは以下をサポートする。機能差と最大 4 台混在時の制約は [spec_fm_chip.md](spec_fm_chip.md)。
   - YAMAHA YM2203 (OPN)
   - YAMAHA YM2608 (OPNA)
   - YAMAHA YMF288 (OPN3-L)

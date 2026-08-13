@@ -1,6 +1,6 @@
 # CSM フレーム処理設計仕様
 
-OPN の CSM（複合正弦波音声合成）におけるフレーム処理の設計仕様である。`MidiEngineTask` の Note On でトリガされるフレーム処理を、**専用タスクと FM `/IRQ` 割り込み**で並列実行するための設計をまとめる。
+OPN の CSM（複合正弦波音声合成）におけるフレーム処理の設計仕様である。`MidiEngineTask` の Note On でトリガされるフレーム処理を、**専用タスクと FM `/IRQ` 割り込み**で並列実行するための設計をまとめる。CSM 対応チップと CH3 リザーブによる FM 発音数の減少は [spec_fm_chip.md](spec_fm_chip.md)。
 
 ## 目次
 
@@ -210,5 +210,5 @@ EventGroup のビット合流は使わないため、STOP→START、START→STOP
 ## 9. 既知の制約
 
 - レイテンシ・ジッタの数値的な合格基準は定めていない（計測環境依存）
-- `ENABLE_CSM == 0` ビルドでも `main` は `CsmFrameTask` と `CsmIpcInitialize` を無条件で呼ぶ
+- `ENABLE_CSM == 0`（`src/app/config.h`）では `main` は `CsmIpcInitialize` と `CsmFrameTask` を生成しない。ON/OFF と CH3 リザーブは [spec_fm_chip.md](spec_fm_chip.md)
 - CSM キュー満杯時は投入失敗を破棄する（`Start` のみ古いキュー内容を破棄して再投入）
