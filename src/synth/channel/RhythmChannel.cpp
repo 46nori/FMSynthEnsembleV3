@@ -348,7 +348,7 @@ int RhythmChannel::NoteOn(int key, int velocity) {
                 // GM: Note Off 相当だがリズムは減衰任せ。LED ホールドは vel>0 で延長済みのため無視。
                 return 0;
             } else {
-                int eff_vol = EffectiveVolume(velocity);
+                int eff_vol = velocity;
                 if (eff_vol <= 0) {
                     eff_vol = 1;
                 }
