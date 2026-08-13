@@ -47,7 +47,7 @@ PC からは USB MIDI デバイスとして見える。ボードのデフォル�
 
 ## 2. コマンドライン(CLI)による方法
 
-pico-sdk 2.2.0、ARM GCC 14.2、CMake 3.30+（`cmake --preset` / `CMakePresets.json` schema version 9 に必要）、Ninja があれば VS Code なしでもビルドできる。
+pico-sdk 2.3.0、ARM GCC 15.2、CMake 3.30+（`cmake --preset` / `CMakePresets.json` schema version 9 に必要）、Ninja があれば VS Code なしでもビルドできる。
 
 | OS | 補足 |
 |---|---|
@@ -67,7 +67,7 @@ FreeRTOS-Kernel は git submodule ではない（pico-sdk も同様）。CMake �
 2. `${PICO_SDK_PATH}/../FreeRTOS-Kernel`
 3. `${PICO_SDK_PATH}/../../FreeRTOS-Kernel`
 
-Pico 拡張を既に使っている場合は、拡張が SDK と FreeRTOS をセットで置いている。`PICO_SDK_PATH` をその SDK（例: `~/.pico-sdk/sdk/2.2.0`）に向ければ、隣の `FreeRTOS-Kernel` が使われ、追加 clone は不要。
+Pico 拡張を既に使っている場合は、拡張が SDK と FreeRTOS をセットで置いている。`PICO_SDK_PATH` をその SDK（例: `~/.pico-sdk/sdk/2.3.0`）に向ければ、隣の `FreeRTOS-Kernel` が使われ、追加 clone は不要。
 
 素の pico-sdk だけを入れた場合の例:
 

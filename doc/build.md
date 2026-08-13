@@ -49,7 +49,7 @@ The device appears on your PC as a USB MIDI device. The default board is **Raspb
 
 ## 2. Command line
 
-If you have pico-sdk 2.2.0, ARM GCC 14.2, CMake 3.30+ (required by `cmake --preset` / `CMakePresets.json` schema version 9), and Ninja, you can build without VS Code.
+If you have pico-sdk 2.3.0, ARM GCC 15.2, CMake 3.30+ (required by `cmake --preset` / `CMakePresets.json` schema version 9), and Ninja, you can build without VS Code.
 
 | OS | Notes |
 |---|---|
@@ -69,7 +69,7 @@ FreeRTOS-Kernel is not a git submodule (neither is pico-sdk). CMake needs one of
 2. `${PICO_SDK_PATH}/../FreeRTOS-Kernel`
 3. `${PICO_SDK_PATH}/../../FreeRTOS-Kernel`
 
-If you already use the Pico VS Code extension, it installs the SDK and FreeRTOS together. Point `PICO_SDK_PATH` at that SDK (e.g. `~/.pico-sdk/sdk/2.2.0`) and the adjacent `FreeRTOS-Kernel` is used — no extra clone.
+If you already use the Pico VS Code extension, it installs the SDK and FreeRTOS together. Point `PICO_SDK_PATH` at that SDK (e.g. `~/.pico-sdk/sdk/2.3.0`) and the adjacent `FreeRTOS-Kernel` is used — no extra clone.
 
 If you installed a standalone pico-sdk only:
 
