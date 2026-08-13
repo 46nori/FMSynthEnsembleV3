@@ -87,10 +87,16 @@ void OpnBase::fm_set_tone(uint8_t ch, const uint8_t* tone) {
 
 void OpnBase::fm_set_pitch(uint8_t ch, uint8_t p, uint8_t oct, int16_t diff) {
     if (p <= MAXNUM_FM_PITCH && oct <= MAXNUM_OCT) {
-        int16_t fnum = fm_pitch_table[p] + diff;
-        if (fnum < 0x0000) fnum = 0x000;
-        if (fnum > 0x07ff) fnum = 0x7ff;
-        ::fm_set_freq(dev, ch, oct, (uint16_t)fnum);
+        // fm_pitch_table[p] + diff は int16_t 範囲を超え得る。加算は int32_t で行い
+        // [0, 0x7ff] にクランプする（GitHub issue #55）。
+        int32_t fnum = static_cast<int32_t>(fm_pitch_table[p]) + static_cast<int32_t>(diff);
+        if (fnum < 0x0000) {
+            fnum = 0x000;
+        }
+        if (fnum > 0x07ff) {
+            fnum = 0x7ff;
+        }
+        ::fm_set_freq(dev, ch, oct, static_cast<uint16_t>(fnum));
     }
 }
 
@@ -344,11 +350,13 @@ void OpnBase::set_timer_a(uint16_t value) {
 }
 
 void OpnBase::set_timer_a_ms(float time) {
-    int value = 1024 - (uint16_t)(timerA_k * time);
-    if (value < 0) {
-        value = 0;
-    }
-    set_timer_a(value);
+    // timerA_k * time can exceed uint16_t; clamp before integer conversion to avoid
+    // float->uint16_t UB (see GitHub issue #56, cf. set_timer_b_ms / #30).
+    // Timer A は 10bit（0..1023）なので、最終の reload 値もその範囲に収める。
+    const float scaled = std::clamp(timerA_k * time, 0.0f, 1024.0f);
+    int value          = 1024 - static_cast<int>(scaled);
+    value              = std::clamp(value, 0, 1023);
+    set_timer_a(static_cast<uint16_t>(value));
 }
 
 void OpnBase::set_timer_b(uint8_t value) {
