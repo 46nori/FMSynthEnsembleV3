@@ -36,6 +36,7 @@ public:
     uint16_t GetSwitchBitmap() const override { return switch_bitmap_; }
     void Tick() override;
     bool IsMidiReset() const override;
+    void FlashAllLeds() override;
 
 private:
     /** @brief マトリックス読取り・トグル用の調整パラメータ */
@@ -55,8 +56,17 @@ private:
         uint32_t press_start_ms;    ///< stable_pressed が true になった時刻 [ms]
     };
 
+    /** @brief Reset 通知点滅の進行状態 */
+    struct ResetFlashState {
+        bool active;             ///< 点滅中か
+        uint32_t phase_index;    ///< 点滅フェーズ（偶数=ON, 奇数=OFF）
+        uint32_t phase_start_ms; ///< 現フェーズ開始時刻 [ms]
+    };
+
     void UpdateChannelInput(int ch_index, bool raw_pressed, uint32_t now_ms);
     void RebuildSwitchBitmap();
+    void UpdateResetFlash(uint32_t now_ms);
+    uint16_t ResolveEffectiveLedBitmap(bool led_mode_midi) const;
 
     IIoPort& io_;
     HardwareConfig config_;
@@ -65,4 +75,5 @@ private:
     uint16_t long_press_bitmap_; ///< 長押し中 CH（bit i = CH(i+1)）
     uint8_t scan_column_;        ///< 現在スキャン中の列 0..3
     ChannelInputState channels_[16];
+    ResetFlashState reset_flash_;
 };

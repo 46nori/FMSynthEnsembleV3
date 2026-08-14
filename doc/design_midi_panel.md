@@ -123,6 +123,7 @@ flowchart LR
 | トグルとの関係 | 長押し成立時はトグル反転しない |
 | MIDI Reset | `IsMidiReset()` = `long_press_bitmap_` bit9（CH10）のレベル |
 | Reset 発火 | `MidiPanelTask` が立ち上がりエッジで `MidiControlType::Reset` を IPC 送信 |
+| Reset 適用通知 | `MidiEngineTask` が Reset を実適用したタイミングで全 LED 点滅（[11.5 節](#115-reset-通知点滅)） |
 
 ---
 
@@ -163,6 +164,7 @@ public:
     virtual uint16_t GetSwitchBitmap() const = 0;         // トグル後 ON/OFF
     virtual void Tick() = 0;                              // 1 回 = 1 列スロット
     virtual bool IsMidiReset() const = 0;                 // CH10 長押し（レベル）
+    virtual void FlashAllLeds() = 0;                      // Reset 通知の全 LED 点滅トリガー
 };
 ```
 
@@ -179,6 +181,7 @@ public:
 | ソフトトグル・長押し | [3.3 節](#33-ソフトウェア機能要件) |
 | LED 出力・モード切替（PB bit7） | [5.3.1 節](#531-led-モード)・[11 章](#11-led-表示モード) |
 | CH10 長押し → MIDI Reset | 3.3 節 |
+| Reset 通知点滅（`FlashAllLeds`） | [11.5 節](#115-reset-通知点滅) |
 | PortA 組み立て（上位=行、下位=列） | ハード仕様（PA/PB 信号定義） |
 
 #### 内部状態
@@ -189,6 +192,7 @@ public:
 | `switch_bitmap_` | トグル後 CH ON/OFF |
 | `long_press_bitmap_` | 長押し中 CH（bit i = CH(i+1)） |
 | `channels_[16]` | デバウンス・トグル・長押し per CH |
+| `reset_flash_`（`ResetFlashState`） | Reset 通知点滅の進行状態（[11.5 節](#115-reset-通知点滅)） |
 
 #### 5.3.1 LED モード
 
@@ -290,6 +294,7 @@ public:
     void Tick(uint16_t midi_ch_active_bitmap);
     uint16_t GetChannelEnableBitmap() const;
     bool IsMidiReset() const;
+    void FlashAllLeds();  // Reset 通知点滅トリガー（11.5 節）
 };
 ```
 
@@ -301,6 +306,8 @@ sequenceDiagram
     participant Ctrl as MidiPanelController
     participant Drv as IMidiPanelDriver
 
+    Task->>Ctrl: gResetPulseSeq 変化時のみ FlashAllLeds()
+    Ctrl->>Drv: FlashAllLeds()
     Task->>Ctrl: Tick(gLastNoteOnBitmap)
     Ctrl->>Drv: SetLedBitmap(bitmap)
     Ctrl->>Drv: Tick()
@@ -318,7 +325,10 @@ sequenceDiagram
 flowchart TD
     A[vTaskDelayUntil] --> B{Panel Mode 有効 かつ IsConnected?}
     B -- No --> A
-    B -- Yes --> C["Tick(gLastNoteOnBitmap)"]
+    B -- Yes --> F{"gResetPulseSeq 変化?"}
+    F -- Yes --> G["FlashAllLeds()"]
+    F -- No --> C
+    G --> C["Tick(gLastNoteOnBitmap)"]
     C --> D["gPanelChannelBitmap = GetChannelEnableBitmap()"]
     D --> E["IsMidiReset 立ち上がり → MIDI Reset IPC"]
     E --> A
@@ -355,15 +365,18 @@ flowchart LR
     subgraph app_data ["app"]
         LN["gLastNoteOnBitmap"]
         PC["gPanelChannelBitmap"]
+        RP["gResetPulseSeq"]
     end
     subgraph driver_data ["OpnMidiPanelDriver"]
         HL["host_led_bitmap_"]
         SW["switch_bitmap_"]
         CH["channels_ 16"]
+        RF["reset_flash_"]
     end
     LN -->|SetLedBitmap| HL
     SW -->|GetSwitchBitmap| PC
     CH --> SW
+    RP -->|FlashAllLeds| RF
 ```
 
 | データ | 所在 |
@@ -371,6 +384,7 @@ flowchart LR
 | `midi_ch_active` | app → `SetLedBitmap` |
 | トグル・デバウンス・長押し | `OpnMidiPanelDriver` |
 | LED モード | `OpnMidiPanelDriver`（PB bit7、[11 章](#11-led-表示モード)） |
+| Reset 通知点滅の進行状態 | `OpnMidiPanelDriver`（`reset_flash_`、[11.5 節](#115-reset-通知点滅)） |
 
 ---
 
@@ -437,6 +451,26 @@ const uint16_t effective_led = led_mode_midi ? host_led_bitmap_ : switch_bitmap_
 
 - `SetLedBitmap` で受け取った `host_led_bitmap_` が LED に反映される
 - トグル状態（`switch_bitmap_`）は表示に使わない。チャンネル ON/OFF のソフト状態は維持される
+
+### 11.5 Reset 通知点滅
+
+CH10 長押しで MIDI Reset が発火してから、`MidiEngineTask` が実際に Reset を適用するまでには
+IPC 経由の遅延がある（[design_concurrency.md](design_concurrency.md#4-core-間通信ipc)）。パネル操作側では
+「Reset が実際にかかったタイミング」を知りようがないため、`MidiEngineTask` 側から
+`gResetPulseSeq`（[design_concurrency.md](design_concurrency.md#44-共有変数volatile--atomic)）で通知し、
+`MidiPanelTask` がその変化を検出して `FlashAllLeds()` を呼ぶ。
+
+| 項目 | 内容 |
+|------|------|
+| トリガー | `MidiPanelTask` が `gResetPulseSeq` の変化を検出した Tick |
+| 実装箇所 | `OpnMidiPanelDriver`（`reset_flash_`、`ResetFlashState`） |
+| 点滅回数 | 2 回（静的定数 `kResetFlashBlinkCount`） |
+| 点滅周期 | 1 秒あたり 4 回（静的定数 `kResetFlashRateHz`。ON/OFF 各半周期 `kResetFlashHalfPeriodMs`。トリガーから 500ms で 2 回点滅が完了する） |
+| LED ソースとの関係 | PB bit7（モード A/B）の判定より **優先**する。点滅中は `effective_led` を強制的に全 ON/全 OFF にする |
+| 終了後 | 通常の `effective_led` 選択（モード A/B）に復帰する |
+
+点滅回数・周期はすべて `OpnMidiPanelDriver.cpp` 内の名前付き定数（`kResetFlashBlinkCount` /
+`kResetFlashRateHz`）で決まる。実行時設定にはしていない。
 
 **共通**
 

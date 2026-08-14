@@ -68,6 +68,7 @@ void ResetPanelNoteOnState() {
     engine_note_on_bits = 0;
     ch10_led_hold_until_us = 0;
     gLastNoteOnBitmap = 0;
+    ++gResetPulseSeq;
 }
 
 void OnRhythmPanelLedEvent(const MidiEvent& evt, uint32_t now_us) {

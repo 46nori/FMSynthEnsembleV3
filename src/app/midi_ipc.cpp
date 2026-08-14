@@ -199,4 +199,5 @@ MidiIpcStats MidiIpcGetStats() {
 // MidiEngineTask / MidiPanelTask 間の共有変数
 volatile uint16_t gPanelChannelBitmap = 0xffff;
 volatile uint16_t gLastNoteOnBitmap = 0;
+volatile uint32_t gResetPulseSeq = 0;
 std::atomic<bool> gPendingReset{false};

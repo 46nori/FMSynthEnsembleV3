@@ -22,6 +22,10 @@ extern QueueHandle_t gMidiControlQueue;
 extern volatile uint16_t gPanelChannelBitmap;   // パネルのチャンネルスイッチ状態 (bit=1: ON, 0: OFF)
 extern volatile uint16_t gLastNoteOnBitmap;     // 各チャンネルの発音中ビットマップ (bit=1: 発音中)
 
+// MidiEngineTask が MIDI Reset を実際に適用するたびに +1 する単調増加カウンタ。
+// MidiPanelTask はこれの変化を検出して、パネル LED の Reset 通知点滅をトリガーする。
+extern volatile uint32_t gResetPulseSeq;
+
 // Reset が gMidiControlQueue 満杯時に消失するのを防ぐフォールバックフラグ。
 // MidiIpcSendMidiControl() が Reset のキュー送信に失敗した場合のみ true にセットされ、
 // MidiEngineTask がキューをドレインした後に確認してクリアする。

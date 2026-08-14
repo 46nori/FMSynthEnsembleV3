@@ -55,4 +55,13 @@ public:
      *          具象ドライバは未実装の場合は常に false を返す。
      */
     virtual bool IsMidiReset() const = 0;
+
+    /**
+     * @brief MIDI Reset 通知として全 LED を点滅させる
+     * @details 点滅回数・周期は具象ドライバの静的定数で決める。LED モード（PB bit7）の
+     *          選択に関わらず、点滅中は全 LED に反映する。非ブロッキング（Tick() 側で進行）。
+     *          点滅中に再度呼ばれた場合はシーケンスを先頭から再開する。
+     *          具象ドライバは未実装の場合 no-op でよい。
+     */
+    virtual void FlashAllLeds() = 0;
 };

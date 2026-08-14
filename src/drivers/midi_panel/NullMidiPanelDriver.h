@@ -20,4 +20,5 @@ public:
     uint16_t GetSwitchBitmap() const override { return 0xffff; }
     void Tick() override {}
     bool IsMidiReset() const override { return false; }
+    void FlashAllLeds() override {}
 };
