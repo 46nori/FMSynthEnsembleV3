@@ -345,7 +345,7 @@ flowchart TD
 | IL | Note On velocity | 0x18–0x1d、**発音チップのみ** | 次回以降のヒット（発音中 IL は追跡しない） |
 
 - 換算テーブル: `RTLvolume[128]` / `ILvolume[128]`（[spec_opn.md](spec_opn.md#音量制御) と同式）。
-- **FM よりリズムが前に出やすい**問題 → `RHYTHM_LEVEL_OFFSET`（既定 **6** ≈ 4.5 dB）を RTL/IL 双方から減算。実行時はデバッガ **`rmix [0-31]`**（`g_rhythm_level_offset`）。
+- **FM よりリズムが前に出やすい**場合 → `RHYTHM_LEVEL_OFFSET`（既定 **0**）を RTL/IL 双方から減算。実行時はデバッガ **`rmix [0-31]`**（`g_rhythm_level_offset`）で調整可能。
 
 詳細な調整ポリシーは [spec_opn.md の「FMとリズムの音量バランス」](spec_opn.md#fmとリズムの音量バランス) を参照。
 
