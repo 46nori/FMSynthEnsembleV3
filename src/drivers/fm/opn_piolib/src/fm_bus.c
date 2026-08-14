@@ -183,10 +183,12 @@ int fm_device_init(fm_device_t *dev, fm_bus_t *bus,
 
 void fm_write_reg_raw(fm_bus_t *bus, uint32_t addr_word, uint32_t data_word)
 {
+    /* W2 消化（reg 0x10 で最大 576 φM cycles）待ちはロック解放後に持ち越す。
+       次のバス操作は各 raw プリミティブの先頭で fm_bus_wait_write_idle() を
+       呼ぶため、SM がまだ W2 待ち中でもそこで直列化される。 */
     fm_bus_wait_write_idle(bus);
     pio_sm_put_blocking(bus->pio, bus->sm, addr_word);
     pio_sm_put_blocking(bus->pio, bus->sm, data_word);
-    fm_bus_wait_write_idle(bus);
 }
 
 uint8_t fm_read_status_raw(fm_bus_t *bus, uint8_t chip_id,

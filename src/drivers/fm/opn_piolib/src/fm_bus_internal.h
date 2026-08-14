@@ -149,7 +149,9 @@ static inline void fm_bus_unlock(const fm_bus_t *bus, uint32_t irq_state)
 
 /**
  * Push 2 words (addr-phase, data-phase) into SM_WRITE TX FIFO.
- * Caller must hold the spinlock.
+ * Caller must hold the spinlock. Returns once both words are queued;
+ * does not wait for W2 to elapse. The next raw primitive's leading
+ * fm_bus_wait_write_idle() re-synchronizes on the SM before touching it.
  */
 void fm_write_reg_raw(fm_bus_t *bus, uint32_t addr_word, uint32_t data_word);
 
