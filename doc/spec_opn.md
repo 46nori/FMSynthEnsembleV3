@@ -678,7 +678,7 @@ FM通常音色（`NoteVoice` / `NoteChannel`）とリズム音源（`RhythmChann
 
 本システムでは **リズムを基準より下げる** 方向で FM とのバランスを取る。FM 側の音色 TL や `fm_tl_trim` を一律にいじってリズムに合わせる方式は採用しない（Program ごとの測定補正と競合するため）。
 
-1. **コンパイル時既定** — `src/app/config.h` の `RHYTHM_LEVEL_OFFSET`（step 数、1 step = 0.75 dB）。RTL と IL の両方に、テーブル参照後の値からこの step 数を **減算**する（0 で無補正、大きいほどリズムが小さくなる）。初期値は **6**（約 4.5 dB）。
+1. **コンパイル時既定** — `src/app/config.h` の `RHYTHM_LEVEL_OFFSET`（step 数、1 step = 0.75 dB）。RTL と IL の両方に、テーブル参照後の値からこの step 数を **減算**する（0 で無補正、大きいほどリズムが小さくなる）。初期値は **0**（無補正）。
 2. **実行時調整** — デバッガコマンド `rmix [0-31]` で `g_rhythm_level_offset` を変更する。試聴しながら決め、納得の値を `RHYTHM_LEVEL_OFFSET` に反映してビルドし直す運用を推奨する。
 3. **反映タイミング**
    - **RTL**（CC #7 / #11 相当）: `rmix` 変更時に `RhythmChannel::RefreshRhythmLevels()` で即時再適用。
@@ -690,8 +690,8 @@ FM通常音色（`NoteVoice` / `NoteChannel`）とリズム音源（`RhythmChann
 
 | `RHYTHM_LEVEL_OFFSET` / `rmix` 値 | リズム側の目安 |
 | -------------------------------- | -------------- |
-| 0 | オフセットなし（テーブル換算のみ） |
-| 6（既定） | 約 4.5 dB 下げ |
+| 0（既定） | オフセットなし（テーブル換算のみ） |
+| 6 | 約 4.5 dB 下げ |
 | 8 | 約 6 dB 下げ |
 | 12 | 約 9 dB 下げ |
 

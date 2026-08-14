@@ -61,4 +61,4 @@ constexpr int MIDI_CHANNELS = 16;
 // ------------------------------
 // リズム音源 (RhythmChannel) の RTL/IL 追加減衰 step (1 step = 0.75 dB)。
 // FM (NoteVoice) に対してリズムが前に出る場合に増やす。実行時はデバッガ `rmix` でも変更可。
-#define RHYTHM_LEVEL_OFFSET          6
+#define RHYTHM_LEVEL_OFFSET          0
