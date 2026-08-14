@@ -305,7 +305,7 @@ w_loop:
 
 ### 8.3 ステータス read（`status_entry`）
 
-**1 FIFO ワード**。`reg_entry` の Word 2 と同じ **書き込みワード下位 12 bit レイアウト**（`out pins, 12`）を使う。D0–D7 の入力化は PIO の `out pindirs` ではなく、**CPU が `pio_sm_set_consecutive_pindirs()` でワード投入前に行う**（`reg_entry` と同じ手順）。専用の pindirs ビット消費経路は持たない。
+**1 FIFO ワード**。`reg_entry` の Word 2 と同じ **書き込みワード下位 12 bit レイアウト**（`out pins, 12`）を使う。D0–D7 の入力化は PIO の `out pindirs` ではなく、**CPU が `fm_bus_set_consecutive_pindirs_side3()` でワード投入前に行う**（`reg_entry` と同じ手順）。専用の pindirs ビット消費経路は持たない。
 
 | ビット | 内容 |
 | --- | --- |
@@ -331,7 +331,7 @@ status_entry:
 **CPU 側シーケンス**（`fm_read_status_raw`）:
 
 1. `fm_bus_begin_read()` — idle 待ち + `status_entry` へ side 3 jmp
-2. `pio_sm_set_consecutive_pindirs(D0–D7, input)`
+2. `fm_bus_set_consecutive_pindirs_side3(D0–D7, input)`
 3. ワード投入
 4. RX 回収、`fm_bus_restore_d_output()`、idle 待ち
 
@@ -346,7 +346,7 @@ status_entry:
 
 Word 1 は `main_entry` と同型の `/WR` 57 サイクル。W1=0 のアドレス専用（`read_reg` 対象はすべて W1=0）。
 
-Word 2 は **書き込みワードと同じ bits[11:0] レイアウト**で `out pins, 12` する（A0=1, CS を正しく駆動するため）。`out pindirs` は PIO では行わず、**CPU が Word 1 完了後に D0–D7 を入力化**してから Word 2 を投入する。
+Word 2 は **書き込みワードと同じ bits[11:0] レイアウト**で `out pins, 12` する（A0=1, CS を正しく駆動するため）。`out pindirs` は PIO では行わず、**CPU が Word 1 完了後に `fm_bus_set_consecutive_pindirs_side3()` で D0–D7 を入力化**してから Word 2 を投入する。
 
 ```pio
 reg_entry:
@@ -368,7 +368,7 @@ reg_wr_low:
 1. `fm_bus_begin_read()` — idle 待ち + `reg_entry` へ side 3 jmp
 2. Word 1 投入
 3. `fm_bus_wait_write_idle()` — アドレスサイクル完了（SM が Word 2 の `pull` で停止）
-4. `pio_sm_set_consecutive_pindirs(D0–D7, input)`
+4. `fm_bus_set_consecutive_pindirs_side3(D0–D7, input)`
 5. Word 2 投入
 6. RX 回収、`fm_bus_restore_d_output()`、idle 待ち
 
@@ -389,7 +389,7 @@ data_read_entry:
 
 （PIO ソース上のコメントは内部名として `Pattern-2` を使う。本書での呼称「アドレス省略アクセス」と同じものを指す。）
 
-ワード構築は `read_reg` の Word 2 と同じ `fm_make_read_reg_word2()` を再利用する。CPU 側の pindirs 手順は `status_entry` と同様（`pio_sm_set_consecutive_pindirs()` でワード投入前に D0–D7 を入力化）。書き込み側の `write_reg_data()` はこのエントリを使わない（[8.2 節](#82-main_entry通常書き込み)参照）。
+ワード構築は `read_reg` の Word 2 と同じ `fm_make_read_reg_word2()` を再利用する。CPU 側の pindirs 手順は `status_entry` と同様（`fm_bus_set_consecutive_pindirs_side3()` でワード投入前に D0–D7 を入力化）。書き込み側の `write_reg_data()` はこのエントリを使わない（[8.2 節](#82-main_entry通常書き込み)参照）。
 
 `OpnBase`/`YM2608` は現状このアドレス省略アクセス経路を使わない（ADPCM 機能自体が未実装のため）。テストダブルでは明示的に unused として扱う。
 
@@ -544,7 +544,7 @@ I/O PortA/B（A1=0, 0x0e/0x0f）はデータシート上SSG扱い（W1=W2=0）�
 
 1. W1/W2 は静的待ちで確保する。BUSY 監視での代替は FM 音源部レジスタに限り可能だが（リズム部等には使えない）、本ライブラリでは採用していない。
 2. アイドル中も CS は保持されるが `/WR=H`, `/RD=H` のため誤動作しない。
-3. `pio_sm_exec` は必ず side 3 付き jmp を使う（`fm_bus_encode_jmp_side3`）。
+3. `pio_sm_exec` は必ず side 3 付き jmp を使う（`fm_bus_encode_jmp_side3`）。D0–D7 の pindirs 切替も同じ理由で side 3 固定の SET 命令が必須（`fm_bus_set_consecutive_pindirs_side3`）。素の `pio_sm_set_consecutive_pindirs()` は side ビットを指定しないため、この side_set 必須プログラムでは強制実行時に `/WR=/RD=L` へ落ちる。
 4. `read_reg` の Word 2 は write レイアウト + CPU による D 入力化が成否の前提である。
 5. 割り込みハンドラからの API 呼び出し禁止（ブロッキング FIFO 待ちのため）。
 
