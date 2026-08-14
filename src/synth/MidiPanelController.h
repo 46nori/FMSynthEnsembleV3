@@ -50,6 +50,12 @@ public:
      */
     bool IsMidiReset() const;
 
+    /**
+     * @brief MIDI Reset 通知として全 LED を点滅させる
+     * @details driver_->FlashAllLeds() への委譲。未接続時は no-op。
+     */
+    void FlashAllLeds();
+
 private:
     std::unique_ptr<IMidiPanelDriver> driver_;
 };

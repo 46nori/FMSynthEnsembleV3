@@ -38,3 +38,10 @@ bool MidiPanelController::IsMidiReset() const {
     }
     return driver_->IsMidiReset();
 }
+
+void MidiPanelController::FlashAllLeds() {
+    if (!IsConnected()) {
+        return;
+    }
+    driver_->FlashAllLeds();
+}

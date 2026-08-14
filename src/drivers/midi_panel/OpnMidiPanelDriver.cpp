@@ -20,6 +20,12 @@ constexpr uint8_t kColumnPortA[4] = {0x0E, 0x0D, 0x0B, 0x07};
 // PB bit7 = LED モード選択（Active Low）
 constexpr uint8_t kPbBit7LedModeMask = 0x80;
 
+// Reset 通知点滅パラメータ（変更する場合はここを編集する）
+constexpr uint32_t kResetFlashRateHz       = 4;      // 点滅周期 [回/秒]
+constexpr uint32_t kResetFlashBlinkCount   = 2;      // 点滅回数（トリガー1回あたり）
+constexpr uint32_t kResetFlashHalfPeriodMs = 1000u / (kResetFlashRateHz * 2u);  // ON/OFF 各半周期
+constexpr uint32_t kResetFlashTotalPhases  = kResetFlashBlinkCount * 2u;        // ON/OFF の合計フェーズ数
+
 }
 
 OpnMidiPanelDriver::OpnMidiPanelDriver(IIoPort& io)
@@ -28,7 +34,8 @@ OpnMidiPanelDriver::OpnMidiPanelDriver(IIoPort& io)
       host_led_bitmap_(0),
       switch_bitmap_(0xffff),  // 全 CH トグル ON
       long_press_bitmap_(0),
-      scan_column_(0) {
+      scan_column_(0),
+      reset_flash_{.active = false, .phase_index = 0, .phase_start_ms = 0} {
     for (auto& ch : channels_) {
         ch.latched = true;
         ch.stable_pressed = false;
@@ -54,6 +61,12 @@ void OpnMidiPanelDriver::SetLedBitmap(uint16_t led_bitmap) {
 
 bool OpnMidiPanelDriver::IsMidiReset() const {
     return (long_press_bitmap_ & (1u << 9)) != 0;  // CH10 長押し中
+}
+
+void OpnMidiPanelDriver::FlashAllLeds() {
+    reset_flash_.active = true;
+    reset_flash_.phase_index = 0;
+    reset_flash_.phase_start_ms = to_ms_since_boot(get_absolute_time());
 }
 
 // モーメンタリ入力をデバウンスし、ホールド時間でトグル／長押しを判定する。
@@ -112,6 +125,29 @@ void OpnMidiPanelDriver::RebuildSwitchBitmap() {
     switch_bitmap_ = bm;
 }
 
+void OpnMidiPanelDriver::UpdateResetFlash(uint32_t now_ms) {
+    if (!reset_flash_.active) {
+        return;
+    }
+
+    if ((now_ms - reset_flash_.phase_start_ms) < kResetFlashHalfPeriodMs) {
+        return;
+    }
+
+    ++reset_flash_.phase_index;
+    reset_flash_.phase_start_ms = now_ms;
+    if (reset_flash_.phase_index >= kResetFlashTotalPhases) {
+        reset_flash_.active = false;
+    }
+}
+
+uint16_t OpnMidiPanelDriver::ResolveEffectiveLedBitmap(bool led_mode_midi) const {
+    if (reset_flash_.active) {
+        return ((reset_flash_.phase_index % 2u) == 0u) ? 0xffffu : 0x0000u;
+    }
+    return led_mode_midi ? host_led_bitmap_ : switch_bitmap_;
+}
+
 // 列スロット: マトリックス読取 → トグル更新 → LED 出力
 void OpnMidiPanelDriver::Tick() {
     const uint8_t col = scan_column_;
@@ -134,9 +170,9 @@ void OpnMidiPanelDriver::Tick() {
     }
 
     RebuildSwitchBitmap();
+    UpdateResetFlash(now_ms);
 
-    // PB bit7 で LED ソースを選択（モード A=トグル、B=MIDI）
-    const uint16_t effective_led = led_mode_midi ? host_led_bitmap_ : switch_bitmap_;
+    const uint16_t effective_led = ResolveEffectiveLedBitmap(led_mode_midi);
 
     uint8_t led_row = 0;
     for (uint8_t row = 0; row < 4u; ++row) {

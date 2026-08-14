@@ -55,6 +55,7 @@ flowchart LR
     USB -- "gMidiControlQueue (8)" --> ENGINE
     PANEL -- "gPanelChannelBitmap" --> ENGINE
     ENGINE -- "gLastNoteOnBitmap" --> PANEL
+    ENGINE -- "gResetPulseSeq" --> PANEL
 ```
 
 ### 2.1 Core0 の責務
@@ -157,9 +158,10 @@ CMake オプション `USB_MIDI_IRQ_DRIVEN` で TinyUSB の OSAL モードを切
 
 1. `vTaskDelayUntil()` で `MIDI_PANEL_PERIOD_MS` 周期を維持
 2. デバッガコマンドで Panel Mode が無効化されている、または未接続ならスキップ
-3. `MidiPanelController::Tick(gLastNoteOnBitmap)` — 内部で `SetLedBitmap` → `driver->Tick()`（1列分の処理）
-4. `gPanelChannelBitmap` ← `GetChannelEnableBitmap()`
-5. `IsMidiReset()` の立ち上がりエッジで `MidiControlType::Reset` を IPC 送信
+3. `gResetPulseSeq` の変化を検出したら `MidiPanelController::FlashAllLeds()`（Reset 通知の全 LED 点滅。[design_midi_panel.md](design_midi_panel.md#11-led-表示モード) 参照）
+4. `MidiPanelController::Tick(gLastNoteOnBitmap)` — 内部で `SetLedBitmap` → `driver->Tick()`（1列分の処理）
+5. `gPanelChannelBitmap` ← `GetChannelEnableBitmap()`
+6. `IsMidiReset()` の立ち上がりエッジで `MidiControlType::Reset` を IPC 送信
 
 ### 3.5 DebugTask（Core0 固定）
 
@@ -197,6 +199,7 @@ flowchart LR
     USB & PANEL -. "gPendingReset (atomic)" .-> ENGINE
     PANEL -. "gPanelChannelBitmap (volatile)" .-> ENGINE
     ENGINE -. "gLastNoteOnBitmap (volatile)" .-> PANEL
+    ENGINE -. "gResetPulseSeq (volatile)" .-> PANEL
 ```
 
 ### 4.2 gMidiQueue
@@ -232,9 +235,10 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 |---|---|---|---|
 | `gPanelChannelBitmap` | MidiPanelTask (Core0) | MidiEngineTask (Core1) | `volatile uint16_t` |
 | `gLastNoteOnBitmap` | MidiEngineTask (Core1) | MidiPanelTask (Core0) | `volatile uint16_t` |
+| `gResetPulseSeq` | MidiEngineTask (Core1) | MidiPanelTask (Core0) | `volatile uint32_t` |
 | `gPendingReset` | `MidiIpcSendMidiControl` (Core0) / `MidiEngineTask` (Core1) | MidiEngineTask (Core1) | `std::atomic<bool>` |
 
-`gPanelChannelBitmap` / `gLastNoteOnBitmap` は 16-bit アライン済みの単純値であり、Cortex-M33 では 1 命令でアトミックに読み書きされる。複合操作を行う場合はクリティカルセクションを設けること。
+`gPanelChannelBitmap` / `gLastNoteOnBitmap` は 16-bit アライン済みの単純値であり、Cortex-M33 では 1 命令でアトミックに読み書きされる。複合操作を行う場合はクリティカルセクションを設けること。`gResetPulseSeq` は MidiEngineTask が MIDI Reset を実適用するたびに単調増加させる 32-bit カウンタで、同様に単一命令でアトミックに読み書きされる。MidiPanelTask は前回値との比較（`!=`）でエッジを検出し、パネル LED の Reset 通知点滅（[design_midi_panel.md](design_midi_panel.md#11-led-表示モード)）をトリガーする。
 
 `gPendingReset` は `gMidiControlQueue` が満杯で Reset イベントを投入できなかった場合のフォールバックフラグである。Core0 の `MidiIpcSendMidiControl()` が `store(true, release)` し、Core1 の `MidiEngineTask` が MIDI イベント処理後に `exchange(false, acq_rel)` で取得とクリアを同時に行う。`load` のあと別操作で `store(false)` すると、その間に Core0 が再度 `store(true)` した後発 Reset を消すため、取得とクリアはアトミックにする。両コアから書き込まれるため、コンパイラ最適化の抑制だけでなく CPU 間メモリ可視性の保証も必要であり、`volatile bool` ではなく `std::atomic<bool>` を使用する。
 
@@ -250,6 +254,7 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 | Panel ハードウェア (OPN PortA/B) | `MidiPanelTask`（Core0）のみ | なし |
 | `gPanelChannelBitmap` | `MidiPanelTask` のみ（デバッグ専用の例外: `DebugTask` の `cs` コマンドも書き込み可。Panel 接続中は次回スキャンで上書きされる） | `MidiEngineTask` |
 | `gLastNoteOnBitmap` | `MidiEngineTask` のみ | `MidiPanelTask` |
+| `gResetPulseSeq` | `MidiEngineTask` のみ | `MidiPanelTask` |
 | `gMidiQueue` への書き込み | `UsbMidiTask` のみ | `MidiEngineTask`（`xQueueReceive`） |
 | `gMidiControlQueue` への書き込み | `UsbMidiTask`、`MidiPanelTask`、`DebugTask`（いずれも `MidiIpcSendMidiControl`。FreeRTOS Queue は複数 Producer を許容する） | `MidiEngineTask`（`xQueueReceive`） |
 
