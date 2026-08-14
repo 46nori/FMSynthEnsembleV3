@@ -40,7 +40,7 @@ flowchart TD
 | ドキュメント | 内容 |
 |---|---|
 | [domain_app.md](domain_app.md) | タスク・IPC・デバッガ・設定 |
-| [domain_midi.md](domain_midi.md) | MidiMessage / MidiParser / MidiRoutingPolicy |
+| [domain_midi.md](domain_midi.md) | MidiMessage / MidiParser / MidiController / MidiSysEx |
 | [domain_synth.md](domain_synth.md) | MidiProcessor / チャンネル / Voice / アロケータ |
 | [domain_platform.md](domain_platform.md) | 初期化 / VolumeController / ISR |
 | [domain_drivers.md](domain_drivers.md) | OpnBase 系 / opn_piolib / MIDI パネル / USB |

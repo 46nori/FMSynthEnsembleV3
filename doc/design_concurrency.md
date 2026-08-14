@@ -2,7 +2,7 @@
 
 FMSynthEnsembleV3 における RP2350 デュアルコアと FreeRTOS SMP を使った並列実行アーキテクチャを定義する。
 
-MIDI メッセージのパース・ルーティング・構造化イベント定義の詳細は [design_midi_message.md](design_midi_message.md) を参照。システム全体のレイヤ構成・依存ルールは [architecture.md](architecture.md) を参照。
+MIDI メッセージのパース・ルーティング・構造化イベント定義の詳細は [design_midi_message.md](design_midi_message.md) を参照。システム全体のレイヤ構成・依存ルールは [architecture.md](architecture.md) を参照。演奏イベント IPC を単一 FIFO とした判断経緯は [design_midi_ipc.md](design_midi_ipc.md) に記録する。
 
 ---
 
@@ -33,7 +33,7 @@ MIDI メッセージのパース・ルーティング・構造化イベント定
 - **CPU**: RP2350 Cortex-M33 デュアルコア、150 MHz
 - **SRAM**: 264 KB（FreeRTOS ヒープ 64 KB 含む）
 - **FreeRTOS ポート**: `RP2350_ARM_NTZ`（Community-Supported-Ports）、SMP 有効
-- **FreeRTOS 配置**: 公式 `FreeRTOS-Kernel`（`pico-sdk` 隣接）を使用。配置ルールの詳細は [architecture.md](architecture.md) を参照
+- **FreeRTOS 配置**: 公式 `FreeRTOS-Kernel`（`pico-sdk`）を使用。配置ルールの詳細は [architecture.md](architecture.md) を参照
 - **タスク固定**: `xTaskCreateAffinitySet()` で Core を固定し、スケジューラによる Core 間移動を禁止する
 
 ---
@@ -51,8 +51,7 @@ flowchart LR
         ENGINE["MidiEngineTask<br>MidiProcessor + OPN 書き込み + TickVibrato"]
         CSM["CsmFrameTask<br>CSM フレーム処理"]
     end
-    USB -- "gMidiNoteQueue (128)" --> ENGINE
-    USB -- "gMidiEventQueue (64)" --> ENGINE
+    USB -- "gMidiQueue (192)" --> ENGINE
     USB -- "gMidiControlQueue (8)" --> ENGINE
     PANEL -- "gPanelChannelBitmap" --> ENGINE
     ENGINE -- "gLastNoteOnBitmap" --> PANEL
@@ -70,9 +69,9 @@ flowchart LR
 
 ### 2.2 Core1 の責務
 
-- `gMidiNoteQueue` / `gMidiEventQueue` / `gMidiControlQueue` からのイベント受信
+- `gMidiQueue` / `gMidiControlQueue` からのイベント受信
 - `MidiProcessor` による Channel Voice / Mode / Reset 処理
-- OPN レジスタ書き込み（FM バス操作）
+- **OPN レジスタ書き込み（FM バス操作）**
 - NoteOn 状態 bitmap の共有変数への書き込み
 
 **非責務**: TinyUSB 操作、Panel ハードウェア制御、Debugger I/O、SysEx バイト列の解釈
@@ -83,7 +82,8 @@ flowchart LR
 
 ### 3.1 タスク構成方針
 
-タスクの優先度・スタックサイズ・Core Affinity の実際の値は `src/app/task_config.h` を唯一の定義元とする。本ドキュメントでは、実装値そのものではなく、守るべき相対関係と配置方針を定義する。
+タスクの優先度・スタックサイズ・Core Affinity の実際の値は `src/app/task_config.h` で定義される。
+本ドキュメントでは、値そのものではなく、守るべき相対関係と配置方針を定義する。
 
 | タスク | Core 方針 | 優先度方針 | 周期/起床 |
 |---|---|---|---|
@@ -104,20 +104,21 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A["gPanelChannelBitmap 変化検出 → SetChannelEnable"] --> B["Note キューを一括ドレイン<br>（バッチ MIDI_NOTE_BATCH_MAX、上限 MIDI_NOTE_DRAIN_MAX）"]
-    B --> C["Event キューをバッチドレイン<br>（MIDI_EFFECT_BATCH_MAX 件）"]
-    C --> D["gPendingReset 確認 → Reset<br>なければ gMidiControlQueue を 1 件処理"]
-    D --> E["Note キューが空なら pending NoteOff をドレイン"]
-    E --> F["ServiceVibratoIfDue<br>（VIBRATO_PERIOD_MS 周期で TickVibrato）"]
-    F --> G{"キューに残イベント?"}
-    G -- あり --> A
-    G -- なし --> H["gMidiNoteQueue を最大 1 ms<br>（または次の vibrato まで）待機"]
+    A["gPanelChannelBitmap 変化検出 → SetChannelEnable"] --> B["gMidiQueue を到着順にドレイン<br>（MIDI_EVENT_BATCH_MAX 件）"]
+    B --> C["gPendingReset 確認 → Reset<br>なければ gMidiControlQueue を 1 件処理"]
+    C --> D["ServiceVibratoIfDue<br>（VIBRATO_PERIOD_MS 周期で TickVibrato）"]
+    D --> E{"gMidiQueue に残イベント?"}
+    E -- あり --> A
+    E -- なし --> F["gMidiQueue を最大 1 ms<br>（または次の vibrato まで）待機"]
+    F --> G{"イベント受信?"}
+    G -- あり --> H["受信 1 件 + 残りを<br>バッチ上限までドレイン"]
     H --> A
+    G -- なし --> A
 ```
 
 タスク起動直後（ループ前）には `gPanelChannelBitmap` を読み取り、`SetChannelEnable()` で初期状態を反映する。
 
-本設計では演奏中のレイテンシを優先し、Reset / DebugDump / DebugStats などの制御イベントは MIDI イベント処理の後に扱う。Reset は多少の遅延を許容するが、各ループで最大 1 件の制御イベントを確認するため、連続 MIDI 受信中でも制御イベントが無期限に滞留することはない。
+本設計では演奏中のレイテンシを優先し、Reset / DebugDump / DebugStats などの制御イベントは MIDI イベントのバッチ処理後に扱う。Reset は多少の遅延を許容するが、連続受信中は各ループで最大 `MIDI_EVENT_BATCH_MAX` 件のあと制御を 1 件確認する。アイドル待機からバースト復帰したときは、待機中に受け取った分をバッチ上限まで処理してからループ先頭に戻り、続けて通常のドレイン → 制御へ進む。演奏イベント内では Note / Effect を分類せず、受信順を維持する。
 
 ### 3.3 UsbMidiTask（Core0 固定）
 
@@ -127,10 +128,10 @@ flowchart TD
 
 1. `USB_MIDI_IRQ_DRIVEN` に応じて `tud_task_ext(1, false)`（イベント待機）または `tud_task()`（ポーリング）を実行
 2. `tud_midi_n_available()` を確認し、データがあれば `tud_midi_n_stream_read` で最大 32 バイトのチャンクを読み出し、1 バイトずつ `MidiStreamAssembler::PushByte()`（`src/midi/`、pico-sdk/FreeRTOS非依存）へ渡す
-3. `MidiStreamAssembler` 内部で `MidiParser` パース・`MidiRoutingPolicy` ルーティング判定を行い、確定したイベント/SysExを `IMidiStreamSink`（実装は `UsbMidiTask` 内の `UsbMidiStreamSink`）へ通知する。詳細は [design_midi_message.md](design_midi_message.md#5-core0-処理フロー) を参照
-4. `UsbMidiStreamSink::OnMidiEvent`: NoteOn/Off は `gMidiNoteQueue`（`timestamp_us` 付与）、それ以外は `gMidiEventQueue` へ投入（ノンブロッキング）。満杯時の NoteOff 保護は [4.2 節](#42-gmidinotequeue) を参照
+3. `MidiStreamAssembler` 内部で `MidiParser` パース、`MidiController` の対応判定、`MidiSysEx` の分類を行い、確定したイベント/SysExを `IMidiStreamSink`（実装は `UsbMidiTask` 内の `UsbMidiStreamSink`）へ通知する。詳細は [design_midi_message.md](design_midi_message.md#5-core0-処理フロー) を参照
+4. `UsbMidiStreamSink::OnMidiEvent`: 対応する演奏イベントに `timestamp_us` を付与し、`gMidiQueue` へ投入（ノンブロッキング）
 5. `UsbMidiStreamSink::OnProfileReset`: 標準リセット SysEx を受けて `gMidiControlQueue` へ `MidiControlEvent::Reset` を投入
-6. `UsbMidiStreamSink::OnVendorSysEx`: `HandleOnCore0` 判定の SysEx を Debugger SysEx ハンドラへ渡す
+6. `UsbMidiStreamSink::OnVendorSysEx`: `Debugger::HandleSysEx` へ渡す（Reset / dump / stats 等は `gMidiControlQueue` へ投入）
 7. Realtime / 不明メッセージは Drop
 8. データが空の場合: ポーリングモード（`USB_MIDI_IRQ_DRIVEN=OFF`）では `vTaskDelay(1ms)`。イベント待機モードでは `tud_task_ext` が待機済みのため追加待機なし
 
@@ -156,7 +157,7 @@ CMake オプション `USB_MIDI_IRQ_DRIVEN` で TinyUSB の OSAL モードを切
 
 1. `vTaskDelayUntil()` で `MIDI_PANEL_PERIOD_MS` 周期を維持
 2. デバッガコマンドで Panel Mode が無効化されている、または未接続ならスキップ
-3. `MidiPanelController::Tick(gLastNoteOnBitmap)` — 内部で `SetLedBitmap` → `driver->Tick()`（1 列スロット）
+3. `MidiPanelController::Tick(gLastNoteOnBitmap)` — 内部で `SetLedBitmap` → `driver->Tick()`（1列分の処理）
 4. `gPanelChannelBitmap` ← `GetChannelEnableBitmap()`
 5. `IsMidiReset()` の立ち上がりエッジで `MidiControlType::Reset` を IPC 送信
 
@@ -173,8 +174,8 @@ CMake オプション `USB_MIDI_IRQ_DRIVEN` で TinyUSB の OSAL モードを切
 | 用語 | 意味 |
 |---|---|
 | **滞留** | キュー上でイベントが処理待ちのまま残ること |
-| **Note キュー滞留** | `gMidiNoteQueue` に Note が溜まり、処理が追いつかない／特定 ch の Note が他 ch を遅らせること |
-| **制御イベント滞留** | Reset / Debug 等が Note/Event 処理に押され、`gMidiControlQueue` で処理待ちが続くこと |
+| **MIDI キュー滞留** | `gMidiQueue` に演奏イベントが溜まり、後続イベントの処理が遅れること |
+| **制御イベント滞留** | Reset / Debug 等が MIDI イベント処理に押され、`gMidiControlQueue` で処理待ちが続くこと |
 | **タスクスタベーション** | タスクが CPU 時間を割り当てられず実行できないこと |
 
 ### 4.1 全体構成
@@ -184,62 +185,48 @@ flowchart LR
     subgraph Core0
         USB["UsbMidiTask"]
         PANEL["MidiPanelTask"]
+        DBG["DebugTask"]
     end
     subgraph Core1
         ENGINE["MidiEngineTask"]
     end
-    USB -- "NoteOn/Off" --> NQ["gMidiNoteQueue"] --> ENGINE
-    USB -- "CC/PB 等" --> EQ["gMidiEventQueue"] --> ENGINE
-    USB -- "Reset" --> CQ["gMidiControlQueue"] --> ENGINE
+    USB -- "対応する演奏イベント<br>（到着順）" --> MQ["gMidiQueue"] --> ENGINE
+    USB -- "Reset / Debug" --> CQ["gMidiControlQueue"] --> ENGINE
     PANEL -- "Reset(長押し)" --> CQ
+    DBG -- "Reset / dump / stats" --> CQ
     USB & PANEL -. "gPendingReset (atomic)" .-> ENGINE
     PANEL -. "gPanelChannelBitmap (volatile)" .-> ENGINE
     ENGINE -. "gLastNoteOnBitmap (volatile)" .-> PANEL
 ```
 
-### 4.2 gMidiNoteQueue
+### 4.2 gMidiQueue
 
 | 項目 | 値 |
 |---|---|
 | 型 | `MidiEvent`（固定長） |
-| 長さ | 128 要素（`kMidiNoteQueueLength`） |
+| 長さ | 192 要素（`kMidiQueueLength`） |
 | Producer | UsbMidiTask (Core0) |
 | Consumer | MidiEngineTask (Core1) |
-| 送信 | NoteOn / NoteOff とも `xQueueSendToBack` |
-| 送信失敗時 | 下記の NoteOff 保護。NoteOn は高水位到達時点で Drop（`midi_note_on_reserve_drop_count` 更新） |
+| 送信 | `xQueueSendToBack`。Note / CC / PC / PitchBend 等を到着順に格納 |
+| 送信失敗時 | Drop + `midi_queue_drop_count` 更新 |
 
-NoteOff は音の止め漏れに直結するため Drop しない（`MidiIpcSendMidiNoteEvent`）:
+Note / Effect の優先度付けや間引きは行わず、Core0 が転送対象と判定したイベントの順序を維持する。旧 Note/Event キューの合計容量を引き継ぎ、単一 FIFO 化以外の容量条件を変えない。
 
-1. NoteOff 用にキュー末尾の空きスロットを常時予約する（`kNoteOffReservedSlots`）。NoteOn は空きが予約数以下になった時点で受け付けず Drop する（`midi_note_on_reserve_drop_count` 更新）。NoteOff はこの予約を使って投入する
-2. NoteOff すら投入できない（予約分も使い切った）場合はチャンネル × キーの pending ビットマップへ退避する（`midi_note_off_fallback_count` 更新）。MidiEngineTask は Note キューが空になったタイミングで退避分を NoteOff として処理する（`MidiIpcDrainPendingNoteOffs`）
-
-キューからの取り出しは Consumer の MidiEngineTask (Core1) のみが行う。
-
-### 4.3 gMidiEventQueue
-
-| 項目 | 値 |
-|---|---|
-| 型 | `MidiEvent`（固定長） |
-| 長さ | 64 要素（`kMidiEventQueueLength`） |
-| Producer | UsbMidiTask (Core0) |
-| Consumer | MidiEngineTask (Core1) |
-| 送信失敗時 | Drop + `midi_event_queue_drop_count` 更新 |
-
-### 4.4 gMidiControlQueue
+### 4.3 gMidiControlQueue
 
 | 項目 | 値 |
 |---|---|
 | 型 | `MidiControlEvent`（固定長） |
 | 長さ | 8 要素（`kMidiControlQueueLength`） |
-| Producer | UsbMidiTask（SysEx 標準リセット時）、MidiPanelTask（CH10 長押し） |
+| Producer | UsbMidiTask（SysEx 標準リセット、ベンダー SysEx 経由のデバッグコマンド）、MidiPanelTask（CH10 長押し）、DebugTask（コンソールコマンド） |
 | Consumer | MidiEngineTask (Core1) |
 | 処理優先度 | MIDI イベント処理後に最大 1 件処理 |
 
-演奏中の MIDI イベントレイテンシを優先するため、`gMidiControlQueue` は Note/Event キューの処理後に確認する。Reset は多少の遅延を許容する一方、各ループで `gPendingReset` と `gMidiControlQueue` を確認することで、Queue Full 時の Reset 消失と制御イベント滞留を避ける。
+演奏中の MIDI イベントレイテンシを優先するため、`gMidiControlQueue` は `gMidiQueue` のバッチ処理後に確認する。Reset は多少の遅延を許容する一方、各ループで `gPendingReset` と `gMidiControlQueue` を確認することで、Queue Full 時の Reset 消失と制御イベント滞留を避ける。
 
 Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロックしない。過負荷時は Drop が発生するが、音源処理は継続する。
 
-### 4.5 共有変数（volatile / atomic）
+### 4.4 共有変数（volatile / atomic）
 
 | 変数 | 書き手 | 読み手 | 型 |
 |---|---|---|---|
@@ -263,9 +250,8 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 | Panel ハードウェア (OPN PortA/B) | `MidiPanelTask`（Core0）のみ | なし |
 | `gPanelChannelBitmap` | `MidiPanelTask` のみ（デバッグ専用の例外: `DebugTask` の `cs` コマンドも書き込み可。Panel 接続中は次回スキャンで上書きされる） | `MidiEngineTask` |
 | `gLastNoteOnBitmap` | `MidiEngineTask` のみ | `MidiPanelTask` |
-| `gMidiNoteQueue` への書き込み | `UsbMidiTask` のみ | `MidiEngineTask`（`xQueueReceive`） |
-| `gMidiEventQueue` への書き込み | `UsbMidiTask` のみ | `MidiEngineTask`（`xQueueReceive`） |
-| `gMidiControlQueue` への書き込み | `UsbMidiTask` + `MidiPanelTask` | `MidiEngineTask`（`xQueueReceive`） |
+| `gMidiQueue` への書き込み | `UsbMidiTask` のみ | `MidiEngineTask`（`xQueueReceive`） |
+| `gMidiControlQueue` への書き込み | `UsbMidiTask`、`MidiPanelTask`、`DebugTask`（いずれも `MidiIpcSendMidiControl`。FreeRTOS Queue は複数 Producer を許容する） | `MidiEngineTask`（`xQueueReceive`） |
 
 Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の **PIO バス spinlock** でレジスタトランザクションはシリアライズされる。同一 Voice への連続 `fm_set_pitch` は「最後の完全再計算が反映される」前提でよい（[design_effect.md](design_effect.md#4-アーキテクチャ) 参照）。
 
@@ -273,7 +259,7 @@ Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の
 
 この待機中は Core1 自身の割り込みも禁止されるため、FM `/IRQ`（CSM フレームティック用、[design_csm_frame.md](design_csm_frame.md#7-isrcsmframetask-レイテンシと音質) 参照）が重なるとその処理はスピン終了まで遅延する（ロストはしない）。
 
-`gPendingReset` は Core0 / Core1 双方から書き込まれるため Single Writer Rule の適用外であり、`std::atomic<bool>` のアトミック操作によって安全性を保証する（[4.5 共有変数](#45-共有変数volatile--atomic)）。
+`gPendingReset` は Core0 / Core1 双方から書き込まれるため Single Writer Rule の適用外であり、`std::atomic<bool>` のアトミック操作によって安全性を保証する（[4.4 共有変数](#44-共有変数volatile--atomic)）。
 
 ---
 
@@ -301,7 +287,7 @@ Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の
 
 | 症状 | 原因の可能性 | 対策 |
 |---|---|---|
-| MidiEngineTask が CPU 100% | Queue 満杯によるスピン | `MidiIpcGetStats()` の note/event drop 確認、Queue 長拡張を検討 |
+| MidiEngineTask が CPU 100% | Queue 満杯によるスピン | `MidiIpcGetStats()` の `midi_queue_drop_count` 確認、Queue 長拡張を検討 |
 | Panel LED ちらつき | MidiPanelTask の周期オーバーラン | `uxTaskGetStackHighWaterMark` で確認、処理軽量化 |
 | MIDI 音が出ない | OPN への書き込みが Core0 から行われている | Single Writer Rule 違反の確認 |
 | Reset が効かない | MidiEngineTask が完全ブロック中 | Queue Full 時は `gPendingReset` フォールバック（`std::atomic<bool>`）で保護済み。症状が続く場合は MidiEngineTask のスタックオーバーフロー・デッドロックを確認 |

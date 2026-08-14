@@ -10,6 +10,7 @@
 4. [依存関係](#4-依存関係)
 5. [タスク構成](#5-タスク構成)
 6. [拡張ガイドライン](#6-拡張ガイドライン)
+7. [Build-time Switch](#7-build-time-switch)
 
 ---
 
@@ -20,7 +21,7 @@
 | レイヤ構造 | `app` が機能を統合し、`synth` / `midi` / `platform` に委譲する。`synth` は音源抽象、`midi` は MIDI 処理、`platform` はボード統合を担当する |
 | ハードウェア抽象化 | `drivers` は再利用可能な低レベル部品、`platform` はこの基板での資源所有・初期化順・ピン/PIO 割り当てを担当する |
 | 外部ライブラリ分離 | `extern/` に集約し、本体コードと分離する |
-| FreeRTOS SMP | RP2350 デュアルコアを FreeRTOS SMP ポートで稼働。Core0 に I/O タスク群、Core1 に音源エンジンタスクを固定配置する |
+| FreeRTOS SMP | RP2350 / RP2040 デュアルコアを FreeRTOS SMP ポートで稼働。Core0 に I/O タスク群、Core1 に音源エンジンタスクを固定配置する |
 | 並列性設計 | 詳細は [design_concurrency.md](design_concurrency.md) を参照 |
 
 各ドメインの主要クラスと依存関係は [domain/README.md](domain/README.md) のドメインチャートを参照。
@@ -77,12 +78,12 @@ FMSynthEnsembleV3/
 
 | ファイル | 役割 |
 |---------|------|
-| `main.cpp` | エントリポイント。初期化・マスターボリューム復帰・FreeRTOS タスク生成・`vTaskStartScheduler()` |
+| `main.cpp` | エントリポイント。初期化・電子ボリューム設定・FreeRTOS タスク生成・スケジューラ起動 |
 | `config.h` | アプリ層の実行時ポリシー定数（チャンネル数、ビブラート定数、リズムオフセット等） |
-| `task_config.h` | タスク優先度・スタックサイズ・Core Affinity マスク・`MIDI_PANEL_PERIOD_MS` の定数定義。唯一の定義元 |
+| `task_config.h` | タスク優先度・スタックサイズ・Core Affinity マスク・`MIDI_PANEL_PERIOD_MS` の定数定義 |
 | `midi_ipc.h/cpp` | MIDI 用 Core 間キューと統計カウンタ |
 | `csm_ipc.h/cpp` | CSM フレーム処理用イベントキュー |
-| `*_task.h/cpp` | 各 FreeRTOS タスクの実装（usb_midi / midi_engine / midi_panel / csm_frame / debugger） |
+| `*_task.h/cpp` | 各 FreeRTOS タスクの実装 |
 | `debugger.h/cpp` | デバッグ用モジュール、対話型デバッガの提供 |
 
 **ルール**: ハードウェアを直接操作しない。`Platform::*` と `synth` の API のみ使用する。
@@ -91,13 +92,14 @@ FMSynthEnsembleV3/
 
 ### midi/（MIDI パース・ルーティングレイヤ）
 
-MIDI バイト列の解釈と転送先決定を担うレイヤ。[Single Parse Rule](design_midi_message.md#11-single-parse-rule) に従い、Core0 内でのみパースする。`synth/` レイヤの負荷軽減のため、ポリシーにしたがって扱わない MIDI メッセージをこのレイヤで破棄する。
+MIDI バイト列の解釈と転送先決定を担うレイヤ。[Single Parse Rule](design_midi_message.md#11-single-parse-rule) に従い、Core0 内でのみパースする。`synth/` レイヤの負荷軽減のため、扱わない MIDI メッセージをこのレイヤで破棄する。
 
 | ファイル | 役割 |
 |---------|------|
 | `MidiMessage.h` | Core 間転送用の固定長構造体 (`MidiEvent`, `MidiControlEvent`, `MidiEventType`, `MidiControlType`) を定義 |
 | `MidiParser.h/cpp` | MIDI バイト列を `MidiEvent` に変換 (`TryParseEvent`)。SysEx / Realtime の判定補助関数を提供 |
-| `MidiRoutingPolicy.h/cpp` | 転送先 (`ForwardToEngine` / `HandleOnCore0` / `Drop`) を決定するポリシークラス |
+| `MidiController.h` | 対応 CC の番号と意味 (`MidiControllerAction`) を集約し、Channel Voice の転送可否を判定 |
+| `MidiSysEx.h/cpp` | SysEx を Profile Reset / Vendor Debug / Drop に分類 |
 
 **ルール**: `pico-sdk`・FreeRTOS・ドライバ層に依存しない。`MidiMessage.h` の型のみを依存関係として持ち、`app/` から利用される。
 
@@ -144,7 +146,7 @@ synth/
 |---------|------|
 | `IMidiPanelDriver.h` | 抽象インターフェース（LED ビットマップ・スイッチ・Tick・リセット） |
 | `OpnMidiPanelDriver.h/cpp` | OPN PortA/B 経由のマトリックススキャン・トグル・LED 表示 |
-| `NullMidiPanelDriver.h` | 未接続スタブ |
+| `NullMidiPanelDriver.h` | 未接続時用スタブ |
 | `MidiPanelDriverFactory.h/cpp` | `CreateMidiPanelDriver(OpnBase*)` |
 
 ハードウェア操作の責務はドライバに閉じ、`synth/MidiPanelController` は `IMidiPanelDriver` API のみ使用する。
@@ -240,6 +242,7 @@ FreeRTOS は `extern/` で管理せず、Raspberry Pi 公式レイアウトの `
 ```
 FMSynthEnsembleV3 (実行ファイル)
   ├── synth
+  │     ├── midi
   │     ├── fm
   │     ├── midi_panel
   │     │     └── fm
@@ -275,6 +278,7 @@ flowchart TD
     app --> synth["synth"]
     app --> platform["platform"]
     app --> usb["drivers/usb"]
+    synth --> midi
     synth --> fm["drivers/fm"]
     synth --> panel["drivers/midi_panel"]
     platform --> drivers["drivers"]
@@ -287,10 +291,11 @@ flowchart TD
 - `drivers` は `platform` に依存しない
 - `platform` は `synth` / `app` に依存しない
 - `midi` は `pico-sdk`・FreeRTOS・ドライバ層に依存しない
+- `synth` は純粋な MIDI イベント型・Controller Action 定義に限り `midi` に依存してよい。`midi` から `synth` への逆依存は禁止
 - `synth` は必要な低レベル操作を `drivers` のインターフェース経由で行う。pico-sdk への直接依存は禁止
 - `extern/` 内ファイルは直接編集しない（upstream との乖離を防ぐ）
 - GPIO ピン番号は `platform` レイヤ内に閉じ込め、上位レイヤでハードコードしない。共有ハードウェア資源のピン割り当ては、その資源を所有する `platform` 実装または公開が必要な `platform` ヘッダに集約する
-- `config.h` はアプリ層の実行時ポリシー定数に限定する。ドライバ/ミドル層の Build-time Switch は CMake `target_compile_definitions` で制御する
+- `config.h` はアプリ層の実行時ポリシー定数に限定する。ドライバ/ミドル層の Build-time Switch は CMake `target_compile_definitions` で制御する。一覧は [7. Build-time Switch](#7-build-time-switch)
 
 ---
 
@@ -345,3 +350,20 @@ git submodule add <URL> extern/<ライブラリ名>
 - 新しい発音方式: `synth/voice/` に `Voice` を継承したクラスを追加する
 - 新しいチャンネル種別: `synth/channel/` に `MidiChannel` を継承したクラスを追加する
 - チャンネル構成の変更: `MidiFactory` のコンストラクタやチャンネル生成ロジックを修正する
+
+---
+
+## 7. Build-time Switch
+
+`config.h` はアプリ層の実行時ポリシー定数に限定し、ドライバ/ミドル層の Build-time Switch は CMake で制御する。
+
+| スイッチ名 | 制御方法 | 用途 |
+|---|---|---|
+| `USB_MIDI_IRQ_DRIVEN` | CMake `option()` + `CMakePresets.json` | TinyUSB OSAL モード切替（既定 ON = `OPT_OS_FREERTOS`。[design_concurrency.md](design_concurrency.md#331-usb-スケジューリングモード) 参照） |
+| `BUILD_MIDI_PANEL` | CMake `option()` | MIDI パネルコントローラの有効化 |
+| `BUILD_SD_CARD` | CMake `option()` | SD カードスタックの有効化 |
+| `ENABLE_MIDI_TIMING_STATS` | CMake `option()` + `CMakePresets.json` | MIDI キュー滞留・イベント実行時間の詳細計測（既定 OFF） |
+| `ENABLE_DEBUG_PRINT` | `src/app/config.h` `#define` | midi_ipc Drop カウンタのシリアル出力有効化 |
+| `ENABLE_CSM` | `src/app/config.h` `#define` | CSM Voice の有効化 |
+
+CMake `option()` の既定値と使い方は [build.md](build.md#4-build-options) / [build_ja.md](build_ja.md#4-ビルドオプション) を参照。

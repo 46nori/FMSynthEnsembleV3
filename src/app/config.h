@@ -54,9 +54,7 @@ constexpr int MIDI_CHANNELS = 16;
 #define VIBRATO_RATE_MAX_HZ          12.0f
 #define VIBRATO_DEPTH_MAX_CENTS      50
 
-#define MIDI_NOTE_BATCH_MAX          32
-#define MIDI_EFFECT_BATCH_MAX        8
-#define MIDI_NOTE_DRAIN_MAX          128
+#define MIDI_EVENT_BATCH_MAX         32
 
 // ------------------------------
 // ミックス関連

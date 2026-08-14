@@ -7,15 +7,16 @@
 #pragma once
 
 #include <atomic>
+#if ENABLE_MIDI_TIMING_STATS
+#include <cstddef>
+#endif
 #include <cstdint>
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "MidiMessage.h"
 
-/** @brief CC / PB 等（ベストエフォート即時処理） */
-extern QueueHandle_t gMidiEventQueue;
-/** @brief NoteOn / NoteOff（時刻スケジュール） */
-extern QueueHandle_t gMidiNoteQueue;
+/** @brief Core1 で処理する MIDI イベント（到着順の単一 FIFO） */
+extern QueueHandle_t gMidiQueue;
 extern QueueHandle_t gMidiControlQueue;
 
 extern volatile uint16_t gPanelChannelBitmap;   // パネルのチャンネルスイッチ状態 (bit=1: ON, 0: OFF)
@@ -26,15 +27,35 @@ extern volatile uint16_t gLastNoteOnBitmap;     // 各チャンネルの発音�
 // MidiEngineTask がキューをドレインした後に確認してクリアする。
 extern std::atomic<bool> gPendingReset;
 
+#if ENABLE_MIDI_TIMING_STATS
+constexpr size_t kMidiTimingOutlierCount = 8;
+
+struct MidiTimingSample {
+    uint32_t      queue_delay_us;
+    uint32_t      execution_us;
+    uint16_t      queue_depth;
+    MidiEventType type;
+    uint8_t       channel;
+    uint8_t       data1;
+    uint8_t       data2;
+};
+#endif
+
 struct MidiIpcStats {
-    uint32_t midi_event_queue_drop_count;
-    uint32_t midi_note_queue_drop_count;
+    uint32_t midi_queue_drop_count;
     uint32_t midi_control_queue_drop_count;
     uint32_t midi_reset_queue_drop_count;
-    /** NoteOff 予約スロット確保のため受け付けなかった NoteOn 数 */
-    uint32_t midi_note_on_reserve_drop_count;
-    /** キュー満杯時に pending ビットマップへ退避した NoteOff 数 */
-    uint32_t midi_note_off_fallback_count;
+#if ENABLE_MIDI_TIMING_STATS
+    uint16_t midi_queue_high_water_mark;
+    uint32_t midi_note_queue_delay_max_us;
+    uint32_t midi_note_off_queue_delay_max_us;
+    uint32_t midi_effect_queue_delay_max_us;
+    uint32_t midi_note_execution_max_us;
+    uint32_t midi_effect_execution_max_us;
+    uint32_t midi_vibrato_execution_max_us;
+    MidiTimingSample delay_outliers[kMidiTimingOutlierCount];
+    MidiTimingSample execution_outliers[kMidiTimingOutlierCount];
+#endif
 };
 
 /**
@@ -46,25 +67,24 @@ struct MidiIpcStats {
 bool MidiIpcInitialize();
 
 /**
- * @brief エフェクト用 MIDI イベントキューに送信（NoteOn/Off 以外）
+ * @brief Core1 で処理する MIDI イベントを到着順の単一キューへ送信
  */
 bool MidiIpcSendMidiEvent(const MidiEvent& event);
 
+#if ENABLE_MIDI_TIMING_STATS
 /**
- * @brief NoteOn/Off 用キューに送信（timestamp_us は受信側で設定済みであること）
- * @details NoteOff 用にキュー末尾の空きスロットを常時予約し、NoteOn は予約を
- *          侵食しない範囲でのみ受け付ける。NoteOff は満杯時も Drop せず
- *          pending 退避で必ず届ける。
+ * @brief Core1 でのキュー滞留時間とイベント実行時間を記録
+ * @details MidiEngineTask の単一 Consumer からのみ呼び出す。
  */
-bool MidiIpcSendMidiNoteEvent(const MidiEvent& event);
-
-using MidiPendingNoteOffFn = void (*)(uint8_t channel, uint8_t key, void* ctx);
+void MidiIpcRecordMidiEventTiming(const MidiEvent& event, UBaseType_t queue_depth,
+                                  uint32_t dequeue_us, uint32_t completed_us);
 
 /**
- * @brief pending 退避された NoteOff をすべて処理する（gMidiNoteQueue が空のときのみ呼ぶ）
- * @return 処理した NoteOff 数
+ * @brief Core1 のビブラート1周期分の実行時間を記録
+ * @details MidiEngineTask の単一 Consumer からのみ呼び出す。
  */
-size_t MidiIpcDrainPendingNoteOffs(MidiPendingNoteOffFn fn, void* ctx);
+void MidiIpcRecordVibratoTiming(uint32_t execution_us);
+#endif
 
 /**
  * @brief MIDIコントロールイベントキューに MIDIコントロールイベントを送信する

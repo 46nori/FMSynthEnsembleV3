@@ -25,12 +25,8 @@ class UsbMidiStreamSink : public IMidiStreamSink {
 public:
     void OnMidiEvent(const MidiEvent& event) override {
         MidiEvent evt = event;
-        if (MidiEventIsNote(evt)) {
-            evt.timestamp_us = static_cast<uint32_t>(time_us_64());
-            (void)MidiIpcSendMidiNoteEvent(evt);
-        } else {
-            (void)MidiIpcSendMidiEvent(evt);
-        }
+        evt.timestamp_us = static_cast<uint32_t>(time_us_64());
+        (void)MidiIpcSendMidiEvent(evt);
     }
 
     void OnProfileReset() override {

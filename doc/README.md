@@ -11,9 +11,10 @@
 
 | ドキュメント | 内容 |
 |---|---|
-| [architecture.md](architecture.md) | プロジェクト全体構成・各レイヤの役割・依存制約 |
+| [architecture.md](architecture.md) | プロジェクト全体構成・各レイヤの役割・依存制約・Build-time Switch |
 | [domain/README.md](domain/README.md) | ドメインチャートと各ドメインのクラス図 |
 | [design_concurrency.md](design_concurrency.md) | デュアルコアと FreeRTOS SMP による並列実行アーキテクチャ |
+| [design_midi_ipc.md](design_midi_ipc.md) | 演奏イベント IPC を単一 FIFO とした判断経緯と計測結果 |
 | [design_midi_message.md](design_midi_message.md) | MIDI メッセージのパース・ルーティング・Core 間転送設計 |
 | [design_voice_allocation.md](design_voice_allocation.md) | 動的ボイスアロケーションアルゴリズム |
 | [design_effect.md](design_effect.md) | ビブラート / ソフトウェア LFO / ピッチ合成 |

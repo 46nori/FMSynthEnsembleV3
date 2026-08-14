@@ -19,7 +19,7 @@ class IMidiStreamSink {
 public:
     virtual ~IMidiStreamSink() = default;
 
-    /** @brief Core1 へ転送すべき MidiEvent が確定した（MidiRoutingPolicy::DecideForEvent 済み） */
+    /** @brief Core1 へ転送すべき対応済み MidiEvent が確定した */
     virtual void OnMidiEvent(const MidiEvent& event) = 0;
 
     /** @brief GM/XG/GS プロファイルリセット SysEx を受信した */

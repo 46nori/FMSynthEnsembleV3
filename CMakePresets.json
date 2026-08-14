@@ -9,6 +9,7 @@
       "cacheVariables": {
         "BUILD_SD_CARD": "OFF",
         "BUILD_MIDI_PANEL": "ON",
+        "ENABLE_MIDI_TIMING_STATS": "OFF",
         "USB_MIDI_IRQ_DRIVEN": "ON"
       }
     }

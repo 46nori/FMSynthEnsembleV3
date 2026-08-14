@@ -23,6 +23,43 @@ bool ShouldEcho(FILE* stream) {
     return stream != nullptr && isatty(fileno(stream)) != 0;
 }
 
+#if ENABLE_MIDI_TIMING_STATS
+const char* MidiEventTypeName(MidiEventType type) {
+    switch (type) {
+    case MidiEventType::NoteOff:          return "NoteOff";
+    case MidiEventType::NoteOn:           return "NoteOn";
+    case MidiEventType::PolyAftertouch:   return "PolyAT";
+    case MidiEventType::ControlChange:    return "CC";
+    case MidiEventType::ProgramChange:    return "PC";
+    case MidiEventType::ChannelAftertouch:return "ChannelAT";
+    case MidiEventType::PitchBend:        return "PB";
+    case MidiEventType::ChannelMode:      return "ChannelMode";
+    }
+    return "?";
+}
+
+void PrintTimingOutliers(const char* label, const MidiTimingSample* samples,
+                         bool by_execution) {
+    std::printf("%s:\n", label);
+    for (size_t i = 0; i < kMidiTimingOutlierCount; ++i) {
+        const MidiTimingSample& sample = samples[i];
+        const uint32_t score = by_execution ? sample.execution_us : sample.queue_delay_us;
+        if (score == 0) {
+            break;
+        }
+        std::printf("  #%u delay=%luus exec=%luus depth=%u %s ch=%u d1=%u d2=%u\n",
+                    static_cast<unsigned>(i + 1),
+                    static_cast<unsigned long>(sample.queue_delay_us),
+                    static_cast<unsigned long>(sample.execution_us),
+                    static_cast<unsigned>(sample.queue_depth),
+                    MidiEventTypeName(sample.type),
+                    static_cast<unsigned>(sample.channel + 1),
+                    static_cast<unsigned>(sample.data1),
+                    static_cast<unsigned>(sample.data2));
+    }
+}
+#endif
+
 }  // namespace
 
 //
@@ -126,7 +163,7 @@ constexpr uint8_t DEBUGGER_STATS        = 0x04;
 
 void Debugger::HandleSysEx(const uint8_t* raw, uint16_t len) {
     // Header match (F0 7D 46 4D ... F7) and len>=6 are guaranteed by the
-    // caller via MidiRoutingPolicy::DecideForSysEx(); not re-checked here.
+    // caller via MidiSysEx::Classify(); not re-checked here.
     const uint8_t cmd = raw[4];
     switch (cmd) {
     case DEBUGGER_MIDI_RESET:
@@ -151,14 +188,25 @@ void Debugger::HandleSysEx(const uint8_t* raw, uint16_t len) {
 void Debugger::PrintMidiStats(const std::array<MidiChannel*, MIDI_CHANNELS>& channels) {
     const MidiIpcStats midiIpcStats = MidiIpcGetStats();
     std::printf("\nVoice allocation failure: %d\n", VoiceAllocator::GetInstance().GetFailedCount());
-    std::printf("midi_ipc queue drops: effect=%lu note=%lu control=%lu reset=%lu\n",
-                static_cast<unsigned long>(midiIpcStats.midi_event_queue_drop_count),
-                static_cast<unsigned long>(midiIpcStats.midi_note_queue_drop_count),
+    std::printf("midi_ipc queue drops: midi=%lu control=%lu reset=%lu\n",
+                static_cast<unsigned long>(midiIpcStats.midi_queue_drop_count),
                 static_cast<unsigned long>(midiIpcStats.midi_control_queue_drop_count),
                 static_cast<unsigned long>(midiIpcStats.midi_reset_queue_drop_count));
-    std::printf("midi_ipc note_off protect: reserve_drop=%lu fallback=%lu\n",
-                static_cast<unsigned long>(midiIpcStats.midi_note_on_reserve_drop_count),
-                static_cast<unsigned long>(midiIpcStats.midi_note_off_fallback_count));
+#if ENABLE_MIDI_TIMING_STATS
+    std::printf("midi_ipc queue high water: %u\n",
+                static_cast<unsigned>(midiIpcStats.midi_queue_high_water_mark));
+    std::printf("midi_ipc max delay: note=%luus note_off=%luus effect=%luus\n",
+                static_cast<unsigned long>(midiIpcStats.midi_note_queue_delay_max_us),
+                static_cast<unsigned long>(midiIpcStats.midi_note_off_queue_delay_max_us),
+                static_cast<unsigned long>(midiIpcStats.midi_effect_queue_delay_max_us));
+    std::printf("midi_ipc max execution: note=%luus effect=%luus vibrato=%luus\n",
+                static_cast<unsigned long>(midiIpcStats.midi_note_execution_max_us),
+                static_cast<unsigned long>(midiIpcStats.midi_effect_execution_max_us),
+                static_cast<unsigned long>(midiIpcStats.midi_vibrato_execution_max_us));
+    PrintTimingOutliers("midi_ipc delay outliers", midiIpcStats.delay_outliers, false);
+    PrintTimingOutliers("midi_ipc execution outliers",
+                        midiIpcStats.execution_outliers, true);
+#endif
     for (auto* ch : channels) {
         ch->stats();
     }

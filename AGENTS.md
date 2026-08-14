@@ -16,10 +16,11 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 
 | 作業内容 | 参照ドキュメント |
 |---------|----------------|
-| 全体構成・レイヤ・依存関係 | [doc/architecture.md](doc/architecture.md) |
+| 全体構成・レイヤ・依存関係・Build-time Switch | [doc/architecture.md](doc/architecture.md) |
 | GPIO・PIO・ハード接続 | [doc/system_spec.md](doc/system_spec.md) |
 | 並列実行・タスク・Core 間通信 | [doc/design_concurrency.md](doc/design_concurrency.md) |
 | MIDI パース・ルーティング | [doc/design_midi_message.md](doc/design_midi_message.md) |
+| 演奏イベント IPC（単一 FIFO） | [doc/design_midi_ipc.md](doc/design_midi_ipc.md) |
 | MIDI 実装状況（CC/RPN 等） | [doc/midi_implementation_chart.md](doc/midi_implementation_chart.md) |
 | ボイスアロケーション | [doc/design_voice_allocation.md](doc/design_voice_allocation.md) |
 | ビブラート / LFO | [doc/design_effect.md](doc/design_effect.md) |
@@ -83,13 +84,14 @@ build.md / build_ja.md  # ビルド・書き込み・CMake 構成（人向け）
 
 ```
 app → midi, synth, platform, drivers/usb
-synth → drivers/fm, drivers/midi_panel（インターフェース経由）
+synth → midi（純粋なイベント型・Controller Action のみ）, drivers/fm, drivers/midi_panel（インターフェース経由）
 platform → drivers, extern, pico-sdk
 drivers → extern, pico-sdk（platform には依存しない）
 ```
 
 - `app/`: ハード直接操作禁止。`Platform::*` と `synth` API のみ
 - `midi/`: pico-sdk・FreeRTOS・ドライバに依存しない。Single Parse Rule（Core0 のみパース）
+- `synth/` から `midi/` への依存は純粋な MIDI イベント型・Controller Action 定義に限る。`midi/` から `synth/` への逆依存は禁止
 - `synth/`: FM アクセスは `drivers/fm` 経由。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
 - `platform/`: ピン割り当て・PIO 所有・初期化順を集約。GPIO は上位でハードコードしない
 - `extern/`: 直接編集禁止。ラッパー（主に `platform`）経由で利用
@@ -112,6 +114,6 @@ FreeRTOS-Kernel は submodule ではない。配置は [doc/build.md](doc/build.
 
 - タスク優先度・スタック・Core Affinity は `src/app/task_config.h` が唯一の定義元
 - FM バス用 GPIO2–15 は `opn_piolib` 専用。別 PIO プログラムを同ピンに同時有効化しない
-- Build-time スイッチは CMake `target_compile_definitions`。`config.h` はアプリ層の実行時ポリシー定数に限定
+- Build-time スイッチは CMake `target_compile_definitions`。`config.h` はアプリ層の実行時ポリシー定数に限定。一覧は [doc/architecture.md](doc/architecture.md)
 - 変更は最小スコープで。既存の命名・抽象化・コメント水準に合わせる
 - コミットはユーザーが明示的に依頼したときのみ作成する

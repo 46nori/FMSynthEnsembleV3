@@ -84,6 +84,10 @@ void OnRhythmPanelLedEvent(const MidiEvent& evt, uint32_t now_us) {
 }
 
 void ExecMidiEvent(MidiEngineTaskContext* ctx, const MidiEvent& evt, uint32_t now_us) {
+#if ENABLE_MIDI_TIMING_STATS
+    const uint32_t dequeue_us = static_cast<uint32_t>(time_us_64());
+    const UBaseType_t queue_depth = uxQueueMessagesWaiting(gMidiQueue) + 1;
+#endif
     const uint16_t ch_mask =
         static_cast<uint16_t>(1u << static_cast<unsigned>(evt.channel));
     const bool ch_enabled =
@@ -95,6 +99,10 @@ void ExecMidiEvent(MidiEngineTaskContext* ctx, const MidiEvent& evt, uint32_t no
         OnRhythmPanelLedEvent(evt, now_us);
     }
     ApplyPanelNoteOnBitmap(now_us);
+#if ENABLE_MIDI_TIMING_STATS
+    MidiIpcRecordMidiEventTiming(evt, queue_depth, dequeue_us,
+                                 static_cast<uint32_t>(time_us_64()));
+#endif
 }
 
 void RunVibrato(MidiEngineTaskContext* ctx, uint32_t phase_ticks) {
@@ -118,6 +126,9 @@ void ServiceVibratoIfDue(MidiEngineTaskContext* ctx, uint32_t& next_vibrato_us) 
 
     const uint32_t period = VibratoPeriodUs();
     RunVibrato(ctx, 1u);
+#if ENABLE_MIDI_TIMING_STATS
+    MidiIpcRecordVibratoTiming(static_cast<uint32_t>(time_us_64()) - now_us);
+#endif
     // 軽い遅れは周期を維持、大きい遅れのみ再同期（LFO のうねりを保つ）
     if ((now_us - next_vibrato_us) >= period) {
         next_vibrato_us = now_us + period;
@@ -126,39 +137,15 @@ void ServiceVibratoIfDue(MidiEngineTaskContext* ctx, uint32_t& next_vibrato_us) 
     }
 }
 
-size_t DrainNoteQueue(MidiEngineTaskContext* ctx, size_t max_batch, uint32_t now_us) {
+size_t DrainMidiQueue(MidiEngineTaskContext* ctx, size_t max_batch, uint32_t now_us) {
     MidiEvent evt{};
     size_t    count = 0;
-    while (count < max_batch && xQueueReceive(gMidiNoteQueue, &evt, 0) == pdTRUE) {
+    while (count < max_batch && xQueueReceive(gMidiQueue, &evt, 0) == pdTRUE) {
         const uint32_t event_now_us = evt.timestamp_us != 0 ? evt.timestamp_us : now_us;
         ExecMidiEvent(ctx, evt, event_now_us);
         ++count;
     }
     return count;
-}
-
-size_t DrainEffectQueue(MidiEngineTaskContext* ctx, size_t max_batch, uint32_t now_us) {
-    MidiEvent evt{};
-    size_t    count = 0;
-    while (count < max_batch && xQueueReceive(gMidiEventQueue, &evt, 0) == pdTRUE) {
-        const uint32_t event_now_us = evt.timestamp_us != 0 ? evt.timestamp_us : now_us;
-        ExecMidiEvent(ctx, evt, event_now_us);
-        ++count;
-    }
-    return count;
-}
-
-/** @brief Note キューを可能な限り一括処理（全チャンネル共通の再生遅れ軽減） */
-size_t DrainAllPendingNotes(MidiEngineTaskContext* ctx, uint32_t now_us) {
-    size_t total = 0;
-    for (;;) {
-        const size_t n = DrainNoteQueue(ctx, MIDI_NOTE_BATCH_MAX, now_us);
-        total += n;
-        if (n == 0 || n < MIDI_NOTE_BATCH_MAX || total >= MIDI_NOTE_DRAIN_MAX) {
-            break;
-        }
-    }
-    return total;
 }
 
 void RefreshAllNoteChannelPitch(MidiEngineTaskContext* ctx) {
@@ -200,25 +187,6 @@ void handle_control_event(const MidiControlEvent& ctl, MidiEngineTaskContext* ct
     }
 }
 
-void ExecPendingNoteOff(uint8_t channel, uint8_t key, void* ctx) {
-    auto* engine_ctx = static_cast<MidiEngineTaskContext*>(ctx);
-    MidiEvent evt{};
-    evt.type         = MidiEventType::NoteOff;
-    evt.channel      = channel;
-    evt.data1        = key;
-    evt.data2        = 0;
-    evt.size         = 3;
-    evt.timestamp_us = 0;
-    ExecMidiEvent(engine_ctx, evt, static_cast<uint32_t>(time_us_64()));
-}
-
-void DrainPendingNoteOffsIfQueueEmpty(MidiEngineTaskContext* ctx) {
-    if (uxQueueMessagesWaiting(gMidiNoteQueue) > 0) {
-        return;
-    }
-    (void)MidiIpcDrainPendingNoteOffs(ExecPendingNoteOff, ctx);
-}
-
 void HandleControlAndReset(MidiEngineTaskContext* ctx) {
     // load + store(false) だと、その間に Core0 が再度 store(true) した
     // 後発 Reset を消してしまう。取得とクリアを exchange でアトミックにする。
@@ -235,8 +203,7 @@ void HandleControlAndReset(MidiEngineTaskContext* ctx) {
 }
 
 bool HasPendingMidiWork() {
-    return uxQueueMessagesWaiting(gMidiNoteQueue) > 0 ||
-           uxQueueMessagesWaiting(gMidiEventQueue) > 0;
+    return uxQueueMessagesWaiting(gMidiQueue) > 0;
 }
 
 TickType_t MsToTicksCeil(uint32_t ms) {
@@ -267,10 +234,8 @@ void MidiEngineTask(void* param) {
             ApplyPanelNoteOnBitmap(now_us);
         }
 
-        (void)DrainAllPendingNotes(ctx, now_us);
-        (void)DrainEffectQueue(ctx, MIDI_EFFECT_BATCH_MAX, now_us);
+        (void)DrainMidiQueue(ctx, MIDI_EVENT_BATCH_MAX, now_us);
         HandleControlAndReset(ctx);
-        DrainPendingNoteOffsIfQueueEmpty(ctx);
         ServiceVibratoIfDue(ctx, next_vibrato_us);
 
         if (HasPendingMidiWork()) {
@@ -290,11 +255,12 @@ void MidiEngineTask(void* param) {
             }
         }
 
-        if (xQueueReceive(gMidiNoteQueue, &wait_evt, MsToTicksCeil(wait_ms)) == pdTRUE) {
+        if (xQueueReceive(gMidiQueue, &wait_evt, MsToTicksCeil(wait_ms)) == pdTRUE) {
             const uint32_t event_now_us =
                 wait_evt.timestamp_us != 0 ? wait_evt.timestamp_us : now_us;
             ExecMidiEvent(ctx, wait_evt, event_now_us);
-            (void)DrainAllPendingNotes(ctx, static_cast<uint32_t>(time_us_64()));
+            (void)DrainMidiQueue(ctx, MIDI_EVENT_BATCH_MAX - 1,
+                                 static_cast<uint32_t>(time_us_64()));
         }
 
         ApplyPanelNoteOnBitmap(static_cast<uint32_t>(time_us_64()));

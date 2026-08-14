@@ -5,6 +5,7 @@
 // See LICENSE file for details.
 //
 #include <cstdio>
+#include "MidiController.h"
 #include "MidiProcessor.h"
 #include "debugger.h"
 #include "VoiceAllocator.h"
@@ -71,6 +72,11 @@ uint16_t MidiProcessor::Exec(const MidiEvent& evt) {
     DPRINTF(3, "ch=%2d %02x %02x", evt.channel, evt.data1, evt.data2);
     DPRINTF(3, " |");
 
+    if (!IsSupportedMidiEvent(evt)) {
+        DPRINTF(3, "unsupported\n");
+        return note_on_bits;
+    }
+
     // 処理対象のチャンネルかチェック
     const uint8_t ch = evt.channel;
     if (ch >= MIDI_CHANNELS) {
@@ -104,66 +110,62 @@ uint16_t MidiProcessor::Exec(const MidiEvent& evt) {
         break;
     case MidiEventType::ControlChange:
     case MidiEventType::ChannelMode:
-        switch (evt.data1) {
-        case 1:  // Modulation
+        switch (ClassifyMidiController(evt.data1)) {
+        case MidiControllerAction::Modulation:
             channel->SetModulation(evt.data2);
             break;
-        case 7:  // Volume
+        case MidiControllerAction::Volume:
             channel->SetVolume(evt.data2);
             break;
-        case 11:  // Expression
+        case MidiControllerAction::Expression:
             channel->SetExpression(evt.data2);
             break;
-        case 64:  // Hold1
+        case MidiControllerAction::Hold1:
             channel->Hold1(evt.data2);
             refresh_note_on_bit(mask, channel);
             break;
-        case 98:  // NRPN LSB
+        case MidiControllerAction::NrpnLsb:
             channel->NRPN_LSB(evt.data2);
             break;
-        case 99:  // NRPN MSB
+        case MidiControllerAction::NrpnMsb:
             channel->NRPN_MSB(evt.data2);
             break;
-        case 100:  // RPN LSB
+        case MidiControllerAction::RpnLsb:
             channel->RPN_LSB(evt.data2);
             break;
-        case 101:  // RPN MSB
+        case MidiControllerAction::RpnMsb:
             channel->RPN_MSB(evt.data2);
             break;
-        case 6:  // Data entry MSB
+        case MidiControllerAction::DataEntryMsb:
             channel->DataEntry_MSB(evt.data2);
             break;
-        case 38:  // Data entry LSB
+        case MidiControllerAction::DataEntryLsb:
             channel->DataEntry_LSB(evt.data2);
             break;
-        case 10:  // Pan
+        case MidiControllerAction::Pan:
             channel->SetPan(evt.data2);
             break;
-        case 0:  // Bank select MSB
+        case MidiControllerAction::BankSelectMsb:
             channel->BankSelect_MSB(evt.data2);
             break;
-        case 32:  // Bank select LSB
+        case MidiControllerAction::BankSelectLsb:
             channel->BankSelect_LSB(evt.data2);
             break;
-        case 120:  // All Sound Off
+        case MidiControllerAction::AllSoundOff:
             channel->AllNoteOff();
             refresh_note_on_bit(mask, channel);
             break;
-        case 121:  // Reset all controller
+        case MidiControllerAction::ResetAllControllers:
             channel->ResetAllController();
             break;
-        case 123:  // All Note Off
+        case MidiControllerAction::AllNotesOff:
             channel->AllNoteOff();
             refresh_note_on_bit(mask, channel);
+            break;
+        case MidiControllerAction::Unsupported:
             break;
         }
         DPRINTF(5, "CC: #%d/%d", evt.data1, evt.data2);
-        break;
-    case MidiEventType::PolyAftertouch:
-        DPRINTF(5, "PolyPress: key=%d velocity=%d", evt.data1, evt.data2);
-        break;
-    case MidiEventType::ChannelAftertouch:
-        DPRINTF(5, "ChPress: %d", evt.data1);
         break;
     case MidiEventType::PitchBend: {
         int16_t val = evt.data1 + 128 * evt.data2 - 8192;
