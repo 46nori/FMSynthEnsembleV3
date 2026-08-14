@@ -135,11 +135,12 @@ public:
      * @param volume     MIDI Volume (0-127)
      * @param effect     Voice effect
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
+     * @param vib_cents  ビブラート偏差（セント、符号付き。NoteChannel が算出）
      * @details FM音源の発音を開始する。
-     *          effectの設定値により、PitchBendやModulationを設定する
+     *          effect と vib_cents により、PitchBend・coarse tune・ビブラートを設定する
      */
     virtual void NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                        uint8_t lr) = 0;
+                        uint8_t lr, int16_t vib_cents) = 0;
     /**
      * @brief Note Off
      * @details Note FM音源の発音を停止する
@@ -173,11 +174,12 @@ public:
      * @param volume     MIDI Volume (0-127)
      * @param effect     Voice effect
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
+     * @param vib_cents  ビブラート偏差（セント、符号付き。NoteChannel が算出）
      * @return true:再トリガ成功, false:非対応または失敗
      * @details デフォルト実装は非対応(false)を返す。再トリガ可能な派生クラスでoverrideする。
      */
     virtual bool TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                              uint8_t lr);
+                              uint8_t lr, int16_t vib_cents);
 
     /**
      * @brief 現在の音量設定を再適用する

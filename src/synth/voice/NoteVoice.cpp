@@ -31,7 +31,7 @@ static constexpr uint8_t opn_attenuation[128] = {
  * @brief PB・coarse tune・ビブラートを合成してピッチを設定する
  * @details PitchBend を指定しない場合は fx.pbv=0 とする。
  *  以下の理由で key == -1 のチェックは不要
- *  - NoteOn() では key をセットした後、NoteChannel が ApplyPitch を呼ぶ。
+ *  - NoteOn()/TryRetrigger() では key セット後に ApplyPitch(effect, vib_cents) を呼んでから KeyOn する。
  *  - NoteChannel からは、発音中の Voice に対して ApplyPitch が呼ばれる。
  */
 static constexpr int PBS_MARGIN = 2;
@@ -123,7 +123,7 @@ void NoteVoice::RefreshVolume() {
 }
 
 void NoteVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                        uint8_t lr) {
+                        uint8_t lr, int16_t vib_cents) {
     SetProgram(bk_program);
     SetVolume(volume);  // must be after SetProgram()
     key = note;
@@ -131,10 +131,9 @@ void NoteVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects&
     module.fm_turnoff_key(fm_ch);
     // Keep at least one FM register write between KeyOff and KeyOn so the EG restart is stable.
     module.fm_set_output_lr(fm_ch, lr);
-    // KeyOn 前に基準ピッチ（PB・coarse tune のみ）を設定し、立ち上がりの音程ジャンプを防ぐ
-    ApplyPitch(effect, 0, false);
+    // KeyOn 前に PB・coarse tune・ビブラートを設定し、前音の F-num 残りとアタック直後の跳びを防ぐ
+    ApplyPitch(effect, vib_cents, false);
     module.fm_turnon_key(fm_ch);
-    // ビブラートは NoteChannel::ApplyPitchToVoices(ComputeVibCents()) が KeyOn 後に適用する
 }
 
 void NoteVoice::NoteOff() {
@@ -143,7 +142,7 @@ void NoteVoice::NoteOff() {
 }
 
 bool NoteVoice::TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                             uint8_t lr) {
+                             uint8_t lr, int16_t vib_cents) {
     SetProgram(bk_program);
     SetVolume(volume);
     key = note;
@@ -151,7 +150,7 @@ bool NoteVoice::TryRetrigger(int note, int32_t bk_program, int volume, ChannelEf
     module.fm_turnoff_key(fm_ch);
     // Keep at least one FM register write between KeyOff and KeyOn so the EG restart is stable.
     module.fm_set_output_lr(fm_ch, lr);
-    ApplyPitch(effect, 0, false);
+    ApplyPitch(effect, vib_cents, false);
     module.fm_turnon_key(fm_ch);
     return true;
 }
@@ -162,8 +161,8 @@ void NoteVoice::ApplyPitch(const ChannelEffects& fx, int16_t vib_cents, bool all
     }
     last_fm_vib_cents_ = vib_cents;
     //  以下の理由でkey == -1のチェックは不要
-    //  - NoteOn()/TryRetrigger() では key セット後に ApplyPitch(0) を呼んでから KeyOn する。
-    //  - NoteChannel からは発音中 Voice や KeyOn 直後に ApplyPitch が呼ばれる。
+    //  - NoteOn()/TryRetrigger() では key セット後に ApplyPitch(effect, vib_cents) を呼んでから KeyOn する。
+    //  - NoteChannel からは発音中 Voice に ApplyPitch が呼ばれる。
 
 #if ENABLE_COARSE_TUNE == 1
     // coarse_tune エフェクト適用後の値（以降 adjusted_key として PB 計算に使用）

@@ -87,21 +87,22 @@ public:
 
     /**
      * @brief Note On
-     * @param note    MIDI Note No.
-     * @param program MIDI Bank/Program No.
-     * @param volume  MIDI Volume (0-127)
-     * @param effect  Voice effect
-     * @param lr      Output Both(0xc0), Left(0x80), Right(0x40)
-     * @details FM音源の発音を開始する。
-     *          effectの設定値により、PitchBendやModulationを設定する
+     * @param note      MIDI Note No.
+     * @param program   MIDI Bank/Program No.
+     * @param volume    MIDI Volume (0-127)
+     * @param effect    Voice effect
+     * @param lr        Output Both(0xc0), Left(0x80), Right(0x40)
+     * @param vib_cents 未使用（CSM はビブラート非対応）
+     * @details FM音源の発音を開始する。ピッチベンド・ビブラートは非対応。
      */
-    void NoteOn(int note, int32_t program, int volume, ChannelEffects& effect, uint8_t lr) override;
+    void NoteOn(int note, int32_t program, int volume, ChannelEffects& effect, uint8_t lr,
+                int16_t vib_cents) override;
 
     /**
      * @brief CSM音素片を新しいNoteとして再開始する
      */
     bool TryRetrigger(int note, int32_t program, int volume, ChannelEffects& effect,
-                      uint8_t lr) override;
+                      uint8_t lr, int16_t vib_cents) override;
 
     /**
      * @brief Note Off
