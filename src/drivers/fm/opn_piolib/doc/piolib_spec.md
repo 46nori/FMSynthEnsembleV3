@@ -429,7 +429,7 @@ sm_config_set_clkdiv(&cfg, (float)clock_get_hz(clk_sys) / (float)pio_hz);
 
 `FDEBUG.TXSTALL` を使用する。TX FIFO が空かつ SM が `pull block` で停止している状態を「アイドル」とする。
 
-- `fm_write_reg_raw()`: 投入前・完了後に呼ぶ。
+- `fm_write_reg_raw()`: 投入前に呼ぶ（完了後の idle 待ちは呼ばない。[9.4 節](#94-書き込みの-w2-待ちとロック保持時間)参照）。
 - `fm_bus_begin_read()`: read 開始前に呼ぶ。
 - `fm_read_reg_raw()`: Word 1 投入後、Word 2 投入前に呼ぶ（アドレスサイクル完了の同期）。
 
@@ -439,9 +439,15 @@ FIFO が空でも W 待ちループ中はアイドルではないため、FIFO �
 
 | 関数 | 契約 |
 | --- | --- |
-| `fm_write_reg_raw(bus, addr_word, data_word)` | ロック保持。前後で idle 待ち。2 ワード投入。 |
+| `fm_write_reg_raw(bus, addr_word, data_word)` | ロック保持。投入前のみ idle 待ち。2 ワード投入後は W2 消化を待たずに返る。 |
 | `fm_read_status_raw(...)` | ロック保持。`fm_bus_begin_read` → 1 ワード → RX → D 復帰 → idle。 |
 | `fm_read_reg_raw(...)` | ロック保持。[8.4 節](#84-レジスタ-readreg_entry)の 2 ワード + CPU pindirs 手順。 |
+
+### 9.4 書き込みの W2 待ちとロック保持時間
+
+`fm_write_reg_raw()` は 2 ワード投入後、W2（reg 0x10 の A1=0 書き込みで最大 576 φM cycles ≈ 72µs @8MHz）の消化を待たずに返る。ロック（`write_reg()` 側）もその時点で解放されるため、CPU 側のスピンロック保持時間・呼び出しコアの IRQ 無効時間から W2 待ちが外れる。
+
+PIO の SM 自体は投入された W1/data/W2 のバスサイクルを最後まで実行するため、[2.2 節](#22-アトミック性)のアトミック性（バスサイクルが CPU 割り込みを受けない）は変わらない。次のバス操作（読み書き問わず）は各 raw プリミティブ先頭の `fm_bus_wait_write_idle()` で SM の完了を待ってから FIFO へ投入するため、順序性も保たれる。異なる点は「CPU がその完了を同期的に待つタイミング」のみで、待ち自体を消したわけではなく次のバスアクセスまで遅延させている。
 
 ## 10. API 仕様
 
