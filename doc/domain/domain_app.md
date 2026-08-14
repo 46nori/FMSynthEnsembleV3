@@ -22,17 +22,14 @@ classDiagram
 
     class midi_ipc {
         <<module>>
-        +gMidiNoteQueue : QueueHandle_t
-        +gMidiEventQueue : QueueHandle_t
+        +gMidiQueue : QueueHandle_t
         +gMidiControlQueue : QueueHandle_t
         +gPanelChannelBitmap : volatile uint16_t
         +gLastNoteOnBitmap : volatile uint16_t
         +gPendingReset : atomic~bool~
         +MidiIpcInitialize() bool
         +MidiIpcSendMidiEvent(event) bool
-        +MidiIpcSendMidiNoteEvent(event) bool
         +MidiIpcSendMidiControl(event) bool
-        +MidiIpcDrainPendingNoteOffs(fn, ctx) size_t
         +MidiIpcGetStats() MidiIpcStats
     }
 
@@ -65,7 +62,7 @@ classDiagram
 
     class MidiEngineTask {
         <<task Core1>>
-        Batch drain queues
+        Drain gMidiQueue in arrival order
         MidiProcessor::Exec
         Periodic TickVibrato
     }
@@ -99,7 +96,7 @@ classDiagram
         <<constants>>
         MIDI_CHANNELS / ENABLE_CSM
         VIBRATO_* / RHYTHM_LEVEL_OFFSET
-        MIDI_NOTE_BATCH_MAX ...
+        MIDI_EVENT_BATCH_MAX
     }
 
     class task_config_h {
@@ -129,7 +126,7 @@ classDiagram
 | 要素 | ファイル | 責務 |
 |---|---|---|
 | `main` | `main.cpp` | 初期化・マスターボリューム復帰・タスク生成・スケジューラ起動 |
-| `midi_ipc` | `midi_ipc.h/cpp` | MIDI 用 Core 間キュー、NoteOff 保護、統計 |
+| `midi_ipc` | `midi_ipc.h/cpp` | MIDI 用 Core 間キュー、単一 FIFO、統計 |
 | `csm_ipc` | `csm_ipc.h/cpp` | CSM フレームイベントキューとシグナル API |
 | `CsmEventSink` | `csm_ipc.h/cpp` | `synth` の `ICsmEventSink` を実装し `CsmSignalStart`/`CsmSignalStop` へ転送（[design_csm_frame.md](../design_csm_frame.md)） |
 | `UsbMidiStreamSink` | `usb_midi_task.cpp` | `midi` の `IMidiStreamSink` を実装し、確定したイベント/SysExをIPCキュー送信・`Debugger::HandleSysEx`へ転送（バイトストリーム組立自体は`MidiStreamAssembler`、[domain_midi.md](domain_midi.md)参照） |

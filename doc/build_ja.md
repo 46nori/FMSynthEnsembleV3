@@ -107,7 +107,17 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
 |---|:---:|---|
 | `BUILD_MIDI_PANEL` | `ON` | MIDI パネルコントローラを有効にする |
 | `BUILD_SD_CARD` | `OFF` | SD カードモジュールを有効にする |
+| `ENABLE_MIDI_TIMING_STATS` | `OFF` | MIDI キュー滞留・イベント実行時間の詳細計測を有効にする |
 | `USB_MIDI_IRQ_DRIVEN` | `ON` | TinyUSB を FreeRTOS 統合モード（割り込み駆動）で動作させる。`OFF` で Pico 標準のポーリングモード |
+
+詳細計測を使う診断ビルド:
+
+```bash
+cmake --preset default -DENABLE_MIDI_TIMING_STATS=ON
+ninja -C build
+```
+
+CMake と `config.h` の使い分け、および `ENABLE_DEBUG_PRINT` / `ENABLE_CSM` を含むスイッチ一覧は [architecture.md](architecture.md#7-build-time-switch) を参照。
 
 オプションの値は次の 2 か所で管理されており、**常に同じ値にそろえる**こと。
 

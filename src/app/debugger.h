@@ -67,7 +67,7 @@ void SendCommand(DebugCommandId id, uint8_t value);
  * @brief SystemExclusive message を処理する
  * @param raw SysExバイト列へのポインタ
  * @param len バイト列の長さ
- * @details 呼び出し前に `MidiRoutingPolicy::DecideForSysEx()` が
+ * @details 呼び出し前に `MidiSysEx::Classify()` が VendorDebug と判定し、
  *          `F0 7D 46 4D <cmd> ... F7` ヘッダ一致と最小長 (len>=6) を
  *          確認済みであること（本関数側では再チェックしない）。
  */

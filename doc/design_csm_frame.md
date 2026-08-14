@@ -29,7 +29,7 @@ OPN の CSM（複合正弦波音声合成）におけるフレーム処理の設
 | Start/Stop 送信先インターフェース | `src/synth/voice/ICsmEventSink.h`（synth 側が定義）、`src/app/csm_ipc.h` の `CsmEventSink`（app 側が実装、`CsmSignalStart`/`CsmSignalStop` へ転送） |
 | タスク優先度・スタック・コア | `src/app/task_config.h`、`src/app/main.cpp` |
 
-MIDI コア間キュー（`gMidiEventQueue` 等）は `midi_ipc.h` で定義され、CSM フレームティックとは別系統である（[3 章](#3-並行性)）。
+MIDI コア間キュー（`gMidiQueue` / `gMidiControlQueue`）は `midi_ipc.h` で定義され、CSM フレームティックとは別系統である（[3 章](#3-並行性)）。
 
 ---
 
@@ -72,7 +72,7 @@ CSM イベントは `FrameTick` / `Start` / `Stop` の順序が意味を持つ�
 | 項目 | 内容 |
 |------|------|
 | CSM NoteOn 時 | MIDI 経路でのチャンネル／ボイス処理のうち MidiEngineTask に残す部分を実行したうえで、ボイス側が `CsmSignalStart` により CsmFrameTask へ再生開始を依頼する。初回フレーム処理とタイマ開始は CsmFrameTask 側で行う |
-| しないこと | フレームティックを `gMidiEventQueue` に載せない。CSM 向けの開始／停止は `csm_ipc` で CsmFrameTask に渡す |
+| しないこと | フレームティックを `gMidiQueue` に載せない。CSM 向けの開始／停止は `csm_ipc` で CsmFrameTask に渡す |
 
 ### 4.3 FM `/IRQ` 割り込み（ISR）
 
@@ -200,7 +200,7 @@ EventGroup のビット合流は使わないため、STOP→START、START→STOP
 
 ## 8. アンチパターン（明示的な非目標）
 
-- Timer B／FM IRQ のティックを `gMidiEventQueue` に詰め、`MidiEngineTask` が `UpdateFrame` を実行する設計
+- Timer B／FM IRQ のティックを `gMidiQueue` に詰め、`MidiEngineTask` が `UpdateFrame` を実行する設計
 - ISR 内で `UpdateFrame` を直接呼ぶ設計（処理時間・再入・ロックの観点で分割する）
 - レイテンシ要件を計測せずに起床プリミティブや優先度だけを決める設計
 - 停止／開始を CsmFrameTask に伝えず、共有状態のみを変えてフレーム処理と競合させる設計

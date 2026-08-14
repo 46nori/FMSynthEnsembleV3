@@ -4,6 +4,8 @@ FMSynthEnsembleV3 における MIDI メッセージ処理（パース・ルー�
 
 本ドキュメントは [design_concurrency.md](design_concurrency.md) の IPC 基盤の上に成立する。システム全体のレイヤ構成・依存ルールは [architecture.md](architecture.md) を参照。
 
+演奏イベント IPC は単一 FIFO とする。判断経緯と実測結果は [design_midi_ipc.md](design_midi_ipc.md) を参照。
+
 ---
 
 ## 目次
@@ -11,13 +13,12 @@ FMSynthEnsembleV3 における MIDI メッセージ処理（パース・ルー�
 1. [設計方針](#1-設計方針)
 2. [メッセージ分類とルーティング](#2-メッセージ分類とルーティング)
 3. [データ構造](#3-データ構造)
-4. [Parser / RoutingPolicy / StreamAssembler API](#4-parser--routingpolicy--streamassembler-api)
+4. [Parser / Controller / SysEx / StreamAssembler API](#4-parser--controller--sysex--streamassembler-api)
 5. [Core0 処理フロー](#5-core0-処理フロー)
 6. [Core1 処理フロー](#6-core1-処理フロー)
 7. [SysEx 対応方針](#7-sysex-対応方針)
-8. [Build-time Switch 方針](#8-build-time-switch-方針)
-9. [エラー処理と監視](#9-エラー処理と監視)
-10. [動作保証](#10-動作保証)
+8. [エラー処理と監視](#8-エラー処理と監視)
+9. [動作保証](#9-動作保証)
 
 ---
 
@@ -35,7 +36,8 @@ FMSynthEnsembleV3 における MIDI メッセージ処理（パース・ルー�
 
 ### 1.3 Policy / Data 分離
 
-- 何を Core1 に送るかの判断は `MidiRoutingPolicy` に集約する
+- 対応 CC の番号と意味は `MidiController` に集約し、Core0 と Core1 で共有する
+- SysEx の分類は `MidiSysEx::Classify()` に集約する
 - Parse と Route を分離することで、ルーティング変更が Parser に影響しない
 
 ---
@@ -44,11 +46,12 @@ FMSynthEnsembleV3 における MIDI メッセージ処理（パース・ルー�
 
 | 種別 | 例 | Core0 処理 | Core1 転送 |
 |---|---|---|---|
-| Channel Voice（Note） | NoteOn/Off | パース → Forward | `gMidiNoteQueue`（`timestamp_us` 付与） |
-| Channel Voice（その他） | CC, PC, PitchBend 等 | パース → Forward | `gMidiEventQueue` |
-| Channel Mode | CC 120–127 | パース → Forward | `gMidiEventQueue` |
+| Channel Voice（Note） | NoteOn/Off | パース → Forward | `gMidiQueue`（`timestamp_us` 付与） |
+| Channel Voice（その他） | 対応 CC, PC, PitchBend | パース → Forward | `gMidiQueue`（`timestamp_us` 付与） |
+| 未対応 Channel Voice | Aftertouch、CC#74 等 | Drop | なし |
+| Channel Mode | CC#120, #121, #123 | パース → Forward | `gMidiQueue`（`timestamp_us` 付与） |
 | SysEx 標準リセット | GM_SYSTEM_ON / XG_RESET / GS_RESET | `MidiControlEvent::Reset` に変換 | `gMidiControlQueue` |
-| SysEx 独自拡張 | `F0 7D 46 4D <cmd>…F7` | Debugger ハンドラへ渡す | なし |
+| SysEx 独自拡張 | `F0 7D 46 4D <cmd>…F7` | `Debugger::HandleSysEx` | Reset / dump / stats 等は `gMidiControlQueue` |
 | SysEx その他 | 上記以外 | Drop | なし |
 | System Realtime | 0xF8, 0xFA–0xFC, 0xFE | Drop | なし |
 | System Common | Song Position 等 | Drop | なし |
@@ -80,7 +83,7 @@ struct MidiEvent {
     uint8_t data1;          // note / cc / program 等
     uint8_t data2;          // velocity / value 等
     uint8_t size;           // 2 or 3
-    uint32_t timestamp_us;  // Note キュー投入時に time_us_64() を付与
+    uint32_t timestamp_us;  // gMidiQueue 投入時に time_us_64() を付与
 };
 ```
 
@@ -116,9 +119,10 @@ struct MidiControlEvent {
 
 ---
 
-## 4. Parser / RoutingPolicy / StreamAssembler API
+## 4. Parser / Controller / SysEx / StreamAssembler API
 
-ファイル位置: `src/midi/MidiParser.h/.cpp`, `src/midi/MidiRoutingPolicy.h/.cpp`, `src/midi/MidiStreamAssembler.h/.cpp`
+ファイル位置: `src/midi/MidiParser.h/.cpp`, `src/midi/MidiController.h`,
+`src/midi/MidiSysEx.h/.cpp`, `src/midi/MidiStreamAssembler.h/.cpp`
 
 ```cpp
 class MidiParser {
@@ -128,18 +132,26 @@ public:
     static bool IsRealtimeStatus(uint8_t status);
 };
 
-enum class MidiRouteDecision : uint8_t {
-    ForwardToEngine,   // gMidiNoteQueue または gMidiEventQueue へ投入
-    HandleOnCore0,     // Core0 で処理（Debugger SysEx）
-    Drop,
+enum class MidiControllerAction : uint8_t {
+    Unsupported,
+    BankSelectMsb,
+    Modulation,
+    // ...
+    AllNotesOff,
 };
 
-class MidiRoutingPolicy {
-public:
-    static MidiRouteDecision DecideForEvent(const MidiEvent& event);
-    static MidiRouteDecision DecideForSysEx(const uint8_t* raw, uint16_t len);
-    static bool IsProfileResetSysEx(const uint8_t* raw, uint16_t len);
+constexpr MidiControllerAction ClassifyMidiController(uint8_t controller);
+constexpr bool IsSupportedMidiEvent(const MidiEvent& event);
+
+enum class MidiSysExKind : uint8_t {
+    Drop,
+    ProfileReset,
+    VendorDebug,
 };
+
+namespace MidiSysEx {
+MidiSysExKind Classify(const uint8_t* raw, uint16_t len);
+}
 
 class IMidiStreamSink {
 public:
@@ -180,23 +192,20 @@ UsbMidiTask（`src/app/usb_midi_task.cpp`）は `tud_midi_n_stream_read` で最�
 ```mermaid
 flowchart TD
     A["Channel Voice / Mode 完成"] --> B["MidiParser::TryParseEvent"]
-    B --> C{"MidiRoutingPolicy::DecideForEvent"}
-    C -- ForwardToEngine --> D["sink.OnMidiEvent"]
-    D --> D2{"Note?"}
-    D2 -- NoteOn/Off --> E["timestamp_us 付与 →<br>gMidiNoteQueue"]
-    D2 -- その他 --> F["gMidiEventQueue"]
-    C -- Drop --> G["破棄"]
+    B --> C{"IsSupportedMidiEvent"}
+    C -- true --> D["sink.OnMidiEvent →<br>timestamp_us 付与 → gMidiQueue"]
+    C -- false --> G["破棄"]
 
-    H["SysEx 完成"] --> I{"IsProfileResetSysEx?"}
-    I -- yes --> J["sink.OnProfileReset →<br>MidiControlEvent::Reset →<br>gMidiControlQueue"]
-    I -- no --> K{"DecideForSysEx"}
-    K -- HandleOnCore0 --> L["sink.OnVendorSysEx →<br>Debugger::HandleSysEx"]
-    K -- Drop --> G
+    H["SysEx 完成"] --> I{"MidiSysEx::Classify"}
+    I -- ProfileReset --> J["sink.OnProfileReset →<br>MidiControlEvent::Reset →<br>gMidiControlQueue"]
+    I -- VendorDebug --> L["sink.OnVendorSysEx →<br>Debugger::HandleSysEx"]
+    I -- Drop --> G
 ```
 
-`sink` は `MidiStreamAssembler` が受け取る `IMidiStreamSink&`。Note/Event 振り分けとタイムスタンプ付与は `sink.OnMidiEvent` の実装（app 層）が行う。
+`sink` は `MidiStreamAssembler` が受け取る `IMidiStreamSink&`。タイムスタンプ付与と
+`gMidiQueue` への投入は `sink.OnMidiEvent` の実装（app 層）が行う。
 
-キュー投入はすべてノンブロッキングで行う。満杯時の扱い（NoteOff 予約スロット / pending NoteOff 退避）は [design_concurrency.md](design_concurrency.md#42-gmidinotequeue) を参照。
+キュー投入はすべてノンブロッキングで行い、満杯時は Drop と統計更新で処理を継続する。
 
 ---
 
@@ -205,7 +214,7 @@ flowchart TD
 Core1（MidiEngineTask）は構造化された `MidiEvent` を受け取り、`MidiProcessor::Exec(const MidiEvent&)` をエントリポイントとして処理する。メインループの構造と処理順序は [design_concurrency.md](design_concurrency.md#32-midienginetaskcore1-固定) を参照。
 
 - `gPanelChannelBitmap` は「パネルのチャンネル有効状態」を表す 16 bit ビットマップ（`bit0 = MIDI ch1` … `bit15 = MIDI ch16`、`1 = 有効`）
-- 処理順序は「演奏イベント（Note 優先）→ 制御 → ビブラート」という方針に基づく。Reset を Note/Event キューより先に割り込ませる設計ではない
+- 処理順序は「到着順の演奏イベント → 制御 → ビブラート」とする。Reset を演奏イベントより先に割り込ませる設計ではない
 
 ---
 
@@ -235,56 +244,50 @@ F0 7D 46 4D <cmd> <payload...> F7
 
 処理規則:
 
-- Core0 で完結処理。Core1 へ転送しない
+- 生バイト列は Core0 の `Debugger::HandleSysEx` で処理する。Reset / dump / stats 等に変換した場合のみ `gMidiControlQueue` へ投入する
 - 最大長制限あり（256 バイト、`kMaxSysExLength`）
 - F7 欠落などの異常フレームは破棄
 
 ---
 
-## 8. Build-time Switch 方針
+## 8. エラー処理と監視
 
-| スイッチ名 | 制御方法 | 用途 |
-|---|---|---|
-| `USB_MIDI_IRQ_DRIVEN` | CMake `option()` + `CMakePresets.json` | TinyUSB OSAL モード切替（既定 ON = `OPT_OS_FREERTOS`。[design_concurrency.md](design_concurrency.md#331-usb-スケジューリングモード) 参照） |
-| `BUILD_MIDI_PANEL` | CMake `option()` | MIDI パネルコントローラの有効化 |
-| `BUILD_SD_CARD` | CMake `option()` | SD カードスタックの有効化 |
-| `ENABLE_DEBUG_PRINT` | `src/app/config.h` `#define` | midi_ipc Drop カウンタのシリアル出力有効化 |
-| `ENABLE_CSM` | `src/app/config.h` `#define` | CSM Voice の有効化 |
-
-`config.h` はアプリ層の実行時ポリシー定数に限定し、ドライバ/ミドル層の Build-time Switch は CMake で制御する（[architecture.md](architecture.md#4-依存関係) の制約参照）。
-
----
-
-## 9. エラー処理と監視
-
-### 9.1 統計カウンタ（`MidiIpcStats` 構造体）
+### 8.1 統計カウンタ（`MidiIpcStats` 構造体）
 
 | フィールド名 | 内容 |
 |---|---|
-| `midi_note_queue_drop_count` | `gMidiNoteQueue` Full による Drop 数 |
-| `midi_event_queue_drop_count` | `gMidiEventQueue` Full による Drop 数 |
+| `midi_queue_drop_count` | `gMidiQueue` Full による Drop 数 |
 | `midi_control_queue_drop_count` | `gMidiControlQueue` Full による Drop 数（Reset 以外） |
 | `midi_reset_queue_drop_count` | Reset の Queue Full Drop 数（`gPendingReset` フォールバック発火回数） |
-| `midi_note_on_reserve_drop_count` | NoteOff 予約スロット確保のため受け付けなかった NoteOn 数 |
-| `midi_note_off_fallback_count` | キュー満杯時に pending ビットマップへ退避した NoteOff 数 |
+| `midi_queue_high_water_mark` | `gMidiQueue` の最大滞留要素数（詳細計測時のみ） |
+| `midi_*_queue_delay_max_us` | Note / NoteOff / Effect の最大キュー滞留時間（詳細計測時のみ） |
+| `midi_*_execution_max_us` | Note / Effect / Vibrato の最大実行時間（詳細計測時のみ） |
+| `delay_outliers` / `execution_outliers` | 遅延・実行時間の上位イベント（詳細計測時のみ） |
 
-`MidiIpcGetStats()` で取得し、`MidiControlType::DebugStats` コマンドで出力する。種別ごとの詳細な Drop カウント（Realtime Drop、パースエラー等）は持たない。
+`MidiIpcGetStats()` で取得し、`MidiControlType::DebugStats` コマンドで出力する。
+先頭 3 個の Drop カウンタは常にコンパイルする。それ以外のフィールドと更新処理は
+`ENABLE_MIDI_TIMING_STATS=ON` の診断ビルドだけに含める。OFF では時刻取得、上位値管理、
+詳細表示をコンパイル対象から外し、通常の MIDI 処理経路へ計測コストを持ち込まない。
+種別ごとの詳細な Drop カウント（Realtime Drop、パースエラー等）は持たない。
 
-### 9.2 監視方針
+### 8.2 監視方針
 
 - 通常運用では統計は出力しない
 - Debugger コンソールで `stats` コマンド（`MidiControlType::DebugStats`）を実行すると MidiEngineTask が `MidiIpcGetStats()` の結果を出力する
-- `ENABLE_DEBUG_PRINT=1`（`config.h`）でビルドした場合のみ出力が有効
+- `ENABLE_MIDI_TIMING_STATS=OFF`（既定）では Drop カウンタとチャンネル統計だけを出力する
+- `ENABLE_MIDI_TIMING_STATS=ON` ではキュー滞留・実行時間・上位イベントを追加表示する
+- `ENABLE_DEBUG_PRINT=1`（`config.h`）は Queue Full 発生時の即時ログを制御する
 
 ---
 
-## 10. 動作保証
+## 9. 動作保証
 
 本設計が保証する不変条件。
 
 - Core1 は SysEx 生バイト列を処理しない
 - GM_SYSTEM_ON / XG_RESET / GS_RESET を受信したとき、Core1 側で `MidiProcessor::Reset()` が実行される
-- Realtime メッセージが `gMidiNoteQueue` / `gMidiEventQueue` / `gMidiControlQueue` へ投入されない
-- Queue Full 時は Drop + `MidiIpcStats` カウンタ更新（NoteOff は予約スロット / pending 退避で必ず届ける）
-- 独自拡張 SysEx は Core0 の `Debugger::HandleSysEx()` で処理される
+- Realtime メッセージが `gMidiQueue` / `gMidiControlQueue` へ投入されない
+- 未対応 CC / Channel Mode / Aftertouch は Core0 で Drop される
+- Queue Full 時はイベント種別を問わず Drop + `MidiIpcStats` カウンタ更新
+- 独自拡張 SysEx の生バイト列は Core0 の `Debugger::HandleSysEx()` で処理される。Reset / dump / stats 等は `gMidiControlQueue` 経由で Core1 が実行する
 - `gMidiControlQueue` が満杯でも Reset は `gPendingReset` フォールバックで失われず、MIDI イベント処理後に実行される

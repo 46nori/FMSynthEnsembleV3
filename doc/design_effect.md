@@ -120,8 +120,7 @@ flowchart LR
         NC["NoteChannel<br>CC/PB/NRPN → channel state"]
         NV["NoteVoice::ApplyPitch"]
     end
-    USB -- gMidiNoteQueue --> ENGINE
-    USB -- gMidiEventQueue --> ENGINE
+    USB -- "gMidiQueue<br>到着順" --> ENGINE
     ENGINE -- "イベント時 ApplyPitchToVoices /<br>VIBRATO_PERIOD_MS 周期 TickVibrato" --> NC
     NC --> NV
     NV -- fm_set_pitch --> FM["FM バス"]

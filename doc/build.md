@@ -109,7 +109,17 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
 |---|:---:|---|
 | `BUILD_MIDI_PANEL` | `ON` | Enable the MIDI panel controller |
 | `BUILD_SD_CARD` | `OFF` | Enable the SD card module |
+| `ENABLE_MIDI_TIMING_STATS` | `OFF` | Enable detailed MIDI queue-delay and event-execution timing instrumentation |
 | `USB_MIDI_IRQ_DRIVEN` | `ON` | Run TinyUSB in FreeRTOS integrated (interrupt-driven) mode. `OFF` selects Pico's standard polling mode |
+
+Diagnostic build with detailed timing:
+
+```bash
+cmake --preset default -DENABLE_MIDI_TIMING_STATS=ON
+ninja -C build
+```
+
+CMake vs `config.h` placement, and the full switch list including `ENABLE_DEBUG_PRINT` / `ENABLE_CSM`, are in [architecture.md](architecture.md#7-build-time-switch).
 
 Option values are managed in two places. **Keep them identical.**
 

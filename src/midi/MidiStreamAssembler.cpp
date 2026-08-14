@@ -6,8 +6,9 @@
 //
 #include "MidiStreamAssembler.h"
 
+#include "MidiController.h"
 #include "MidiParser.h"
-#include "MidiRoutingPolicy.h"
+#include "MidiSysEx.h"
 
 void MidiStreamAssembler::ResetSysEx() {
     inSysEx_ = false;
@@ -20,13 +21,15 @@ void MidiStreamAssembler::HandleCompleteSysEx() {
         return;
     }
 
-    if (MidiRoutingPolicy::IsProfileResetSysEx(sysEx_, sysExLength_)) {
+    switch (MidiSysEx::Classify(sysEx_, sysExLength_)) {
+    case MidiSysExKind::ProfileReset:
         sink_.OnProfileReset();
-        return;
-    }
-
-    if (MidiRoutingPolicy::DecideForSysEx(sysEx_, sysExLength_) == MidiRouteDecision::HandleOnCore0) {
+        break;
+    case MidiSysExKind::VendorDebug:
         sink_.OnVendorSysEx(sysEx_, sysExLength_);
+        break;
+    case MidiSysExKind::Drop:
+        break;
     }
 }
 
@@ -35,7 +38,7 @@ void MidiStreamAssembler::EnqueueEventIfNeeded(const uint8_t* raw, uint8_t len) 
     if (!MidiParser::TryParseEvent(raw, len, evt)) {
         return;
     }
-    if (MidiRoutingPolicy::DecideForEvent(evt) != MidiRouteDecision::ForwardToEngine) {
+    if (!IsSupportedMidiEvent(evt)) {
         return;
     }
     sink_.OnMidiEvent(evt);

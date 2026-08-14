@@ -33,6 +33,7 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 option(USB_MIDI_IRQ_DRIVEN  "Enable TinyUSB event-driven wait mode for USB MIDI" ON)
 option(BUILD_MIDI_PANEL     "Enable MIDI panel controller"                       ON)
 option(BUILD_SD_CARD        "Enable SD card stack"                               OFF)
+option(ENABLE_MIDI_TIMING_STATS "Enable detailed MIDI timing instrumentation"    OFF)
 # ====================================================================================
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
@@ -57,6 +58,7 @@ endif()
 message(STATUS "USB_MIDI_IRQ_DRIVEN: ${USB_MIDI_IRQ_DRIVEN}")
 message(STATUS "BUILD_MIDI_PANEL:    ${BUILD_MIDI_PANEL}")
 message(STATUS "BUILD_SD_CARD:       ${BUILD_SD_CARD}")
+message(STATUS "MIDI_TIMING_STATS:   ${ENABLE_MIDI_TIMING_STATS}")
 message(STATUS "TINYUSB_OPT_OS:      ${TINYUSB_OPT_OS}")
 
 # Initialise the Raspberry Pi Pico SDK
@@ -91,6 +93,11 @@ if(USB_MIDI_IRQ_DRIVEN)
     add_compile_definitions(USB_MIDI_IRQ_DRIVEN=1)
 else()
     add_compile_definitions(USB_MIDI_IRQ_DRIVEN=0)
+endif()
+if(ENABLE_MIDI_TIMING_STATS)
+    add_compile_definitions(ENABLE_MIDI_TIMING_STATS=1)
+else()
+    add_compile_definitions(ENABLE_MIDI_TIMING_STATS=0)
 endif()
 
 # Device drivers
