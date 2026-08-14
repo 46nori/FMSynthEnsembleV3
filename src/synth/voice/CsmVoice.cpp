@@ -141,15 +141,19 @@ void CsmVoice::SetVolume(int vol) {
     volume = vol;
 }
 
-void CsmVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect, uint8_t lr) {
+void CsmVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect, uint8_t lr,
+                      int16_t vib_cents) {
     (void)effect;
+    (void)vib_cents;
     if (event_sink_) {
         event_sink_->SignalCsmStart(note, bk_program, volume, lr);
     }
 }
 
-bool CsmVoice::TryRetrigger(int note, int32_t program, int vol, ChannelEffects& effect, uint8_t lr) {
+bool CsmVoice::TryRetrigger(int note, int32_t program, int vol, ChannelEffects& effect, uint8_t lr,
+                            int16_t vib_cents) {
     (void)effect;
+    (void)vib_cents;
     key = note;
     SetProgram(program);
     SetVolume(vol);

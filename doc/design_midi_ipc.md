@@ -144,7 +144,7 @@ Queue Full の Drop カウンタと通常の `stats` 表示は常に残す。診
 
 未対応メッセージは Core0 で Drop し、単一 FIFO に無効 CC が混入しないようにした。
 
-実測上の遅れの本体は NoteOn 内の SetProgram、KeyOn 前後のレジスタ書き込み、チャンネル内全 Voice への `ApplyPitchToVoices` にある。キュー分割ではこの直列処理時間を解消できない。
+実測上の遅れの本体は NoteOn 内の SetProgram と KeyOn 前後のレジスタ書き込みにある。旧実装ではチャンネル内全 Voice への `ApplyPitchToVoices` も乗っていたが、NoteOn / Retrigger では当該 Voice のみ KeyOn 前に適用する。キュー分割ではこの直列処理時間を解消できない。
 
 ---
 

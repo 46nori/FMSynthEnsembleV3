@@ -228,8 +228,8 @@ vib_cents  = (peak_cents * sin_lut[index]) >> 15
 
 | イベント | 位相 | FM 書き込み |
 |----------|------|-------------|
-| 無音からの Note On（active+hold 空） | 0 にリセット（D1） | あり（[8.3 節](#83-note-on--retrigger-時)） |
-| 和音中の Note On | リセットしない | あり |
+| 無音からの Note On（active+hold 空） | 0 にリセット（D1） | 当該 Voice のみ、KeyOn 前（[8.3 節](#83-note-on--retrigger-時)） |
+| 和音中の Note On | リセットしない | 当該 Voice のみ、KeyOn 前 |
 | 全 Note Off（`vbdepth>0`） | 停止（`TickVibrato` は `!IsActive()` で return） | なし |
 | `vbdepth` 0→非 0 | リセットしない | 次回 `TickVibrato` / イベント |
 | `vbdepth` 非 0→0 | — | 即時、全 Voice で vib=0 のピッチ（[8.2 節](#82-vbdepth-が-0-になったとき)） |
@@ -248,7 +248,7 @@ vib_cents  = (peak_cents * sin_lut[index]) >> 15
 3. ビブラート偏差: `diff_vib = PitchCalcVibDiff(k, vib_cents)`
 4. `fm_set_pitch(fm_ch, p, oct, diff_pb + diff_vib)` — クランプは `OpnBase::fm_set_pitch` 内（0〜0x7ff）
 
-`vib_cents` は呼び出し側（`NoteChannel` / `TickVibrato`）が `ComputeVibCents()` で計算して渡す。`!IsActive()` または `vbdepth==0` なら `TickVibrato` は `ApplyPitch` を呼ばない。
+`vib_cents` は呼び出し側（`NoteOn` / `TryRetrigger` / `TickVibrato` / PB・CC）が `ComputeVibCents()` で計算して渡す。`!IsActive()` または `vbdepth==0` なら `TickVibrato` は `ApplyPitch` を呼ばない。
 
 #### `PitchCalcVibDiff`（セント → F-Number 偏差）
 
@@ -272,6 +272,8 @@ void    NoteChannel::ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup 
 void    NoteChannel::TickVibrato(uint32_t phase_ticks);
 
 // NoteVoice.h / .cpp（Voice.h の ChannelEffects を使用）
+void NoteVoice::NoteOn(..., int16_t vib_cents);
+bool NoteVoice::TryRetrigger(..., int16_t vib_cents);
 void NoteVoice::ApplyPitch(const ChannelEffects& fx, int16_t vib_cents);
 
 // NoteVoice.cpp 内 static
@@ -294,7 +296,7 @@ static int16_t PitchCalcVibDiff(int k, int16_t vib_cents);
 
 ## 8. イベント処理
 
-いずれも `MidiEngineTask`（Core1）内。状態更新後、必要なら active + hold の全 `NoteVoice` に `ApplyPitch` を呼ぶ。
+いずれも `MidiEngineTask`（Core1）内。PB / CC / TickVibrato は状態更新後に active + hold の全 `NoteVoice` へ `ApplyPitch` する。Note On / Retrigger は当該 Voice のみ KeyOn 前に適用する。
 
 | イベント | 状態更新 | 即時 `ApplyPitch` |
 |----------|----------|-------------------|
@@ -304,7 +306,7 @@ static int16_t PitchCalcVibDiff(int k, int16_t vib_cents);
 | NRPN 1:9 | `vbdepth`（64 中心相対値を変換） | CC#1 と同様 |
 | PBS / coarse (Data Entry) | `pbs` / `coarse_tune` | active + hold |
 | ResetAllController | `effect.Init()` + `lfo.phase=0` | active + hold |
-| Note On / Retrigger | — | 必須（[8.3 節](#83-note-on--retrigger-時)） |
+| Note On / Retrigger | — | 当該 Voice のみ、KeyOn 前（[8.3 節](#83-note-on--retrigger-時)） |
 | SetPan (CC#10) | `outputLR` | 不要（次回 Note On から反映。[7.3 節](#73-pan)） |
 
 ### 8.1 `ApplyPitchToVoices`
@@ -322,17 +324,24 @@ ApplyPitchToVoices(0);  // ビブラート成分を除去したピッチへ即�
 
 ### 8.3 Note On / Retrigger 時
 
-`NoteVoice` は `NoteChannel` を知らないため、ピッチ適用はチャンネルが `NoteOn` / `TryRetrigger` 成功後に行う。
+`NoteVoice` は `NoteChannel` を知らないため、チャンネルが `ComputeVibCents()` を計算して `NoteOn` / `TryRetrigger` に渡す。適用は当該 Voice の KeyOn 前に 1 回だけ行い、既存の active / hold Voice は書き換えない（PB・LFO 状態は NoteOn では変わらない。無音時の位相リセット時は他 Voice がいない）。
 
 ```cpp
-// NoteChannel::NoteOn / TryRetrigger 成功時の処理末尾（CSM モード除く）
-voice->NoteOn(...);              // または TryRetrigger
-ApplyPitchToVoices(ComputeVibCents());
+// NoteChannel::NoteOn（CSM モード除く）
+const int16_t vib_cents = ComputeVibCents();
+voice->NoteOn(..., vib_cents);   // または TryRetrigger
+// ApplyPitchToVoices は呼ばない
 ```
 
-適用箇所は、新規 Allocate、`freeQueue` 再利用、`activeQueue` / `holdQueue` からの `TryRetrigger` 成功の全経路。CSM モード（`bCsmVoiceMode`）は対象外。
+```cpp
+// NoteVoice::NoteOn / TryRetrigger
+ApplyPitch(effect, vib_cents, false);  // KeyOn 前。PB・coarse tune・ビブラートを一度に設定
+module.fm_turnon_key(fm_ch);
+```
 
-KeyOn 直後からビブラート付きピッチに揃え、次の `TickVibrato` 周期を待たない。
+適用箇所は、新規 Allocate、`freeQueue` 再利用、`activeQueue` / `holdQueue` からの `TryRetrigger` 成功の全経路。CSM モード（`bCsmVoiceMode`）は `vib_cents=0` を渡し、ピッチは適用しない。
+
+KeyOn 時点でビブラート付きピッチに揃え、アタック直後の 0→vib 跳びと次の `TickVibrato` 待ちを避ける。
 
 ---
 

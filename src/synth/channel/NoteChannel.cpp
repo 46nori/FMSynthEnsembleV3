@@ -343,7 +343,8 @@ int NoteChannel::NoteOn(int key, int velocity) {
     if (bCsmVoiceMode) {
         for (auto& voice : activeQueue) {
             if (voice->GetType() &&
-                voice->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect, outputLR)) {
+                voice->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect, outputLR,
+                                    /*vib_cents=*/0)) {
                 voice->SetVelocity(velocity);
                 DPRINTF(3, " C%02d ", voice->id);
                 return 1;
@@ -364,7 +365,8 @@ int NoteChannel::NoteOn(int key, int velocity) {
         }
 
         voice->SetVelocity(velocity);
-        voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR);
+        voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR,
+                      /*vib_cents=*/0);
         activeQueue.push_back(voice);
         return 1;
     }
@@ -376,6 +378,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
         lfo_.phase = 0;
     }
 
+    const int16_t vib_cents = ComputeVibCents();
     int mid = -1;  // 最近使ったmoduleが不明
 
     // holdQueue内の同一keyのVoiceを探して再利用 (TryRetrigger)
@@ -383,7 +386,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
     for (auto it = holdQueue.begin(); it != holdQueue.end(); ++it) {
         if ((*it)->GetKey() == key && !(*it)->GetType()) {
             if (!(*it)->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
-                                     outputLR)) {
+                                     outputLR, vib_cents)) {
                 mid = (*it)->GetModuleId();
                 continue;
             }
@@ -391,7 +394,6 @@ int NoteChannel::NoteOn(int key, int velocity) {
             (*it)->SetVelocity(velocity);
             DPRINTF(3, " H%02d ", (*it)->id);
             moveVoice(holdQueue, it, activeQueue);  // activeQueueに移動
-            ApplyPitchToVoices(ComputeVibCents());
             return 1;
         }
         mid = (*it)->GetModuleId();  // 最近使ったmodule
@@ -400,14 +402,13 @@ int NoteChannel::NoteOn(int key, int velocity) {
     for (auto& voice : activeQueue) {
         if (voice->GetKey() == key && !voice->GetType()) {
             if (!voice->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
-                                     outputLR)) {
+                                     outputLR, vib_cents)) {
                 mid = voice->GetModuleId();
                 continue;
             }
             // TryRetrigger成功時のみ再利用
             voice->SetVelocity(velocity);
             DPRINTF(3, " A%02d ", voice->id);
-            ApplyPitchToVoices(ComputeVibCents());
             return 1;
         }
         mid = voice->GetModuleId();  // 最近使ったmodule
@@ -433,9 +434,8 @@ int NoteChannel::NoteOn(int key, int velocity) {
     }
     // 新規にAllocateしたVoiceをActiveキューに追加
     voice->SetVelocity(velocity);
-    voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR);
+    voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR, vib_cents);
     activeQueue.push_back(voice);
-    ApplyPitchToVoices(ComputeVibCents());
 
     return 1;
 }

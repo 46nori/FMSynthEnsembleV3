@@ -67,13 +67,14 @@ public:
      * @param note       MIDI Note No.
      * @param bk_program MIDI Bank/Program No.
      * @param volume     MIDI Volume (0-127)
-     * @param effect     チャンネルエフェクト（KeyOn 前の基準ピッチに使用）
+     * @param effect     チャンネルエフェクト（KeyOn 前のピッチに使用）
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
-     * @details FM音源の発音を開始する。KeyOn 前に ApplyPitch(effect,0) で
-     *          PB・coarse tune を設定し、ビブラートは NoteChannel が KeyOn 後に適用する。
+     * @param vib_cents  ビブラート偏差（セント、符号付き）
+     * @details FM音源の発音を開始する。KeyOn 前に ApplyPitch(effect, vib_cents) で
+     *          PB・coarse tune・ビブラートを設定する。
      */
     void NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                uint8_t lr) override;
+                uint8_t lr, int16_t vib_cents) override;
 
     /**
      * @brief Note Off
@@ -86,14 +87,15 @@ public:
      * @param note       MIDI Note No.
      * @param bk_program MIDI Bank/Program No.
      * @param volume     MIDI Volume (0-127)
-     * @param effect     チャンネルエフェクト（KeyOn 前の基準ピッチに使用）
+     * @param effect     チャンネルエフェクト（KeyOn 前のピッチに使用）
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
+     * @param vib_cents  ビブラート偏差（セント、符号付き）
      * @details FM キー制御レジスタへ KeyOff(0)→即時 KeyOn(1) を連続書込みし、
      *          KeyOn 立ち上がりエッジを人工的に再生成して各 OP のエンベロープを Attack から再開させる。
-     *          KeyOn 前に ApplyPitch(effect,0)、ビブラートは NoteChannel が KeyOn 後に適用する。
+     *          KeyOn 前に ApplyPitch(effect, vib_cents) で PB・coarse tune・ビブラートを設定する。
      */
     bool TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                      uint8_t lr) override;
+                      uint8_t lr, int16_t vib_cents) override;
 
     /**
      * @brief 現在の key を基準に PB・coarse tune・ビブラートを合成してピッチを設定する
