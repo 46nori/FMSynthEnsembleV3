@@ -70,9 +70,6 @@ int main()
     static MidiEngineTaskContext midiEngineCtx{mp.get(), &factory->GetChannels()};
 #endif
 
-    // DebuggerTaskのコンテキスト構築
-    static DebuggerTaskContext debuggerCtx{&factory->GetChannels()};
-
 #if ENABLE_FREERTOS_SAMPLE_TASK != 1
     // MIDIパネルコントローラーの生成(modules[3]に接続する想定)
     auto panelDriver = CreateMidiPanelDriver(modules[3]);
@@ -140,7 +137,7 @@ int main()
     ok = (xTaskCreateAffinitySet(DebuggerTask,
                                  "Debug",
                                  TASK_STACK_DEBUG,
-                                 &debuggerCtx,
+                                 nullptr,
                                  TASK_PRIORITY_DEBUG,
                                  AFFINITY_CORE0,
                                  nullptr) == pdPASS) && ok;

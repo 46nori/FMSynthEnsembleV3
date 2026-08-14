@@ -17,7 +17,6 @@
 #include "RhythmChannel.h"
 #include "NoteChannel.h"
 #include "OpnBase.h"
-#include "VoiceAllocator.h"
 #include "volume_controller.h"
 
 /*********************************************************
@@ -51,7 +50,6 @@ typedef struct token_list {
 token_list* tokenizer(char* str, const char* delim, token_list* t);
 int exec_command(token_list* t);
 void debugger_main();
-void set_debugger_context(DebuggerTaskContext* ctx);
 
 int c_help(token_list* t);
 int c_debug_level(token_list* t);
@@ -69,8 +67,6 @@ int c_trim(token_list* t);
 int c_rmix(token_list* t);
 int c_vibrato(token_list* t);
 int c_midi_program(token_list* t);
-
-DebuggerTaskContext* gDebuggerCtx = nullptr;
 
 const struct {
     const char* name;
@@ -121,10 +117,6 @@ void debugger_main() {
             break;
         }
     }
-}
-
-void set_debugger_context(DebuggerTaskContext* ctx) {
-    gDebuggerCtx = ctx;
 }
 
 // Tokenizer
@@ -288,22 +280,16 @@ int c_midi_reset(token_list* t) {
  * Dump MIDI Channel parameters
  *********************************************************/
 int c_midi_dump_channel(token_list* t) {
-    if (gDebuggerCtx == nullptr || gDebuggerCtx->channels == nullptr) {
-        puts("debug context unavailable.");
-        return NO_ERROR;
-    }
-
     if (t->n == 1) {
         // Dump all channels.
-        for (auto* ch : *gDebuggerCtx->channels) {
-            ch->dump();
-        }
+        Debugger::SendCommand(Debugger::DebugCommandId::DumpChannel, 0xff);
     } else if (t->n > 1) {
         // Dump specified channel.
         unsigned int ch = 0;
         get_uint(t, T_PARAM1, &ch);
         if (ch < MIDI_CHANNELS) {
-            (*gDebuggerCtx->channels)[ch]->dump();
+            Debugger::SendCommand(Debugger::DebugCommandId::DumpChannel,
+                                  static_cast<uint8_t>(ch));
         }
     }
     return NO_ERROR;
@@ -313,7 +299,8 @@ int c_midi_dump_channel(token_list* t) {
  * Dump MIDI Voice parameters
  *********************************************************/
 int c_midi_dump_voice(token_list* t) {
-    VoiceAllocator::GetInstance().dump();
+    (void)t;
+    Debugger::SendCommand(Debugger::DebugCommandId::DumpVoice, 0);
     return NO_ERROR;
 }
 
@@ -424,14 +411,12 @@ int c_trim(token_list* t) {
         if (mode > 1) {
             return ERR_PARAM_VAL;
         }
-        OpnBase::SetTLTrimEnabled(mode != 0);
-        if (gDebuggerCtx != nullptr && gDebuggerCtx->channels != nullptr) {
-            for (auto* ch : *gDebuggerCtx->channels) {
-                ch->RefreshActiveFmVolume();
-            }
-        }
+        Debugger::SendCommand(Debugger::DebugCommandId::TlTrim,
+                              static_cast<uint8_t>(mode));
+        std::printf("FM TL Trim: %s\n", mode ? "ON" : "OFF");
+    } else {
+        std::printf("FM TL Trim: %s\n", OpnBase::IsTLTrimEnabled() ? "ON" : "OFF");
     }
-    std::printf("FM TL Trim: %s\n", OpnBase::IsTLTrimEnabled() ? "ON" : "OFF");
 #else
     if (t->n > 1) {
         return ERR_PARAM_VAL;
@@ -450,16 +435,16 @@ int c_rmix(token_list* t) {
         if (get_uint(t, T_PARAM1, &offset) != NO_ERROR || offset > 31) {
             return ERR_PARAM_VAL;
         }
-        g_rhythm_level_offset = static_cast<int8_t>(offset);
-        if (gDebuggerCtx != nullptr && gDebuggerCtx->channels != nullptr) {
-            auto* rc = static_cast<RhythmChannel*>(
-                (*gDebuggerCtx->channels)[RhythmChannel::MIDI_RHYTHM_CHANNEL]);
-            rc->RefreshRhythmLevels();
-        }
+        Debugger::SendCommand(Debugger::DebugCommandId::RhythmMix,
+                              static_cast<uint8_t>(offset));
+        std::printf("Rhythm Level Offset: %d step(s) (~%.1f dB)\n",
+                    static_cast<int>(offset),
+                    static_cast<double>(offset) * 0.75);
+    } else {
+        std::printf("Rhythm Level Offset: %d step(s) (~%.1f dB)\n",
+                    static_cast<int>(g_rhythm_level_offset),
+                    static_cast<double>(g_rhythm_level_offset) * 0.75);
     }
-    std::printf("Rhythm Level Offset: %d step(s) (~%.1f dB)\n",
-                static_cast<int>(g_rhythm_level_offset),
-                static_cast<double>(g_rhythm_level_offset) * 0.75);
     return NO_ERROR;
 }
 
@@ -468,27 +453,7 @@ int c_rmix(token_list* t) {
  *********************************************************/
 int c_midi_program(token_list* t) {
     (void)t;
-
-    if (gDebuggerCtx == nullptr || gDebuggerCtx->channels == nullptr) {
-        puts("debug context unavailable.");
-        return NO_ERROR;
-    }
-
-    std::printf("CH   ");
-    for (int i = 1; i <= 16; i++) {
-        std::printf("%5d ", i);
-    }
-    std::printf("\nBANK ");
-    for (int i = 0; i < MIDI_CHANNELS; i++) {
-        const uint32_t bk = (*gDebuggerCtx->channels)[i]->GetProgram();
-        std::printf("%5u ", (bk >> 16) & 0xffffu);
-    }
-    std::printf("\nPG   ");
-    for (int i = 0; i < MIDI_CHANNELS; i++) {
-        const uint32_t bk = (*gDebuggerCtx->channels)[i]->GetProgram();
-        std::printf("%5u ", bk & 0x7fu);
-    }
-    std::printf("\n");
+    Debugger::SendCommand(Debugger::DebugCommandId::DumpProgram, 0);
     return NO_ERROR;
 }
 
@@ -527,12 +492,8 @@ int c_vibrato(token_list* t) {
  * Statistics
  *********************************************************/
 int c_midi_stats(token_list* t) {
-    if (gDebuggerCtx == nullptr || gDebuggerCtx->channels == nullptr) {
-        puts("debug context unavailable.");
-        return NO_ERROR;
-    }
-
-    Debugger::PrintMidiStats(*gDebuggerCtx->channels);
+    (void)t;
+    Debugger::SendCommand(Debugger::DebugCommandId::Stats, 0);
     return NO_ERROR;
 }
 
@@ -542,7 +503,7 @@ int c_midi_stats(token_list* t) {
  * FreeRTOS Task Entry
  *********************************************************/
 void DebuggerTask(void* param) {
-    set_debugger_context(static_cast<DebuggerTaskContext*>(param));
+    (void)param;
     debugger_main();    // never returns
     vTaskDelete(nullptr);
 }

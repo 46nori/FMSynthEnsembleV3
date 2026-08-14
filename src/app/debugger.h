@@ -57,8 +57,11 @@ enum class DebugCommandId : uint8_t {
     MidiReset,
     DumpChannel,
     DumpVoice,
+    DumpProgram,
     Stats,
     VibratoOverride,
+    TlTrim,
+    RhythmMix,
 };
 
 void SendCommand(DebugCommandId id, uint8_t value);

@@ -46,8 +46,11 @@ enum class MidiControlType : uint8_t {
     Reset,
     DebugDumpChannel,
     DebugDumpVoice,
+    DebugDumpProgram,
     DebugStats,
     DebugVibratoOverride,
+    DebugTlTrim,
+    DebugRhythmMix,
 };
 
 struct MidiControlEvent {

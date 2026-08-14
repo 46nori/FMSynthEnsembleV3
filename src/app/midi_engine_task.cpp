@@ -9,6 +9,7 @@
 #include "midi_engine_task.h"
 #include "RhythmChannel.h"
 #include "NoteChannel.h"
+#include "OpnBase.h"
 #include "VoiceAllocator.h"
 #include "config.h"
 #include "debugger.h"
@@ -157,6 +158,24 @@ void RefreshAllNoteChannelPitch(MidiEngineTaskContext* ctx) {
     }
 }
 
+void DumpProgram(MidiEngineTaskContext* ctx) {
+    std::printf("\nCH   ");
+    for (int i = 1; i <= 16; i++) {
+        std::printf("%5d ", i);
+    }
+    std::printf("\nBANK ");
+    for (int i = 0; i < MIDI_CHANNELS; i++) {
+        const uint32_t bk = (*ctx->channels)[i]->GetProgram();
+        std::printf("%5u ", (bk >> 16) & 0xffffu);
+    }
+    std::printf("\nPG   ");
+    for (int i = 0; i < MIDI_CHANNELS; i++) {
+        const uint32_t bk = (*ctx->channels)[i]->GetProgram();
+        std::printf("%5u ", bk & 0x7fu);
+    }
+    std::printf("\n");
+}
+
 void handle_control_event(const MidiControlEvent& ctl, MidiEngineTaskContext* ctx) {
     switch (ctl.type) {
     case MidiControlType::Reset:
@@ -175,6 +194,9 @@ void handle_control_event(const MidiControlEvent& ctl, MidiEngineTaskContext* ct
     case MidiControlType::DebugDumpVoice:
         VoiceAllocator::GetInstance().dump();
         break;
+    case MidiControlType::DebugDumpProgram:
+        DumpProgram(ctx);
+        break;
     case MidiControlType::DebugStats:
         Debugger::PrintMidiStats(*ctx->channels);
         break;
@@ -184,6 +206,19 @@ void handle_control_event(const MidiControlEvent& ctl, MidiEngineTaskContext* ct
         }
         RefreshAllNoteChannelPitch(ctx);
         break;
+    case MidiControlType::DebugTlTrim:
+        OpnBase::SetTLTrimEnabled(ctl.channel != 0);
+        for (auto* ch : *ctx->channels) {
+            ch->RefreshActiveFmVolume();
+        }
+        break;
+    case MidiControlType::DebugRhythmMix: {
+        g_rhythm_level_offset = static_cast<int8_t>(ctl.channel);
+        auto* rc = static_cast<RhythmChannel*>(
+            (*ctx->channels)[RhythmChannel::MIDI_RHYTHM_CHANNEL]);
+        rc->RefreshRhythmLevels();
+        break;
+    }
     }
 }
 

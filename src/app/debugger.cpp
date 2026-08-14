@@ -137,11 +137,20 @@ void Debugger::SendCommand(DebugCommandId id, uint8_t value) {
     case DebugCommandId::DumpVoice:
         ctl.type = MidiControlType::DebugDumpVoice;
         break;
+    case DebugCommandId::DumpProgram:
+        ctl.type = MidiControlType::DebugDumpProgram;
+        break;
     case DebugCommandId::Stats:
         ctl.type = MidiControlType::DebugStats;
         break;
     case DebugCommandId::VibratoOverride:
         ctl.type = MidiControlType::DebugVibratoOverride;
+        break;
+    case DebugCommandId::TlTrim:
+        ctl.type = MidiControlType::DebugTlTrim;
+        break;
+    case DebugCommandId::RhythmMix:
+        ctl.type = MidiControlType::DebugRhythmMix;
         break;
     }
 

@@ -94,8 +94,11 @@ enum class MidiControlType : uint8_t {
     Reset,                 // GM_SYSTEM_ON / XG_RESET / GS_RESET
     DebugDumpChannel,      // デバッグ: チャンネルダンプ
     DebugDumpVoice,        // デバッグ: Voice ダンプ
+    DebugDumpProgram,      // デバッグ: Program (Bank/PG) ダンプ
     DebugStats,            // デバッグ: 統計情報
     DebugVibratoOverride,  // デバッグ: ビブラート強制モード
+    DebugTlTrim,           // デバッグ: FM TL Trim ON/OFF
+    DebugRhythmMix,        // デバッグ: リズムレベルオフセット
 };
 
 struct MidiControlEvent {
@@ -114,8 +117,11 @@ struct MidiControlEvent {
 | `Reset` | 未使用 |
 | `DebugDumpChannel` | 対象 MIDI チャンネル (0–15)。`0xff` は全チャンネル |
 | `DebugDumpVoice` | 未使用（全 Voice をダンプ） |
+| `DebugDumpProgram` | 未使用（全チャンネルの Bank/PG をダンプ） |
 | `DebugStats` | 未使用 |
 | `DebugVibratoOverride` | ビブラート強制モード値（`VibOverride` 列挙） |
+| `DebugTlTrim` | FM TL Trim の ON/OFF（0/1） |
+| `DebugRhythmMix` | リズムレベルオフセット（0–31） |
 
 ---
 
