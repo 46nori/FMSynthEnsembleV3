@@ -63,8 +63,11 @@ classDiagram
         Reset
         DebugDumpChannel
         DebugDumpVoice
+        DebugDumpProgram
         DebugStats
         DebugVibratoOverride
+        DebugTlTrim
+        DebugRhythmMix
     }
 
     class MidiControlEvent {

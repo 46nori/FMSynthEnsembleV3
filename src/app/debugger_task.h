@@ -6,14 +6,4 @@
 //
 #pragma once
 
-#include <array>
-
-#include "config.h"
-
-class MidiChannel;
-
-struct DebuggerTaskContext {
-    std::array<MidiChannel*, MIDI_CHANNELS>* channels;
-};
-
 void DebuggerTask(void* param);
