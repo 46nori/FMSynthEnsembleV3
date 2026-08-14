@@ -64,6 +64,38 @@ static void fm_bus_jmp_entry(fm_bus_t *bus, uint entry_offset)
     pio_sm_exec_wait_blocking(bus->pio, bus->sm, insn);
 }
 
+/* SET PINDIRS with side 3 (/WR=H,/RD=H). pio_sm_set_consecutive_pindirs()
+ * omits side bits, which glitches /WR=/RD=L on this side_set-mandatory
+ * program. Use this whenever forcing D-pin direction while the bus is live. */
+static inline uint32_t fm_bus_encode_set_pindirs_side3(uint32_t value)
+{
+    return pio_encode_set(pio_pindirs, value) | pio_encode_sideset(2u, 3u);
+}
+
+/* Reimplements pico-sdk's pio_sm_set_consecutive_pindirs() with side 3
+ * forced on every injected SET PINDIRS instruction. */
+static void fm_bus_set_consecutive_pindirs_side3(PIO pio, uint sm, uint pin,
+                                                  uint count, bool is_out)
+{
+    pin -= pio_get_gpio_base(pio);
+    uint32_t pinctrl_saved = pio->sm[sm].pinctrl;
+    uint32_t execctrl_saved = pio->sm[sm].execctrl;
+    hw_clear_bits(&pio->sm[sm].execctrl, 1u << PIO_SM0_EXECCTRL_OUT_STICKY_LSB);
+    uint32_t pindir_val = is_out ? 0x1fu : 0u;
+    while (count > 5u) {
+        pio->sm[sm].pinctrl = (5u << PIO_SM0_PINCTRL_SET_COUNT_LSB) |
+                               (pin << PIO_SM0_PINCTRL_SET_BASE_LSB);
+        pio_sm_exec(pio, sm, fm_bus_encode_set_pindirs_side3(pindir_val));
+        count -= 5u;
+        pin = (pin + 5u) & 0x1fu;
+    }
+    pio->sm[sm].pinctrl = (count << PIO_SM0_PINCTRL_SET_COUNT_LSB) |
+                           (pin << PIO_SM0_PINCTRL_SET_BASE_LSB);
+    pio_sm_exec(pio, sm, fm_bus_encode_set_pindirs_side3(pindir_val));
+    pio->sm[sm].pinctrl = pinctrl_saved;
+    pio->sm[sm].execctrl = execctrl_saved;
+}
+
 /* SM must be idle (TXSTALL on main_entry pull) before dispatching a read path. */
 static void fm_bus_begin_read(fm_bus_t *bus, uint entry_offset)
 {
@@ -73,7 +105,7 @@ static void fm_bus_begin_read(fm_bus_t *bus, uint entry_offset)
 
 static void fm_bus_restore_d_output(fm_bus_t *bus)
 {
-    pio_sm_set_consecutive_pindirs(bus->pio, bus->sm, FM_GPIO_D0, 8, true);
+    fm_bus_set_consecutive_pindirs_side3(bus->pio, bus->sm, FM_GPIO_D0, 8, true);
 }
 
 /* ---------------------------------------------------------------------------
@@ -124,7 +156,7 @@ int fm_bus_init(fm_bus_t *bus, PIO pio, uint sm, uint32_t pio_hz)
     float clkdiv = (float)clock_get_hz(clk_sys) / (float)pio_hz;
     pio_sm_config cfg = fm_bus_sm_config(bus, clkdiv);
     pio_sm_init(pio, sm, bus->offset_bus + fm_bus_offset_main_entry, &cfg);
-    pio_sm_set_consecutive_pindirs(pio, sm, FM_GPIO_D0, 14, true);
+    fm_bus_set_consecutive_pindirs_side3(pio, sm, FM_GPIO_D0, 14, true);
     pio_sm_set_pins_with_mask(pio, sm, bus_pins, fm_bus_pin_mask());
     pio_sm_set_enabled(pio, sm, true);
 
@@ -196,7 +228,7 @@ uint8_t fm_read_status_raw(fm_bus_t *bus, uint8_t chip_id,
 {
     fm_bus_begin_read(bus, fm_bus_offset_status_entry);
     /* Match read_reg path: D0-D7 must be input during status read. */
-    pio_sm_set_consecutive_pindirs(bus->pio, bus->sm, FM_GPIO_D0, 8, false);
+    fm_bus_set_consecutive_pindirs_side3(bus->pio, bus->sm, FM_GPIO_D0, 8, false);
     pio_sm_put_blocking(bus->pio, bus->sm,
                         fm_make_read_status_word(chip_id, a1, tacc_count));
 
@@ -215,7 +247,7 @@ uint8_t fm_read_reg_raw(fm_bus_t *bus, uint8_t addr, uint8_t chip_id,
                         fm_make_read_reg_word1(addr, chip_id, a1));
     /* Addr phase done (SM stalled on Word2 pull); then D input, then data phase. */
     fm_bus_wait_write_idle(bus);
-    pio_sm_set_consecutive_pindirs(bus->pio, bus->sm, FM_GPIO_D0, 8, false);
+    fm_bus_set_consecutive_pindirs_side3(bus->pio, bus->sm, FM_GPIO_D0, 8, false);
     pio_sm_put_blocking(bus->pio, bus->sm,
                         fm_make_read_reg_word2(chip_id, a1, tacc_count));
 
@@ -230,7 +262,7 @@ uint8_t fm_read_reg_data_raw(fm_bus_t *bus, uint8_t chip_id,
                              uint8_t a1, uint32_t tacc_count)
 {
     fm_bus_begin_read(bus, fm_bus_offset_data_read_entry);
-    pio_sm_set_consecutive_pindirs(bus->pio, bus->sm, FM_GPIO_D0, 8, false);
+    fm_bus_set_consecutive_pindirs_side3(bus->pio, bus->sm, FM_GPIO_D0, 8, false);
     pio_sm_put_blocking(bus->pio, bus->sm,
                         fm_make_read_reg_word2(chip_id, a1, tacc_count));
 
