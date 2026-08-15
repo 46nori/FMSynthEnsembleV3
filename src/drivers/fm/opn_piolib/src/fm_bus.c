@@ -215,12 +215,39 @@ int fm_device_init(fm_device_t *dev, fm_bus_t *bus,
 
 void fm_write_reg_raw(fm_bus_t *bus, uint32_t addr_word, uint32_t data_word)
 {
-    /* W2 消化（reg 0x10 で最大 576 φM cycles）待ちはロック解放後に持ち越す。
-       次のバス操作は各 raw プリミティブの先頭で fm_bus_wait_write_idle() を
-       呼ぶため、SM がまだ W2 待ち中でもそこで直列化される。 */
+    /* Returns once both words are queued; does not wait for W2 to elapse.
+     * The next raw primitive's leading fm_bus_wait_write_idle() re-syncs on
+     * the SM before touching it. The FM Key On/Off "gate" register (0x28)
+     * additionally waits here — see write_reg()'s fm_addr_is_gate_reg() call
+     * and fm_bus_internal.h for why. */
     fm_bus_wait_write_idle(bus);
     pio_sm_put_blocking(bus->pio, bus->sm, addr_word);
     pio_sm_put_blocking(bus->pio, bus->sm, data_word);
+}
+
+/* Key On/Off registers gate the envelope generator's internal state
+ * transition rather than just latching a parameter value. Real-hardware
+ * testing (2026-08-15, stuck notes after playback Stop) showed that
+ * deferring the post-write idle wait for reg 0x28 is not safe, even
+ * though it is for plain parameter registers (freq/TL/tone/pan etc.)
+ * which only get read on the next internal sample tick. Root cause at
+ * the silicon level is unconfirmed; treat this as empirically required,
+ * not derived from the datasheet.
+ *
+ * Rhythm KeyOn/Damp (reg 0x10, A1=0) is the same register class but is
+ * NOT included here: it was never exercised by the real-hardware test
+ * that found the 0x28 problem (the failing song had no rhythm activity
+ * at that point), and unlike NoteVoice, a rhythm hit self-decays via its
+ * envelope rather than sustaining until an explicit off — so the same
+ * underlying race, if it exists here too, would show up as degraded
+ * Damp/retrigger quality during playback, not as a note stuck on. This
+ * is deliberately unverified; if rhythm-heavy playback later shows Damp
+ * artifacts, add `a1 == 0u && addr == 0x10u` back here first. */
+static bool fm_addr_is_gate_reg(uint8_t addr, uint8_t a1)
+{
+    (void)a1;
+    if (addr == 0x28u) return true;  /* FM Key On/Off (all channels) */
+    return false;
 }
 
 uint8_t fm_read_status_raw(fm_bus_t *bus, uint8_t chip_id,
@@ -340,6 +367,9 @@ void write_reg(const fm_device_t *dev, uint8_t addr, uint8_t a1, uint8_t data)
 
     uint32_t irq_state = fm_bus_lock(dev->bus);
     fm_write_reg_raw(dev->bus, addr_word, data_word);
+    if (fm_addr_is_gate_reg(addr, a1)) {
+        fm_bus_wait_write_idle(dev->bus);
+    }
     fm_bus_unlock(dev->bus, irq_state);
 }
 
