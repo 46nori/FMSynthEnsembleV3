@@ -148,10 +148,24 @@ static inline void fm_bus_unlock(const fm_bus_t *bus, uint32_t irq_state)
  * --------------------------------------------------------------------------*/
 
 /**
- * Push 2 words (addr-phase, data-phase) into SM_WRITE TX FIFO.
- * Caller must hold the spinlock. Returns once both words are queued;
- * does not wait for W2 to elapse. The next raw primitive's leading
- * fm_bus_wait_write_idle() re-synchronizes on the SM before touching it.
+ * Push 2 words (addr-phase, data-phase) into SM_WRITE TX FIFO. Caller must
+ * hold the spinlock. Returns once both words are queued; does not wait for
+ * W2 to elapse. The next raw primitive's leading fm_bus_wait_write_idle()
+ * re-synchronizes on the SM before touching it — order-correct on paper.
+ *
+ * Exception: the FM Key On/Off "gate" register (0x28). A prior attempt
+ * (issue #19) deferred the wait for ALL registers this way and reproduced
+ * stuck notes on real hardware during NoteOff bursts (e.g. playback stop)
+ * writing reg 0x28 (2026-08-15). write_reg() adds back a synchronous
+ * fm_bus_wait_write_idle() after fm_write_reg_raw() for 0x28 only
+ * (fm_addr_is_gate_reg()); plain parameter registers (freq/TL/tone/pan
+ * etc.) keep the async release. Root cause at the silicon level is
+ * unconfirmed — do not remove the 0x28 wait without new real-hardware
+ * verification.
+ *
+ * Rhythm KeyOn/Damp (0x10, A1=0) is the same register class but is
+ * deliberately NOT in the gate list — see fm_addr_is_gate_reg() in
+ * fm_bus.c for why.
  */
 void fm_write_reg_raw(fm_bus_t *bus, uint32_t addr_word, uint32_t data_word);
 
