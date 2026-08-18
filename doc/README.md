@@ -19,6 +19,7 @@
 | [design_voice_allocation.md](design_voice_allocation.md) | 動的ボイスアロケーションアルゴリズム |
 | [design_lfo.md](design_lfo.md) | ソフトウェア LFO（チャンネル共有・生成部分） |
 | [design_pitch_effect.md](design_pitch_effect.md) | ピッチエフェクト（Pitch Bend・coarse tune・ビブラート深さ/遅延）とピッチ合成 |
+| [design_tremolo.md](design_tremolo.md) | トレモロ（CC#92）と FM TL への振幅合成 |
 | [design_rhythm.md](design_rhythm.md) | MIDI CH10 / リズム音源設計 |
 | [design_csm_frame.md](design_csm_frame.md) | CSM音声合成 フレームタスク・IRQ・IPC |
 | [design_volume_controller.md](design_volume_controller.md) | NJU72343 電子ボリューム制御 |

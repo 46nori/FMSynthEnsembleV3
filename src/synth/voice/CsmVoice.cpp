@@ -91,8 +91,8 @@ CsmVoice::CsmVoice(std::array<OpnBase*, 4>& modules, int id)
     }
     // Timer Bは最初の実装済みDockが担当する。CSM対応モジュールが0台のときは -1（無効）。
     modTB = (num_modules > 0) ? dock_indices[0] : -1;
-    SetProgram(0);   // デフォルト音色
-    SetVolume(100);  // デフォルト音量
+    SetProgram(0);      // デフォルト音色
+    SetVolume(100, 0);  // デフォルト音量
 }
 
 void CsmVoice::IrqTickThunk(void* /*ctx*/) {
@@ -121,7 +121,7 @@ void CsmVoice::Reset() {
     velocity     = -1;
     key          = -1;
     SetProgram(0);
-    SetVolume(100);
+    SetVolume(100, 0);
 }
 
 int CsmVoice::GetModuleId() {
@@ -136,27 +136,30 @@ void CsmVoice::SetProgram(int32_t no) {
     bk_program = no;
 }
 
-void CsmVoice::SetVolume(int vol) {
+void CsmVoice::SetVolume(int vol, int16_t trem_atten) {
+    (void)trem_atten;  // CSM はトレモロ非対応
     if (vol < 0) return;  // volume=-1は現在の設定を維持（NoteVoiceと同じ扱い）
     volume = vol;
 }
 
 void CsmVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect, uint8_t lr,
-                      int16_t vib_cents) {
+                      int16_t vib_cents, int16_t trem_atten) {
     (void)effect;
     (void)vib_cents;
+    (void)trem_atten;
     if (event_sink_) {
         event_sink_->SignalCsmStart(note, bk_program, volume, lr);
     }
 }
 
 bool CsmVoice::TryRetrigger(int note, int32_t program, int vol, ChannelEffects& effect, uint8_t lr,
-                            int16_t vib_cents) {
+                            int16_t vib_cents, int16_t trem_atten) {
     (void)effect;
     (void)vib_cents;
+    (void)trem_atten;
     key = note;
     SetProgram(program);
-    SetVolume(vol);
+    SetVolume(vol, 0);
     if (event_sink_) {
         event_sink_->SignalCsmStart(note, program, vol, lr);
     }
@@ -252,7 +255,7 @@ void CsmVoice::Start(int note, int32_t program, int vol, uint8_t lr) {
     Stop();
     key = note;
     SetProgram(program);
-    SetVolume(vol);
+    SetVolume(vol, 0);
     SetPan(lr);
     UpdateFrame(true);
 }

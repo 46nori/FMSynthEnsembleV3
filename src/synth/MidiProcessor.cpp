@@ -124,6 +124,9 @@ uint16_t MidiProcessor::Exec(const MidiEvent& evt) {
             channel->Hold1(evt.data2);
             refresh_note_on_bit(mask, channel);
             break;
+        case MidiControllerAction::Tremolo:
+            channel->SetTremolo(evt.data2);
+            break;
         case MidiControllerAction::NrpnLsb:
             channel->NRPN_LSB(evt.data2);
             break;

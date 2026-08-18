@@ -25,6 +25,7 @@ enum class MidiControllerAction : uint8_t {
     NrpnMsb,
     RpnLsb,
     RpnMsb,
+    Tremolo,
     AllSoundOff,
     ResetAllControllers,
     AllNotesOff,
@@ -41,6 +42,7 @@ constexpr MidiControllerAction ClassifyMidiController(uint8_t controller) {
     case 32:  return MidiControllerAction::BankSelectLsb;
     case 38:  return MidiControllerAction::DataEntryLsb;
     case 64:  return MidiControllerAction::Hold1;
+    case 92:  return MidiControllerAction::Tremolo;
     case 98:  return MidiControllerAction::NrpnLsb;
     case 99:  return MidiControllerAction::NrpnMsb;
     case 100: return MidiControllerAction::RpnLsb;
