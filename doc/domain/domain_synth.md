@@ -2,7 +2,7 @@
 
 MIDI メッセージをハードウェア非依存な形で FM 音源に変換するレイヤ（`src/synth/`）。FM デバイスへのアクセスは `drivers/fm` の `OpnBase`、パネルへのアクセスは `drivers/midi_panel` の `IMidiPanelDriver` を経由する。
 
-関連設計書: [design_voice_allocation.md](../design_voice_allocation.md)、[design_effect.md](../design_effect.md)、[design_rhythm.md](../design_rhythm.md)、[design_csm_frame.md](../design_csm_frame.md)
+関連設計書: [design_voice_allocation.md](../design_voice_allocation.md)、[design_pitch_effect.md](../design_pitch_effect.md)、[design_rhythm.md](../design_rhythm.md)、[design_csm_frame.md](../design_csm_frame.md)
 
 ## チャンネル・プロセッサ
 

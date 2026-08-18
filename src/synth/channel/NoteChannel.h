@@ -33,6 +33,9 @@ private:
 
     ChannelLfoState lfo_{};
 
+    /** @brief ビブラート遅延（NRPN 1:10）の残り tick 数。0 なら遅延なし。ChannelLfoState とは独立に持つ */
+    uint32_t vib_delay_ticks_ = 0;
+
     /** @brief effect.vbrate から lfo_.phase_inc を再計算する */
     void updateLfoPhaseInc();
 
