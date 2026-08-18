@@ -260,11 +260,12 @@ void NoteChannel::SetProgram(uint8_t no) {
 }
 
 void NoteChannel::ApplyVolumeToVoices() {
+    const int16_t trem_atten = ComputeTremAtten();
     for (auto& voice : activeQueue) {
-        voice->SetVolume(EffectiveVolume(voice->GetVelocity()));
+        voice->SetVolume(EffectiveVolume(voice->GetVelocity()), trem_atten);
     }
     for (auto& voice : holdQueue) {
-        voice->SetVolume(EffectiveVolume(voice->GetVelocity()));
+        voice->SetVolume(EffectiveVolume(voice->GetVelocity()), trem_atten);
     }
 }
 
@@ -306,6 +307,16 @@ int16_t NoteChannel::ComputeVibCents() const {
     return static_cast<int16_t>((peak_cents * kSinLut[index]) >> 15);
 }
 
+int16_t NoteChannel::ComputeTremAtten() const {
+    if (effect.trdepth == 0) {
+        return 0;
+    }
+    const uint32_t index = (lfo_.phase >> 24) & 0xFFu;
+    const int32_t peak_steps =
+        (static_cast<int32_t>(effect.trdepth) * TREMOLO_DEPTH_MAX_STEPS) / 127;
+    return static_cast<int16_t>((peak_steps * kSinLut[index]) >> 15);
+}
+
 void NoteChannel::ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup) {
     for (auto& voice : activeQueue) {
         voice->ApplyPitch(effect, vib_cents, allow_vib_dedup);
@@ -329,7 +340,9 @@ void NoteChannel::RefreshActiveFmVolume() {
 }
 
 void NoteChannel::TickVibrato(uint32_t phase_ticks) {
-    if (EffectiveVbdepth(effect.vbdepth) == 0 || !IsActive()) {
+    const bool vib_active  = EffectiveVbdepth(effect.vbdepth) != 0;
+    const bool trem_active = effect.trdepth != 0;
+    if ((!vib_active && !trem_active) || !IsActive()) {
         return;
     }
     if (vib_delay_ticks_ > 0) {
@@ -341,6 +354,13 @@ void NoteChannel::TickVibrato(uint32_t phase_ticks) {
     }
     lfo_.phase += lfo_.phase_inc * phase_ticks;
     ApplyPitchToVoices(ComputeVibCents(), /*allow_vib_dedup=*/true);
+    const int16_t trem_atten = ComputeTremAtten();
+    for (auto& voice : activeQueue) {
+        voice->SetVolume(EffectiveVolume(voice->GetVelocity()), trem_atten);
+    }
+    for (auto& voice : holdQueue) {
+        voice->SetVolume(EffectiveVolume(voice->GetVelocity()), trem_atten);
+    }
 }
 
 int NoteChannel::NoteOn(int key, int velocity) {
@@ -354,7 +374,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
         for (auto& voice : activeQueue) {
             if (voice->GetType() &&
                 voice->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect, outputLR,
-                                    /*vib_cents=*/0)) {
+                                    /*vib_cents=*/0, /*trem_atten=*/0)) {
                 voice->SetVelocity(velocity);
                 DPRINTF(3, " C%02d ", voice->id);
                 return 1;
@@ -376,7 +396,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
 
         voice->SetVelocity(velocity);
         voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR,
-                      /*vib_cents=*/0);
+                      /*vib_cents=*/0, /*trem_atten=*/0);
         activeQueue.push_back(voice);
         return 1;
     }
@@ -390,7 +410,8 @@ int NoteChannel::NoteOn(int key, int velocity) {
         vib_delay_ticks_ = VibratoCalcDelayTicks(effect.vbdelay);
     }
 
-    const int16_t vib_cents = ComputeVibCents();
+    const int16_t vib_cents  = ComputeVibCents();
+    const int16_t trem_atten = ComputeTremAtten();
     int mid = -1;  // 最近使ったmoduleが不明
 
     // holdQueue内の同一keyのVoiceを探して再利用 (TryRetrigger)
@@ -398,7 +419,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
     for (auto it = holdQueue.begin(); it != holdQueue.end(); ++it) {
         if ((*it)->GetKey() == key && !(*it)->GetType()) {
             if (!(*it)->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
-                                     outputLR, vib_cents)) {
+                                     outputLR, vib_cents, trem_atten)) {
                 mid = (*it)->GetModuleId();
                 continue;
             }
@@ -414,7 +435,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
     for (auto& voice : activeQueue) {
         if (voice->GetKey() == key && !voice->GetType()) {
             if (!voice->TryRetrigger(key, bk_program, EffectiveVolume(velocity), effect,
-                                     outputLR, vib_cents)) {
+                                     outputLR, vib_cents, trem_atten)) {
                 mid = voice->GetModuleId();
                 continue;
             }
@@ -446,7 +467,7 @@ int NoteChannel::NoteOn(int key, int velocity) {
     }
     // 新規にAllocateしたVoiceをActiveキューに追加
     voice->SetVelocity(velocity);
-    voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR, vib_cents);
+    voice->NoteOn(key, bk_program, EffectiveVolume(velocity), effect, outputLR, vib_cents, trem_atten);
     activeQueue.push_back(voice);
 
     return 1;
@@ -566,6 +587,13 @@ void NoteChannel::SetModulation(uint8_t val) {
         } else {
             ApplyPitchToVoices(ComputeVibCents());
         }
+    }
+}
+
+void NoteChannel::SetTremolo(uint8_t val) {
+    if (effect.trdepth != val) {  // 変化があった時のみ適用
+        effect.trdepth = val;
+        ApplyVolumeToVoices();
     }
 }
 

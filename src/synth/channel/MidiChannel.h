@@ -203,6 +203,11 @@ public:
      */
     virtual void SetPan(uint8_t val);
 
+    /**
+     * @brief CC#92 Tremolo Depth（既定は no-op、NoteChannel のみ実装）
+     */
+    virtual void SetTremolo(uint8_t val);
+
     /** @brief ソフトウェア LFO ビブラート（NoteChannel のみ実装） */
     virtual void TickVibrato(uint32_t phase_ticks) {
         (void)phase_ticks;

@@ -221,10 +221,24 @@ public:
     virtual void SetPan(uint8_t val) override;
 
     /**
+     * @brief CC#92 Tremolo Depth（trdepth）
+     * @param val Tremolo depth (0-127)
+     * @details trdepth を更新し、active・hold の全 Voice に音量を即座に再適用する
+     */
+    virtual void SetTremolo(uint8_t val) override;
+
+    /**
      * @brief 現在の LFO 位相からビブラート偏差（セント）を算出する
      * @return 符号付きセント。vbdepth==0 のとき 0
      */
     int16_t ComputeVibCents() const;
+
+    /**
+     * @brief 現在の LFO 位相からトレモロ減衰（TL ステップ）を算出する
+     * @return 符号付き TL ステップ（0.75dB/step）。trdepth==0 のとき 0
+     * @details ビブラートと同じ共有 LFO 位相を使う（design_lfo.md）。ビブラート遅延には従わない
+     */
+    int16_t ComputeTremAtten() const;
 
     /**
      * @brief active・hold の全 Voice に ApplyPitch を呼ぶ
@@ -233,7 +247,7 @@ public:
      */
     void ApplyPitchToVoices(int16_t vib_cents, bool allow_vib_dedup = false);
 
-    /** @brief active・hold の全 Voice に現在の実効音量（EffectiveVolume）を再適用する */
+    /** @brief active・hold の全 Voice に現在の実効音量（EffectiveVolume）とトレモロ減衰を再適用する */
     void ApplyVolumeToVoices();
 
     /** @brief MidiEngineTask から呼ぶ（phase_ticks 周期分の LFO 位相を進める） */

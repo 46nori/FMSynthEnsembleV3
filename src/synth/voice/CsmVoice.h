@@ -80,29 +80,31 @@ public:
 
     /**
      * @brief MIDI Volumeのセット
-     * @param vol MIDI Volume (0-127)
+     * @param vol        MIDI Volume (0-127)
+     * @param trem_atten 未使用（CSM はトレモロ非対応）
      * @details 現在のVolume値から更新された場合に限り、音量をセットする
      */
-    void SetVolume(int vol) override;
+    void SetVolume(int vol, int16_t trem_atten) override;
 
     /**
      * @brief Note On
-     * @param note      MIDI Note No.
-     * @param program   MIDI Bank/Program No.
-     * @param volume    MIDI Volume (0-127)
-     * @param effect    Voice effect
-     * @param lr        Output Both(0xc0), Left(0x80), Right(0x40)
-     * @param vib_cents 未使用（CSM はビブラート非対応）
-     * @details FM音源の発音を開始する。ピッチベンド・ビブラートは非対応。
+     * @param note       MIDI Note No.
+     * @param program    MIDI Bank/Program No.
+     * @param volume     MIDI Volume (0-127)
+     * @param effect     Voice effect
+     * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
+     * @param vib_cents  未使用（CSM はビブラート非対応）
+     * @param trem_atten 未使用（CSM はトレモロ非対応）
+     * @details FM音源の発音を開始する。ピッチベンド・ビブラート・トレモロは非対応。
      */
     void NoteOn(int note, int32_t program, int volume, ChannelEffects& effect, uint8_t lr,
-                int16_t vib_cents) override;
+                int16_t vib_cents, int16_t trem_atten) override;
 
     /**
      * @brief CSM音素片を新しいNoteとして再開始する
      */
     bool TryRetrigger(int note, int32_t program, int volume, ChannelEffects& effect,
-                      uint8_t lr, int16_t vib_cents) override;
+                      uint8_t lr, int16_t vib_cents, int16_t trem_atten) override;
 
     /**
      * @brief Note Off

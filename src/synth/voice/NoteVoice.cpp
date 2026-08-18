@@ -75,9 +75,10 @@ NoteVoice::NoteVoice(OpnBase& module, uint8_t ch, int id)
     : Voice(false, id),  // NoteType
       module(module),
       fm_ch(ch),
-      last_fm_vib_cents_(INT16_MIN) {
+      last_fm_vib_cents_(INT16_MIN),
+      last_fm_trem_atten_(INT16_MIN) {
     SetProgram(0);   // デフォルト音色
-    SetVolume(100);  // デフォルト音量
+    SetVolume(100, 0);  // デフォルト音量
 }
 
 NoteVoice::~NoteVoice() {
@@ -85,11 +86,12 @@ NoteVoice::~NoteVoice() {
 
 void NoteVoice::Reset() {
     last_fm_vib_cents_   = INT16_MIN;
+    last_fm_trem_atten_  = INT16_MIN;
     // コンストラクタと同じ設定にする
     // 外部キーボードから使用するときなどのために音色をデフォルトに戻しておく
     Voice::Reset();
     SetProgram(0);
-    SetVolume(100);
+    SetVolume(100, 0);
 }
 
 int NoteVoice::GetModuleId() {
@@ -105,27 +107,33 @@ void NoteVoice::SetProgram(int32_t no) {
     }
 }
 
-void NoteVoice::SetVolume(int vol) {
+void NoteVoice::SetVolume(int vol, int16_t trem_atten) {
     if (vol < 0) return;  // volume=-1はデフォルトTLを維持（MidiChannelの初期値）
-    if (volume != vol) {
-        module.fm_set_volume(fm_ch, bk_program, opn_attenuation[vol]);
-        volume = vol;
+    if (volume == vol && trem_atten == last_fm_trem_atten_) {
+        return;
     }
+    const int32_t combined = static_cast<int32_t>(opn_attenuation[vol]) + trem_atten;
+    const uint8_t clamped  = static_cast<uint8_t>(
+        combined < 0 ? 0 : (combined > 127 ? 127 : combined));
+    module.fm_set_volume(fm_ch, bk_program, clamped);
+    volume              = vol;
+    last_fm_trem_atten_ = trem_atten;
 }
 
 void NoteVoice::RefreshVolume() {
     if (volume < 0) {
         return;
     }
-    const int cached = volume;
-    volume           = -1;
-    SetVolume(cached);
+    const int cached      = volume;
+    const int16_t cached_trem = last_fm_trem_atten_;
+    volume = -1;
+    SetVolume(cached, cached_trem);
 }
 
 void NoteVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                        uint8_t lr, int16_t vib_cents) {
+                        uint8_t lr, int16_t vib_cents, int16_t trem_atten) {
     SetProgram(bk_program);
-    SetVolume(volume);  // must be after SetProgram()
+    SetVolume(volume, trem_atten);  // must be after SetProgram()
     key = note;
     last_fm_vib_cents_ = INT16_MIN;
     module.fm_turnoff_key(fm_ch);
@@ -138,13 +146,14 @@ void NoteVoice::NoteOn(int note, int32_t bk_program, int volume, ChannelEffects&
 
 void NoteVoice::NoteOff() {
     module.fm_turnoff_key(fm_ch);
-    last_fm_vib_cents_ = INT16_MIN;
+    last_fm_vib_cents_  = INT16_MIN;
+    last_fm_trem_atten_ = INT16_MIN;
 }
 
 bool NoteVoice::TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                             uint8_t lr, int16_t vib_cents) {
+                             uint8_t lr, int16_t vib_cents, int16_t trem_atten) {
     SetProgram(bk_program);
-    SetVolume(volume);
+    SetVolume(volume, trem_atten);
     key = note;
     last_fm_vib_cents_ = INT16_MIN;
     module.fm_turnoff_key(fm_ch);

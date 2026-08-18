@@ -56,13 +56,14 @@ void Voice::ForceOff() {
 }
 
 bool Voice::TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                         uint8_t lr, int16_t vib_cents) {
+                         uint8_t lr, int16_t vib_cents, int16_t trem_atten) {
     (void)note;
     (void)bk_program;
     (void)volume;
     (void)effect;
     (void)lr;
     (void)vib_cents;
+    (void)trem_atten;
     return false;
 }
 

@@ -16,6 +16,7 @@ struct ChannelEffects {
     uint8_t vbrate;       // 0..127 → vibrato rate
     uint8_t vbdepth;      // 0..127 → vibrato depth
     uint8_t vbdelay;      // 0..126 → vibrato delay
+    uint8_t trdepth;      // 0..127 → tremolo depth (CC#92)
     int8_t  coarse_tune;  // semitones offset (optional)
 
     void Init() {
@@ -24,6 +25,7 @@ struct ChannelEffects {
         vbrate      = 0;
         vbdepth     = 0;
         vbdelay     = 0;
+        trdepth     = 0;
         coarse_tune = 0;
     }
 };
@@ -125,10 +127,11 @@ public:
 
     /**
      * @brief MIDI Volumeのセット
-     * @param vol MIDI Volume (0-127)
-     * @details 現在のVolume値から更新された場合に限り、音量をセットする
+     * @param vol         MIDI Volume (0-127)
+     * @param trem_atten  トレモロ減衰（TL ステップ、符号付き。NoteChannel が算出。既定 0）
+     * @details vol と trem_atten の組が現在の設定から変化した場合に限り、音量をセットする
      */
-    virtual void SetVolume(int vol) = 0;
+    virtual void SetVolume(int vol, int16_t trem_atten = 0) = 0;
 
     /**
      * @brief Note On
@@ -138,11 +141,12 @@ public:
      * @param effect     Voice effect
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
      * @param vib_cents  ビブラート偏差（セント、符号付き。NoteChannel が算出）
+     * @param trem_atten トレモロ減衰（TL ステップ、符号付き。NoteChannel が算出）
      * @details FM音源の発音を開始する。
      *          effect と vib_cents により、PitchBend・coarse tune・ビブラートを設定する
      */
     virtual void NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                        uint8_t lr, int16_t vib_cents) = 0;
+                        uint8_t lr, int16_t vib_cents, int16_t trem_atten) = 0;
     /**
      * @brief Note Off
      * @details Note FM音源の発音を停止する
@@ -177,11 +181,12 @@ public:
      * @param effect     Voice effect
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
      * @param vib_cents  ビブラート偏差（セント、符号付き。NoteChannel が算出）
+     * @param trem_atten トレモロ減衰（TL ステップ、符号付き。NoteChannel が算出）
      * @return true:再トリガ成功, false:非対応または失敗
      * @details デフォルト実装は非対応(false)を返す。再トリガ可能な派生クラスでoverrideする。
      */
     virtual bool TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                              uint8_t lr, int16_t vib_cents);
+                              uint8_t lr, int16_t vib_cents, int16_t trem_atten);
 
     /**
      * @brief 現在の音量設定を再適用する

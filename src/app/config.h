@@ -55,6 +55,9 @@ constexpr int MIDI_CHANNELS = 16;
 #define VIBRATO_DEPTH_MAX_CENTS      50
 #define VIBRATO_DELAY_MAX_MS         500
 
+// トレモロ（ビブラートと同じソフトウェア LFO を共有）
+#define TREMOLO_DEPTH_MAX_STEPS      8    // trdepth=127 のときの最大追加減衰（0.75dB/step、約6dB）
+
 #define MIDI_EVENT_BATCH_MAX         32
 
 // ------------------------------

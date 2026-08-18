@@ -144,6 +144,9 @@ void MidiChannel::SetModulation(uint8_t val) {
 void MidiChannel::SetPan(uint8_t val) {
 }
 
+void MidiChannel::SetTremolo(uint8_t val) {
+}
+
 void MidiChannel::BankSelect_MSB(uint8_t val) {
     bk_stg_msb = val;
 }

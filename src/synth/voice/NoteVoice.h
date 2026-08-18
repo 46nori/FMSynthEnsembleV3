@@ -51,13 +51,14 @@ public:
 
     /**
      * @brief MIDI Volumeのセット
-     * @param vol MIDI Volume (0-127)
-     * @details 現在のVolume値から更新された場合に限り、音量をセットする
+     * @param vol        MIDI Volume (0-127)
+     * @param trem_atten トレモロ減衰（TL ステップ、符号付き）
+     * @details vol と trem_atten の組が現在の設定から変化した場合に限り、音量をセットする
      */
-    void SetVolume(int vol) override;
+    void SetVolume(int vol, int16_t trem_atten) override;
 
     /**
-     * @brief 現在のMIDI Volume設定を再適用する
+     * @brief 現在のMIDI Volume・トレモロ設定を再適用する
      * @details TL TrimのON/OFF切替時などに使用する
      */
     void RefreshVolume() override;
@@ -70,11 +71,12 @@ public:
      * @param effect     チャンネルエフェクト（KeyOn 前のピッチに使用）
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
      * @param vib_cents  ビブラート偏差（セント、符号付き）
+     * @param trem_atten トレモロ減衰（TL ステップ、符号付き）
      * @details FM音源の発音を開始する。KeyOn 前に ApplyPitch(effect, vib_cents) で
      *          PB・coarse tune・ビブラートを設定する。
      */
     void NoteOn(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                uint8_t lr, int16_t vib_cents) override;
+                uint8_t lr, int16_t vib_cents, int16_t trem_atten) override;
 
     /**
      * @brief Note Off
@@ -90,12 +92,13 @@ public:
      * @param effect     チャンネルエフェクト（KeyOn 前のピッチに使用）
      * @param lr         Output Both(0xc0), Left(0x80), Right(0x40)
      * @param vib_cents  ビブラート偏差（セント、符号付き）
+     * @param trem_atten トレモロ減衰（TL ステップ、符号付き）
      * @details FM キー制御レジスタへ KeyOff(0)→即時 KeyOn(1) を連続書込みし、
      *          KeyOn 立ち上がりエッジを人工的に再生成して各 OP のエンベロープを Attack から再開させる。
      *          KeyOn 前に ApplyPitch(effect, vib_cents) で PB・coarse tune・ビブラートを設定する。
      */
     bool TryRetrigger(int note, int32_t bk_program, int volume, ChannelEffects& effect,
-                      uint8_t lr, int16_t vib_cents) override;
+                      uint8_t lr, int16_t vib_cents, int16_t trem_atten) override;
 
     /**
      * @brief 現在の key を基準に PB・coarse tune・ビブラートを合成してピッチを設定する
@@ -122,4 +125,5 @@ public:
 
 private:
     int16_t  last_fm_vib_cents_;    // allow_vib_dedup 用（INT16_MIN=未設定）
+    int16_t  last_fm_trem_atten_;   // SetVolume の dedup 用（INT16_MIN=未設定）
 };
