@@ -54,6 +54,11 @@ static uint32_t VibratoCalcPhaseInc(uint8_t vbrate) {
     return static_cast<uint32_t>(static_cast<double>(rate_hz) * VIBRATO_DT_SEC * 4294967296.0);
 }
 
+static uint32_t VibratoCalcDelayTicks(uint8_t vbdelay) {
+    const float delay_ms = vbdelay * VIBRATO_DELAY_MAX_MS / 127.0f;
+    return static_cast<uint32_t>(delay_ms / VIBRATO_PERIOD_MS + 0.5f);
+}
+
 // GM bank (0:0) の判別
 static bool IsGmBk(uint8_t msb, uint8_t lsb) {
     return msb == 0 && lsb == 0;
@@ -277,6 +282,7 @@ void NoteChannel::ResetAllController() {
     releaseHoldQueue();
     MidiChannel::ResetAllController();
     lfo_.phase = 0;
+    vib_delay_ticks_ = 0;
     updateLfoPhaseInc();
     for (auto& voice : activeQueue) {
         voice->SetVolume(EffectiveVolume(voice->GetVelocity()));
@@ -291,7 +297,7 @@ void NoteChannel::ResetAllController() {
 
 int16_t NoteChannel::ComputeVibCents() const {
     const uint8_t depth = EffectiveVbdepth(effect.vbdepth);
-    if (depth == 0) {
+    if (depth == 0 || vib_delay_ticks_ > 0) {
         return 0;
     }
     const uint32_t index = (lfo_.phase >> 24) & 0xFFu;
@@ -324,6 +330,10 @@ void NoteChannel::RefreshActiveFmVolume() {
 
 void NoteChannel::TickVibrato(uint32_t phase_ticks) {
     if (EffectiveVbdepth(effect.vbdepth) == 0 || !IsActive()) {
+        return;
+    }
+    if (vib_delay_ticks_ > 0) {
+        --vib_delay_ticks_;
         return;
     }
     if (phase_ticks == 0) {
@@ -374,8 +384,10 @@ int NoteChannel::NoteOn(int key, int velocity) {
 
     // D1: チャンネル無音（active + hold が空）からの Note On のみ位相リセット。
     // 和音中の新音で裏旋律など既存 Voice のビブラート位相を乱さない。
+    // ビブラート遅延（NRPN 1:10）のカウントダウンも同じトリガでのみ再セットする。
     if (activeQueue.empty() && holdQueue.empty()) {
         lfo_.phase = 0;
+        vib_delay_ticks_ = VibratoCalcDelayTicks(effect.vbdelay);
     }
 
     const int16_t vib_cents = ComputeVibCents();
@@ -526,6 +538,12 @@ void NoteChannel::DataEntry_MSB(uint8_t val) {
             } else {
                 ApplyPitchToVoices(ComputeVibCents());
             }
+        } else if (nrpn_lsb == 10) {
+            // Vibrato delay (XG: 00H-40H-7FH = -64..0..+63 の相対値、64=変更なし)
+            // 深さ(1:9)と同じ理由（音色プリセットの遅延を持たない）で、
+            // 64以下は遅延なし、65以上は超過分(+1..+63)を 0..126 へスケールする。
+            // 次回の無音→Note On から新しい遅延量を適用する（進行中のカウントダウンは変更しない）。
+            effect.vbdelay = (val > 64) ? static_cast<uint8_t>((val - 64) * 2) : 0;
         }
     }
     if (pitch_changed) {

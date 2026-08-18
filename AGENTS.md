@@ -23,7 +23,7 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 | 演奏イベント IPC（単一 FIFO） | [doc/design_midi_ipc.md](doc/design_midi_ipc.md) |
 | MIDI 実装状況（CC/RPN 等） | [doc/midi_implementation_chart.md](doc/midi_implementation_chart.md) |
 | ボイスアロケーション | [doc/design_voice_allocation.md](doc/design_voice_allocation.md) |
-| ビブラート / LFO | [doc/design_effect.md](doc/design_effect.md) |
+| ビブラート / LFO | [doc/design_pitch_effect.md](doc/design_pitch_effect.md)（ピッチ合成）、[doc/design_lfo.md](doc/design_lfo.md)（LFO 生成部分） |
 | リズム（ch10） | [doc/design_rhythm.md](doc/design_rhythm.md) |
 | CSM フレーム | [doc/design_csm_frame.md](doc/design_csm_frame.md) |
 | 電子ボリューム | [doc/design_volume_controller.md](doc/design_volume_controller.md) |

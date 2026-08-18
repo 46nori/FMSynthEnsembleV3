@@ -15,6 +15,7 @@ struct ChannelEffects {
     uint8_t pbs;          // PB sensitivity (default 2)
     uint8_t vbrate;       // 0..127 → vibrato rate
     uint8_t vbdepth;      // 0..127 → vibrato depth
+    uint8_t vbdelay;      // 0..126 → vibrato delay
     int8_t  coarse_tune;  // semitones offset (optional)
 
     void Init() {
@@ -22,6 +23,7 @@ struct ChannelEffects {
         pbs         = 2;  // デフォルト +/-2半音
         vbrate      = 0;
         vbdepth     = 0;
+        vbdelay     = 0;
         coarse_tune = 0;
     }
 };

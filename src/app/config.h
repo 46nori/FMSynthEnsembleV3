@@ -53,6 +53,7 @@ constexpr int MIDI_CHANNELS = 16;
 #define VIBRATO_RATE_MIN_HZ          3.0f
 #define VIBRATO_RATE_MAX_HZ          12.0f
 #define VIBRATO_DEPTH_MAX_CENTS      50
+#define VIBRATO_DELAY_MAX_MS         500
 
 #define MIDI_EVENT_BATCH_MAX         32
 

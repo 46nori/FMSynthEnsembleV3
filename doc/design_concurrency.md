@@ -258,7 +258,7 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 | `gMidiQueue` への書き込み | `UsbMidiTask` のみ | `MidiEngineTask`（`xQueueReceive`） |
 | `gMidiControlQueue` への書き込み | `UsbMidiTask`、`MidiPanelTask`、`DebugTask`（いずれも `MidiIpcSendMidiControl`。FreeRTOS Queue は複数 Producer を許容する） | `MidiEngineTask`（`xQueueReceive`） |
 
-Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の **PIO バス spinlock** でレジスタトランザクションはシリアライズされる。同一 Voice への連続 `fm_set_pitch` は「最後の完全再計算が反映される」前提でよい（[design_effect.md](design_effect.md#4-アーキテクチャ) 参照）。
+Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の **PIO バス spinlock** でレジスタトランザクションはシリアライズされる。同一 Voice への連続 `fm_set_pitch` は「最後の完全再計算が反映される」前提でよい（[design_pitch_effect.md](design_pitch_effect.md#3-アーキテクチャ) 参照）。
 
 `opn_piolib` のスピンロックは Pico SDK の `spin_lock_blocking()` を使うため、保持中は**取得側コアの割り込みが禁止**される。ロック保持タスクは同一コアの他タスクに横取りされず、保持時間は 1 レジスタトランザクション分（数 µs〜数十 µs）に確定的に収まる。ロック待ちする側も、スピン中は自コアの割り込みが禁止される。したがって低優先度タスク（`MidiPanelTask`）がロックを保持している間、高優先度タスク（`MidiEngineTask`/`CsmFrameTask`）の FM バスアクセスはその保持時間だけ待たされる。
 
