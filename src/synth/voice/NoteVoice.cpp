@@ -188,7 +188,8 @@ void NoteVoice::ApplyPitch(const ChannelEffects& fx, int16_t vib_cents, bool all
     if (pbs == 0 || pbv == 0) {
         int16_t diff_vib;
         if (adjusted_key < 12) {
-            module.fm_set_pitch(fm_ch, 0, 0, 0);
+            diff_vib = PitchCalcVibDiff(PBS_MARGIN, vib_cents);
+            module.fm_set_pitch(fm_ch, 0, 0, diff_vib);
         } else if (adjusted_key > 107) {
             // PitchBend計算用のマージンを使ってkey=108までサポート
             const int k = 11 + PBS_MARGIN;
