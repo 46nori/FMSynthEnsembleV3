@@ -35,7 +35,7 @@ MIDI コア間キュー（`gMidiQueue` / `gMidiControlQueue`）は `midi_ipc.h` 
 
 ## 2. 前提: NoteVoice との相違点
 
-- **NoteOn まで**: `CsmVoice` は NoteOn がトリガになるまで、`NoteVoice` と同様の契約でよい（チャンネル／ボイス割当・パラメータ適用など）
+- **NoteOn まで**: `CsmVoice` は NoteOn がトリガになるまで、`NoteVoice` と同様の契約でよい（チャンネル／ボイス割当・パラメータ適用など）。ただし CSM モードのチャンネルにおける Note On 自体は [design_voice_allocation.md 7.1 節](design_voice_allocation.md#71-note-on) の同音再利用フロー（holdQueue/activeQueue の key 一致判定・Allocator 経由の調停）を通らず、チャンネルの activeQueue 先頭 CsmVoice への無条件 Retrigger で処理する専用経路を持つ。CsmVoice はチップあたり最大 1 個（`VoiceLimits::kMaxCsmVoices`）のため、この簡略化による音の欠落・二重発音は生じない
 - **NoteOn 以降**: 発音を FM 音源 LSI 任せにできる NoteVoice と異なり、CsmVoice ではフレーム制御が必要になる
 
 ---

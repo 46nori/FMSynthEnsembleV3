@@ -98,7 +98,7 @@ Single Parse Rule は維持する。対応 CC の番号と意味は `MidiControl
 | NoteOn / NoteOff | Forward |
 | Program Change | Forward |
 | Pitch Bend | Forward |
-| CC#0, 1, 6, 7, 10, 11, 32, 38, 64, 98–101 | Forward |
+| CC#0, 1, 6, 7, 10, 11, 32, 38, 64, 92, 98–101 | Forward |
 | CC#120, 121, 123（Channel Mode） | Forward |
 | Poly / Channel Aftertouch | Drop |
 | 上記以外の CC / Channel Mode（CC#74 等、CC#124–127 等） | Drop |

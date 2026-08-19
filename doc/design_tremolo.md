@@ -93,7 +93,7 @@ flowchart LR
 | `MidiEngineTask` | MIDI イベント処理。LFO の周期呼び出し（`ServiceVibratoIfDue` / `TickVibrato`）はビブラートと共通で変更不要 |
 | `NoteVoice` | `SetVolume(vol, trem_atten)` に音量合成を集約 |
 
-**design_lfo.md への影響**: `NoteChannel::TickVibrato()` の早期 return 条件（[design_lfo.md 7章](design_lfo.md#7-周期実行midienginetask)）は現状 `EffectiveVbdepth(effect.vbdepth) == 0` のみを見ており、ビブラート深さが 0 でトレモロ深さのみが設定されているチャンネルでは LFO 位相が進まない。本機能の実装時に、この条件を「ビブラート深さとトレモロ深さの両方が 0」に一般化する必要がある（[7.2節](#72-周期実行tickvibrato-の拡張)）。design_lfo.md 7章の記述もあわせて更新する。
+`NoteChannel::TickVibrato()` の早期 return 条件は、ビブラート深さとトレモロ深さの両方が 0 の場合のみ return する形に一般化されている（[design_lfo.md 7章](design_lfo.md#7-周期実行midienginetask)、[7.2節](#72-周期実行tickvibrato-の拡張)）。
 
 FM バス書き込みについて: Core1 では `MidiEngineTask`・`CsmFrameTask` が `fm_set_*` を呼ぶが、PIO バス spinlock で直列化される（[design_concurrency.md](design_concurrency.md#5-single-writer-rule) 参照）。
 

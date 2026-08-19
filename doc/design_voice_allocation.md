@@ -110,7 +110,7 @@ Voice の状態は ACTIVE（`activeQueue`）/ HOLD（`holdQueue`）/ FREE（`fre
 
 不変条件:
 
-- CsmVoice は同音再利用（Retrigger）の対象外とする
+- CsmVoice は本節のフェーズ A〜C・7.1 節の Note On フローを通らない。CSM モードのチャンネルでは、Note On はチャンネルの activeQueue 先頭 CsmVoice への無条件 Retrigger（key 一致判定なし）で処理する専用経路を持つ。詳細は [design_csm_frame.md](design_csm_frame.md) を参照
 
 ## 7. イベント処理
 
@@ -156,7 +156,7 @@ flowchart TD
 2. チャンネルローカルの free が空でも動作継続できる
 3. 未割り当て空き Voice 枯渇時のみ横断調停が開始される
 4. 調停順序が ch=15 → ch=0 で安定している
-5. CsmVoice が同音再利用経路に入らない
+5. CsmVoice が非 CSM チャンネルの同音再利用経路（7.1 節）に入らない
 6. `module_id` 一致がない場合に未割り当ての他候補へフォールバックできる
 7. 全走査失敗で NO_VOICE になる
 
@@ -166,4 +166,4 @@ flowchart TD
 - 調停対象から req_ch を除外する条件を必ず保持する
 - キュー操作はクリティカルセクションで保護する
 - `AddReclaimTarget()` の登録順は ch 昇順を維持し、調停順序 ch=15 → ch=0 を不変に保つ
-- 同音再利用で Retrigger を使うのは NoteVoice のみに限定する
+- 7.1 節の同音再利用経路で Retrigger を使うのは NoteVoice のみに限定する。CSM モードチャンネルの Note On はこの経路を通らない専用処理を持つ（[design_csm_frame.md](design_csm_frame.md) 参照）

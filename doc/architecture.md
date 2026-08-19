@@ -292,9 +292,10 @@ flowchart TD
 - `platform` は `synth` / `app` に依存しない
 - `midi` は `pico-sdk`・FreeRTOS・ドライバ層に依存しない
 - `synth` は純粋な MIDI イベント型・Controller Action 定義に限り `midi` に依存してよい。`midi` から `synth` への逆依存は禁止
-- `synth` は必要な低レベル操作を `drivers` のインターフェース経由で行う。pico-sdk への直接依存は禁止
+- `synth` は必要な低レベル操作を `drivers` のインターフェース経由で行う。pico-sdk への直接依存は禁止。ハードウェア操作を伴わない実行時ポリシー定数（`config.h`）とログマクロ（`debugger.h`）に限り `app` を include してよい（CMake 上も `synth` は `platform` をリンクするが、これは [design_csm_frame.md](design_csm_frame.md) の `CsmVoice` ISR 登録要件による）
+- `app` はハードウェアを直接操作しないが、`MidiControlType::Debug*`（TL Trim トグル等のデバッグ用 SysEx コマンド、`midi_engine_task.cpp`）に限り `drivers/fm` の static API を直接呼ぶ
 - `extern/` 内ファイルは直接編集しない（upstream との乖離を防ぐ）
-- GPIO ピン番号は `platform` レイヤ内に閉じ込め、上位レイヤでハードコードしない。共有ハードウェア資源のピン割り当ては、その資源を所有する `platform` 実装または公開が必要な `platform` ヘッダに集約する
+- GPIO ピン番号は `platform` レイヤ内に閉じ込め、上位レイヤでハードコードしない。共有ハードウェア資源のピン割り当ては、その資源を所有する `platform` 実装または公開が必要な `platform` ヘッダに集約する。例外: `drivers/storage/hw_config.c` は no-OS-FatFS が要求する静的コールバック構造体のため SPI/CS ピン番号を直書きする
 - `config.h` はアプリ層の実行時ポリシー定数に限定する。ドライバ/ミドル層の Build-time Switch は CMake `target_compile_definitions` で制御する。一覧は [7. Build-time Switch](#7-build-time-switch)
 
 ---

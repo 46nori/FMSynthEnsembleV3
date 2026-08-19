@@ -90,11 +90,11 @@ platform → drivers, extern, pico-sdk
 drivers → extern, pico-sdk（platform には依存しない）
 ```
 
-- `app/`: ハード直接操作禁止。`Platform::*` と `synth` API のみ
+- `app/`: ハード直接操作禁止。`Platform::*` と `synth` API のみ。例外: `MidiControlType::Debug*`（TL Trim トグル等のデバッグ用 SysEx コマンド）に限り `drivers/fm` の static API を直接呼ぶ
 - `midi/`: pico-sdk・FreeRTOS・ドライバに依存しない。Single Parse Rule（Core0 のみパース）
 - `synth/` から `midi/` への依存は純粋な MIDI イベント型・Controller Action 定義に限る。`midi/` から `synth/` への逆依存は禁止
-- `synth/`: FM アクセスは `drivers/fm` 経由。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
-- `platform/`: ピン割り当て・PIO 所有・初期化順を集約。GPIO は上位でハードコードしない
+- `synth/`: FM アクセスは `drivers/fm` 経由。ハードウェア操作は行わないが、実行時ポリシー定数（`config.h`）とログマクロ（`debugger.h`）に限り `app/` を include してよい。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
+- `platform/`: ピン割り当て・PIO 所有・初期化順を集約。GPIO は上位でハードコードしない。例外: `drivers/storage/hw_config.c` は no-OS-FatFS が要求する静的コールバック構造体のため SPI/CS ピン番号を直書きする
 - `extern/`: 直接編集禁止。ラッパー（主に `platform`）経由で利用
 
 ## ビルド・検証
