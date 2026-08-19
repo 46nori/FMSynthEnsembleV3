@@ -147,20 +147,20 @@ phase_inc = (uint32_t)(rate_hz * VIBRATO_DT_SEC * 4294967296.0)  // 2^32
 ```mermaid
 flowchart LR
     subgraph Core1
-        ENGINE["MidiEngineTask<br>ServiceVibratoIfDue()"]
-        NC["NoteChannel::TickVibrato()<br>lfo_.phase += lfo_.phase_inc"]
+        ENGINE["MidiEngineTask<br>ServiceVibratoIfDue(phase_ticks)"]
+        NC["NoteChannel::TickVibrato(phase_ticks)<br>lfo_.phase += lfo_.phase_inc * phase_ticks"]
     end
     ENGINE -- "VIBRATO_PERIOD_MS 周期" --> NC
-    NC -- "位相から生成したサンプルを消費先へ" --> APPLY["消費先の適用処理<br>（現状: ApplyPitchToVoices）"]
+    NC -- "位相から生成したサンプルを消費先へ" --> APPLY["消費先の適用処理<br>（ピッチ: ApplyPitchToVoices、振幅: SetVolume）"]
 ```
 
-`NoteChannel::TickVibrato()` の動作:
+`NoteChannel::TickVibrato(phase_ticks)` の動作:
 
-1. `EffectiveVbdepth(effect.vbdepth) == 0` または `!IsActive()` なら return（現状の唯一の消費先＝ビブラートの深さが 0、または無音）
-2. `lfo_.phase += lfo_.phase_inc`
-3. 位相から生成したサンプルを消費先（現状はピッチ）へ適用する
+1. ビブラート（`vbdepth`）・トレモロ（`trdepth`）のいずれも深さ 0、または `!IsActive()` なら return（消費先がピッチ・振幅の 2 系統に増えたため、どちらか一方が有効なら継続する）
+2. `phase_ticks` は呼び出し間隔の遅れを補正する引数（1 周期分の呼び出しなら 1）。`lfo_.phase += lfo_.phase_inc * phase_ticks`
+3. 位相から生成したサンプルを、有効な消費先（ピッチ・振幅）へそれぞれ適用する。振幅側は [design_tremolo.md](design_tremolo.md) を参照
 
-現在の実装では、関数名・早期 return 条件（`vbdepth`）ともにビブラート（唯一の消費先）に紐づいた命名・判定になっている。消費先が増えた場合の命名・共通化方針は未定であり、本書では現状の実装をそのまま記述するに留める。
+関数名は当初ビブラート専用だった名残でビブラートのままだが、実体はビブラート・トレモロ共有の LFO ティック関数である。
 
 負荷の目安: 最大 24 Voice × 更新レート（既定 50 Hz）で、典型 8 音なら CPU 数 % 未満（消費先の適用処理・FM レジスタ書き込みのコストは含まない。ピッチへの適用コストは [design_pitch_effect.md](design_pitch_effect.md) を参照）。
 
