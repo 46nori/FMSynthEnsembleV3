@@ -45,7 +45,15 @@ bool Ch10LedHoldActive(uint32_t now_us) {
     if (ch10_led_hold_until_us == 0) {
         return false;
     }
-    return static_cast<uint32_t>(ch10_led_hold_until_us - now_us) < 0x80000000u;
+    if (static_cast<uint32_t>(ch10_led_hold_until_us - now_us) < 0x80000000u) {
+        return true;
+    }
+    // 期限切れを確定させた時点で古いタイムスタンプを消し込む。ここで 0 に
+    // 戻さないと、uint32 の経過時間比較は約35.79分（0x80000000us）を境に
+    // 符号が反転するため、実際は期限切れのはずの古い hold_until が
+    // 「まだアクティブ」と誤って再判定されてしまう（71.58分周期で再発）。
+    ch10_led_hold_until_us = 0;
+    return false;
 }
 
 void ApplyPanelNoteOnBitmap(uint32_t now_us) {
