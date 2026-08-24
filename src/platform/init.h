@@ -55,4 +55,13 @@ void Initialize();
  */
 std::unique_ptr<FmSystem> SetupFmModules(Error* out_error = nullptr);
 
+#if BUILD_SD_CARD
+/**
+ * @brief SDカードの再マウントを試みる（カード抜去後の復帰用）
+ * @details 呼び出しはSmfPlayerTaskに一元化する（他タスクから直接呼ばない）。
+ * @return 成功すればtrue
+ */
+bool RemountSdCard();
+#endif
+
 }  // namespace Platform

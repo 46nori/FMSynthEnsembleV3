@@ -24,6 +24,7 @@
 | [design_csm_frame.md](design_csm_frame.md) | CSM音声合成 フレームタスク・IRQ・IPC |
 | [design_volume_controller.md](design_volume_controller.md) | NJU72343 電子ボリューム制御 |
 | [design_midi_panel.md](design_midi_panel.md) | MIDI パネルのソフトウェア設計 |
+| [design_smf_player.md](design_smf_player.md) | SDカード上のSMFファイル再生（SmfPlayerTask）設計 |
 | [midi_implementation_chart.md](midi_implementation_chart.md) | MIDI 1.0 インプリメンテーションチャート |
 
 ## ハードウェア仕様
@@ -40,7 +41,7 @@
 
 | ドキュメント | 内容 |
 |---|---|
-| [schematics/README.md](schematics/README.md) | 回路図一覧<br>コントローラモジュール<br>FM音源モジュール<br>オーディオミキサモジュール<br>電源モジュール<br>MIDIパネルモジュール|
+| [schematics/README.md](schematics/README.md) | 回路図一覧<br>コントローラモジュール<br>FM音源モジュール<br>オーディオミキサモジュール<br>電源モジュール<br>MIDIパネルモジュール<br>SDHCカードモジュール|
 
 ## データシート
 

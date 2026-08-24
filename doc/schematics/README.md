@@ -9,6 +9,7 @@
 | [Mixer](#mixer) | オーディオミキサモジュール |
 | [PowerSupply_Unit](#power_supply_unit) | 電源モジュール |
 | [PanelSubsystem](#panel_subsystem) | MIDI パネルサブシステム（[spec_midi_panel.md](../spec_midi_panel.md) 参照） |
+| [SDHCCard](#sdhccard) | SDHCカードモジュール（[design_smf_player.md](../design_smf_player.md) 参照） |
 
 <a id="main"></a>
 
@@ -65,3 +66,11 @@
 <a href="./PanelSubsystem.pdf"><img src="./PanelSubsystem.svg" alt="PanelSubsystem" width="900"></a>
 
 [PanelSubsystem.pdf](./PanelSubsystem.pdf)
+
+<a id="sdhccard"></a>
+
+### SDHCCard — SDHCカードモジュール
+
+<a href="./SDHCCard.pdf"><img src="./SDHCCard.svg" alt="SDHCCard" width="900"></a>
+
+[SDHCCard.pdf](./SDHCCard.pdf)

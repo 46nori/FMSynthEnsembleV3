@@ -30,10 +30,19 @@ MIDI メッセージのパース・ルーティング・構造化イベント定
 
 ### 1.2 プラットフォーム制約
 
-- **CPU**: RP2350 Cortex-M33 デュアルコア、150 MHz
-- **SRAM**: 264 KB（FreeRTOS ヒープ 64 KB 含む）
-- **FreeRTOS ポート**: `RP2350_ARM_NTZ`（Community-Supported-Ports）、SMP 有効
+デフォルトターゲットはRP2350A（`pico2`）。RP2040はCMakeオプションで切替可能で、両方とも本ドキュメントの並列実行アーキテクチャの対象とする（[build.md](build.md) / [build_ja.md](build_ja.md)）。
+
+| 項目 | RP2350A（既定） | RP2040 |
+|---|---|---|
+| CPU | Cortex-M33 デュアルコア | Cortex-M0+ デュアルコア |
+| CPUクロック | 150 MHz | 125 MHz |
+| SRAM | 512 KB | 264 KB |
+| FreeRTOS ポート | `RP2350_ARM_NTZ`（Community-Supported-Ports） | `GCC/RP2040`（公式ポート） |
+
+SRAMのうちFreeRTOSヒープは両ターゲットとも `configTOTAL_HEAP_SIZE`（64 KB、[src/platform/FreeRTOSConfig.h](../src/platform/FreeRTOSConfig.h)）で固定。実際のFlash/SRAM使用量はビルド構成（`BUILD_MIDI_PANEL`/`BUILD_SD_CARD`等）や追加機能によって変わるため、本ドキュメントでは総容量のみを記載し、残量は記載しない。
+
 - **FreeRTOS 配置**: 公式 `FreeRTOS-Kernel`（`pico-sdk`）を使用。配置ルールの詳細は [architecture.md](architecture.md) を参照
+- **SMP**: 両ターゲットともSMP有効
 - **タスク固定**: `xTaskCreateAffinitySet()` で Core を固定し、スケジューラによる Core 間移動を禁止する
 
 ---
@@ -44,6 +53,7 @@ MIDI メッセージのパース・ルーティング・構造化イベント定
 flowchart LR
     subgraph Core0["Core0 (I/O)"]
         USB["UsbMidiTask<br>USB MIDI 受信・パース・ルーティング"]
+        SMF["SmfPlayerTask<br>SDカードSMF再生<br>（BUILD_SD_CARD=ON時）"]
         PANEL["MidiPanelTask<br>Panel 周期スキャン"]
         DEBUG["DebugTask<br>デバッガコンソール（最低優先度）"]
     end
@@ -52,11 +62,14 @@ flowchart LR
         CSM["CsmFrameTask<br>CSM フレーム処理"]
     end
     USB -- "gMidiQueue (192)" --> ENGINE
+    SMF -- "gMidiQueue (192)" --> ENGINE
     USB -- "gMidiControlQueue (8)" --> ENGINE
     PANEL -- "gPanelChannelBitmap" --> ENGINE
     ENGINE -- "gLastNoteOnBitmap" --> PANEL
     ENGINE -- "gResetPulseSeq" --> PANEL
 ```
+
+`SmfPlayerTask` の詳細設計（責務・Debugger制御・SMFパーサー）は [design_smf_player.md](design_smf_player.md) を参照。
 
 ### 2.1 Core0 の責務
 
@@ -91,7 +104,8 @@ flowchart LR
 | `CsmFrameTask` | Core1 | CSM 有効時は `MidiEngineTask` より高くする | FM IRQ/CSM イベント駆動 |
 | `MidiEngineTask` | Core1 | 通常の MIDI 音源処理で最優先に近い位置に置く | MIDI イベント駆動 + `VIBRATO_PERIOD_MS` 周期で `TickVibrato` |
 | `UsbMidiTask` | Core0 | MIDI 入力を取りこぼさない範囲で、音源処理より下に置く | USB イベント待機/ポーリング |
-| `MidiPanelTask` | Core0 | USB より下でも周期を維持できる位置に置く | 固定周期（`MIDI_PANEL_PERIOD_MS`） |
+| `SmfPlayerTask`（`BUILD_SD_CARD=ON`時） | Core0 | `UsbMidiTask` より下、SDカードのブロッキングI/Oが `MidiPanelTask` の周期スキャンより優先される位置に置く | Debuggerコマンド通知 + 再生中は次のSMFイベントまでの待機（[design_smf_player.md 2.1](design_smf_player.md#21-優先度)） |
+| `MidiPanelTask` | Core0 | USB（および有効時はSmfPlayerTask）より下でも周期を維持できる位置に置く | 固定周期（`MIDI_PANEL_PERIOD_MS`） |
 | `DebugTask` | Core0 | デバッグ用の最低優先度タスクとする | イベント駆動 |
 | TimerTask | Core0 | FreeRTOS 内部処理として、USB/Panel を阻害しない位置に置く | FreeRTOS 内部 |
 
@@ -186,6 +200,7 @@ CMake オプション `USB_MIDI_IRQ_DRIVEN` で TinyUSB の OSAL モードを切
 flowchart LR
     subgraph Core0
         USB["UsbMidiTask"]
+        SMF["SmfPlayerTask<br>（BUILD_SD_CARD=ON時）"]
         PANEL["MidiPanelTask"]
         DBG["DebugTask"]
     end
@@ -193,6 +208,7 @@ flowchart LR
         ENGINE["MidiEngineTask"]
     end
     USB -- "対応する演奏イベント<br>（到着順）" --> MQ["gMidiQueue"] --> ENGINE
+    SMF -- "対応する演奏イベント<br>（到着順）" --> MQ
     USB -- "Reset / Debug" --> CQ["gMidiControlQueue"] --> ENGINE
     PANEL -- "Reset(長押し)" --> CQ
     DBG -- "Reset / dump / stats" --> CQ
@@ -208,7 +224,7 @@ flowchart LR
 |---|---|
 | 型 | `MidiEvent`（固定長） |
 | 長さ | 192 要素（`kMidiQueueLength`） |
-| Producer | UsbMidiTask (Core0) |
+| Producer | UsbMidiTask (Core0)、SmfPlayerTask (Core0、`BUILD_SD_CARD=ON`時。[design_smf_player.md](design_smf_player.md#5-gmidiqueue-への合流)) |
 | Consumer | MidiEngineTask (Core1) |
 | 送信 | `xQueueSendToBack`。Note / CC / PC / PitchBend 等を到着順に格納 |
 | 送信失敗時 | Drop + `midi_queue_drop_count` 更新 |
@@ -255,7 +271,7 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 | `gPanelChannelBitmap` | `MidiPanelTask` のみ（デバッグ専用の例外: `DebugTask` の `cs` コマンドも書き込み可。Panel 接続中は次回スキャンで上書きされる） | `MidiEngineTask` |
 | `gLastNoteOnBitmap` | `MidiEngineTask` のみ | `MidiPanelTask` |
 | `gResetPulseSeq` | `MidiEngineTask` のみ | `MidiPanelTask` |
-| `gMidiQueue` への書き込み | `UsbMidiTask` のみ | `MidiEngineTask`（`xQueueReceive`） |
+| `gMidiQueue` への書き込み | `UsbMidiTask`、`SmfPlayerTask`（`BUILD_SD_CARD=ON` 時。[design_smf_player.md](design_smf_player.md#5-gmidiqueue-への合流) 参照。`gMidiControlQueue` 同様、複数 Producer を許容） | `MidiEngineTask`（`xQueueReceive`） |
 | `gMidiControlQueue` への書き込み | `UsbMidiTask`、`MidiPanelTask`、`DebugTask`（いずれも `MidiIpcSendMidiControl`。FreeRTOS Queue は複数 Producer を許容する） | `MidiEngineTask`（`xQueueReceive`） |
 
 Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の **PIO バス spinlock** でレジスタトランザクションはシリアライズされる。同一 Voice への連続 `fm_set_pitch` は「最後の完全再計算が反映される」前提でよい（[design_pitch_effect.md](design_pitch_effect.md#3-アーキテクチャ) 参照）。

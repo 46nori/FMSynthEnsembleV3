@@ -165,7 +165,7 @@ classDiagram
 |---|---|---|
 | `MidiProcessor` | `MidiProcessor.h/cpp` | `MidiEvent` のディスパッチ、チャンネル有効管理 |
 | `MidiFactory` | `MidiFactory.h/cpp` | チャンネルと Voice の生成・接続（静的ストレージ） |
-| `MidiChannel` | `channel/MidiChannel.h/cpp` | チャンネル共通の CC / RPN / NRPN 状態機械 |
+| `MidiChannel` | `channel/MidiChannel.h/cpp` | チャンネル共通の CC / RPN / NRPN ステートマシン |
 | `NoteChannel` | `channel/NoteChannel.h/cpp` | メロディ発音、Voice キュー、ソフトウェア LFO |
 | `RhythmChannel` | `channel/RhythmChannel.h/cpp` | ch10 リズム。Voice を使わずチップを直接操作 |
 | `Voice` / `NoteVoice` / `CsmVoice` | `voice/` | 発音単位の抽象と FM / CSM 実装 |

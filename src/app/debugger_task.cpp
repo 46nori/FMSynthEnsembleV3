@@ -19,6 +19,10 @@
 #include "OpnBase.h"
 #include "volume_controller.h"
 
+#if BUILD_SD_CARD
+#include "smf_player_task.h"
+#endif
+
 /*********************************************************
  * Shared variables
  *********************************************************/
@@ -67,6 +71,14 @@ int c_trim(token_list* t);
 int c_rmix(token_list* t);
 int c_vibrato(token_list* t);
 int c_midi_program(token_list* t);
+#if BUILD_SD_CARD
+int c_smf_play(token_list* t);
+int c_smf_stop(token_list* t);
+int c_smf_pause(token_list* t);
+int c_smf_resume(token_list* t);
+int c_smf_ls(token_list* t);
+int c_smf_mount(token_list* t);
+#endif
 
 const struct {
     const char* name;
@@ -87,6 +99,14 @@ const struct {
     {  "rmix",             c_rmix},
     {   "vib",           c_vibrato},
     {    "pg",       c_midi_program},
+#if BUILD_SD_CARD
+    {  "play",         c_smf_play},
+    {  "stop",         c_smf_stop},
+    { "pause",        c_smf_pause},
+    {"resume",       c_smf_resume},
+    {    "ls",           c_smf_ls},
+    { "mount",        c_smf_mount},
+#endif
     {     "h",              c_help},
     {      "",                NULL}
 };
@@ -190,6 +210,14 @@ int c_help(token_list* t) {
         "rmix [0-31]: Rhythm level offset step (0.75dB/step, lowers rhythm)\n"
         "vib [0-2] : Vibrato override 0=OFF 1=ON 2=AUTO(MIDI)\n"
         "pg        : Show MIDI Program (PG) per channel\n"
+#if BUILD_SD_CARD
+        "ls        : List SMF files on SD card (and builtin fixtures)\n"
+        "play <n>  : Play SMF file/fixture by index shown by ls\n"
+        "stop      : Stop SMF playback\n"
+        "pause     : Pause SMF playback\n"
+        "resume    : Resume SMF playback\n"
+        "mount     : Remount SD card (after removing/reinserting)\n"
+#endif
         "";
 
     puts(help_str);
@@ -496,6 +524,52 @@ int c_midi_stats(token_list* t) {
     Debugger::SendCommand(Debugger::DebugCommandId::Stats, 0);
     return NO_ERROR;
 }
+
+#if BUILD_SD_CARD
+/*********************************************************
+ * SMF Player（doc/design_smf_player.md）
+ * すべてfire-and-forget: SmfPlayerTaskへ通知するだけで、応答は待たない。
+ * 実行結果はSmfPlayerTask自身が標準出力へ表示する。
+ *********************************************************/
+int c_smf_play(token_list* t) {
+    unsigned int index = 0;
+    if (get_uint(t, T_PARAM1, &index) != NO_ERROR) {
+        return ERR_PARAM_MISS;
+    }
+    SmfPlayer::RequestPlay(static_cast<uint16_t>(index));
+    return NO_ERROR;
+}
+
+int c_smf_stop(token_list* t) {
+    (void)t;
+    SmfPlayer::RequestStop();
+    return NO_ERROR;
+}
+
+int c_smf_pause(token_list* t) {
+    (void)t;
+    SmfPlayer::RequestPause();
+    return NO_ERROR;
+}
+
+int c_smf_resume(token_list* t) {
+    (void)t;
+    SmfPlayer::RequestResume();
+    return NO_ERROR;
+}
+
+int c_smf_ls(token_list* t) {
+    (void)t;
+    SmfPlayer::RequestLs();
+    return NO_ERROR;
+}
+
+int c_smf_mount(token_list* t) {
+    (void)t;
+    SmfPlayer::RequestMount();
+    return NO_ERROR;
+}
+#endif
 
 }  // namespace
 
