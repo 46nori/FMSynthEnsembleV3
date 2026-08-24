@@ -61,6 +61,7 @@ FMSynthEnsembleV3/
 ├── src/
 │   ├── app/               アプリケーションレイヤ
 │   ├── midi/              MIDI パース・ルーティングレイヤ
+│   ├── smf/               SMFファイルフォーマット解釈レイヤ (BUILD_SD_CARD=ON時)
 │   ├── synth/             シンセサイザー抽象化レイヤ
 │   ├── drivers/           デバイスドライバレイヤ
 │   │   ├── fm/            FM音源ドライバ (YM2203, YM2608, YMF288, OpnBase, opn_piolib)
@@ -102,6 +103,21 @@ MIDI バイト列の解釈と転送先決定を担うレイヤ。[Single Parse R
 | `MidiSysEx.h/cpp` | SysEx を Profile Reset / Vendor Debug / Drop に分類 |
 
 **ルール**: `pico-sdk`・FreeRTOS・ドライバ層に依存しない。`MidiMessage.h` の型のみを依存関係として持ち、`app/` から利用される。
+
+---
+
+### smf/（SMFファイルフォーマット解釈レイヤ）
+
+SDカード上のStandard MIDI File（SMF）のチャンク・可変長数値（VLQ）・ランニングステータス・メタイベントを解釈するレイヤ。`midi/` と同じく、SDカードの実I/Oには関与しない（実I/Oは `platform/` 側の `SmfSdByteSource` が担う）。
+
+| ファイル | 役割 |
+|---------|------|
+| `SmfMessage.h` | パーサーが返すイベント型 (`SmfEvent`, `SmfEventKind`, `SmfTrackInfo`, `SmfScanResult`) を定義 |
+| `SmfByteSource.h` | バイト列供給の抽象インターフェース |
+| `SmfMemoryByteSource.h/cpp` | 固定バイト列をラップする実装（ホストユニットテスト・実機組み込みフィクスチャ用） |
+| `SmfParser.h/cpp` | チャンクスキャン・複数トラックマージ・イベント解釈 |
+
+**ルール**: `pico-sdk`・FreeRTOS・ドライバ層に依存しない。詳細設計は [design_smf_player.md](design_smf_player.md) を参照。
 
 ---
 
@@ -187,9 +203,11 @@ TinyUSB の `tud_task()` 呼び出しと MIDI ストリーム読み出し (`tud_
 
 | ファイル | 役割 |
 |---------|------|
-| `init.h/cpp` | プラットフォーム初期化・FM モジュール検出の公開 API と `FmSystem` 定義。起動直後に `VolumeController` 経由で NJU72343 を全チャンネルミュートする |
+| `init.h/cpp` | プラットフォーム初期化・FM モジュール検出の公開 API と `FmSystem` 定義。起動直後に `VolumeController` 経由で NJU72343 を全チャンネルミュートする。`BUILD_SD_CARD=ON`時はSDカードのマウント・再マウント（`RemountSdCard()`）も担う |
 | `volume_controller.h/cpp` | NJU72343 電子ボリューム制御のボード固有ラッパー。PIO1/GPIO27/28 の所有と音量 API を提供する |
 | `isr.h/cpp` | GPIO 割り込みの登録・有効化 API（`FM_IRQ` 等） |
+| `smf_sd_byte_source.h/cpp`（`BUILD_SD_CARD=ON`時） | `src/smf/` の `SmfByteSource` インターフェースをSDカードファイルで実装。FatFsの実アクセスはこのファイルに閉じる |
+| `smf_directory.h/cpp`（`BUILD_SD_CARD=ON`時） | SDカード上の`.mid`/`.midi`/`.smf`ファイルを再帰的に列挙する（`ForEachSmfFile()`） |
 | `freertos_hooks.cpp` | FreeRTOS フック（スタックオーバーフロー・ヒープ枯渇） |
 | `FreeRTOSConfig.h` | FreeRTOS カーネルのコンパイル時設定 |
 
@@ -254,7 +272,8 @@ FMSynthEnsembleV3 (実行ファイル)
   │     ├── tinyusb_device
   │     ├── nju72343
   │     ├── fm
-  │     └── fatfs (BUILD_SD_CARD=ON の場合のみ)
+  │     ├── fatfs (BUILD_SD_CARD=ON の場合のみ)
+  │     └── smf (BUILD_SD_CARD=ON の場合のみ)
   ├── drivers/fm
   │     └── opn_piolib
   ├── drivers/midi_panel

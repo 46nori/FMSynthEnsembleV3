@@ -108,7 +108,7 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
 | Option | Default | Description |
 |---|:---:|---|
 | `BUILD_MIDI_PANEL` | `ON` | Enable the MIDI panel controller |
-| `BUILD_SD_CARD` | `OFF` | Enable the SD card module |
+| `BUILD_SD_CARD` | `ON` | Enable the SD card module |
 | `ENABLE_MIDI_TIMING_STATS` | `OFF` | Enable detailed MIDI queue-delay and event-execution timing instrumentation |
 | `USB_MIDI_IRQ_DRIVEN` | `ON` | Run TinyUSB in FreeRTOS integrated (interrupt-driven) mode. `OFF` selects Pico's standard polling mode |
 

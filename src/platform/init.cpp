@@ -21,6 +21,7 @@
 #include "ff.h"
 #include "f_util.h"
 #include "sd_card.h"
+#include "hw_config.h"  // sd_get_by_num()
 #endif
 
 namespace Platform {
@@ -131,13 +132,44 @@ void InitTinyUsb() {
 #if BUILD_SD_CARD
 FATFS g_sd_fatfs;
 
-void InitSdCard() {
-    sd_init_driver();
+/**
+ * @brief f_mount()を強制マウントで（再）実行する
+ * @details hw_config.cの配線にCard Detectピンがないため、カード抜去はハードウェア的に
+ *          検知できない。抜去後の復帰は、実際にI/Oが
+ *          失敗した時点でこの関数を呼び直すリアクティブな再マウントに委ねる。
+ *
+ *          sd_card_spi_init()（no-OS-FatFS-SD-SDIO-SPI-RPi-Pico）は状態フラグ
+ *          STA_NOINITがクリアされたままだと「既に初期化済み」とみなしてカードの
+ *          再走査そのものをスキップする。初回マウント成功後は同フラグがクリアされた
+ *          ままになり、抜去後に何もこれを再セットしないため、f_mount()を単に
+ *          呼び直すだけでは実際のカード再走査が行われず FR_DISK_ERR で失敗する
+ *          （実機で確認）。
+ *
+ *          最初はsd_card_t::deinit()（sd_deinit()）を呼んでSTA_NOINITを立て直す
+ *          方式を試したが、sd_deinit()はCard Selectピンをgpio_deinit()して
+ *          GPIO_INに戻してしまい、それを元のGPIO_OUTへ戻す処理はsd_spi_ctor()
+ *          （sd_init_driver()内で一度きり実行）にしかない。このためdeinit()を
+ *          一度でも呼ぶとCSピンの向きが壊れたままになり、以降すべてのマウントが
+ *          FR_NOT_READYで失敗するようになった（実機で確認、カード未抜去でも再現）。
+ *          GPIOには触れず、sd_card_t::state.m_Statusへ直接STA_NOINITを立てる。
+ */
+bool MountSdCard() {
+    sd_card_t* card = sd_get_by_num(0);
+    if (card != nullptr) {
+        card->state.m_Status |= STA_NOINIT;
+    }
 
     FRESULT fr = f_mount(&g_sd_fatfs, "0:", 1);
     if (FR_OK != fr) {
         std::printf("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
+        return false;
     }
+    return true;
+}
+
+void InitSdCard() {
+    sd_init_driver();
+    MountSdCard();
 }
 #endif
 
@@ -226,6 +258,19 @@ void Initialize() {
     // TinyUSB MIDI デバイス
     InitTinyUsb();
 }
+
+#if BUILD_SD_CARD
+/**
+ * @brief SDカードの再マウントを試みる
+ * @details カード抜去後の復帰用。SmfSdByteSource/ForEachSmfFile がFatFsのI/Oエラー
+ *          （FR_DISK_ERR/FR_NOT_READY）を検出した際、または`mount`コマンドから呼ぶ。
+ *          呼び出しはSmfPlayerTaskに一元化する（他タスクから直接呼ばない）。
+ * @return 成功すればtrue
+ */
+bool RemountSdCard() {
+    return MountSdCard();
+}
+#endif
 
 /**
  * @brief FM音源モジュールの検出・初期化・インスタンス生成を行う

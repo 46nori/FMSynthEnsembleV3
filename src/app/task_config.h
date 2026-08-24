@@ -18,7 +18,10 @@
 static constexpr UBaseType_t TASK_PRIORITY_CSM         = configMAX_PRIORITIES - 1; // 31 (Core1)
 static constexpr UBaseType_t TASK_PRIORITY_MIDI_ENGINE = configMAX_PRIORITIES - 2; // 30 (Core1)
 static constexpr UBaseType_t TASK_PRIORITY_USB         = configMAX_PRIORITIES - 3; // 29 (Core0)
-static constexpr UBaseType_t TASK_PRIORITY_MIDI_PANEL  = configMAX_PRIORITIES - 4; // 28 (Core0)
+// SmfPlayerTaskはUSBライブ入力の取りこぼしを防ぐためUSBより下、SDカードのブロッキング
+// I/OがMidiPanelTaskの周期スキャンより優先されるようMidiPanelより上に置く。
+static constexpr UBaseType_t TASK_PRIORITY_SMF_PLAYER  = configMAX_PRIORITIES - 4; // 28 (Core0)
+static constexpr UBaseType_t TASK_PRIORITY_MIDI_PANEL  = configMAX_PRIORITIES - 5; // 27 (Core0)
 static constexpr UBaseType_t TASK_PRIORITY_DEBUG       = 1;                        //  1 (Core0)
 
 // ----------------------------------------------------------------------------
@@ -27,6 +30,9 @@ static constexpr UBaseType_t TASK_PRIORITY_DEBUG       = 1;                     
 static constexpr uint32_t TASK_STACK_CSM         = 512; // 2KB
 static constexpr uint32_t TASK_STACK_MIDI_ENGINE = 640; // 2.5KB（MIDI + TickVibrato）
 static constexpr uint32_t TASK_STACK_USB         = 768; // 3KB
+// 1024語(4KB): SDカードI/O + SMFパース + LFN作業バッファに加え、Ls/Playの
+// ディレクトリ再帰走査（1段ごとにFILINFO 256バイト+パスバッファを消費）を含む
+static constexpr uint32_t TASK_STACK_SMF_PLAYER  = 1024; // 4KB
 static constexpr uint32_t TASK_STACK_MIDI_PANEL  = 256; // 1KB
 static constexpr uint32_t TASK_STACK_DEBUG       = 384; // 1.5KB
 

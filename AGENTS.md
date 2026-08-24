@@ -29,6 +29,7 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 | CSM フレーム | [doc/design_csm_frame.md](doc/design_csm_frame.md) |
 | 電子ボリューム | [doc/design_volume_controller.md](doc/design_volume_controller.md) |
 | MIDI パネル | [doc/design_midi_panel.md](doc/design_midi_panel.md)（ハード仕様: [doc/spec_midi_panel.md](doc/spec_midi_panel.md)） |
+| SMF Player（SDカード再生） | [doc/design_smf_player.md](doc/design_smf_player.md) |
 | FM LSI 機能差分・混在制約 | [doc/spec_fm_chip.md](doc/spec_fm_chip.md) |
 | FM LSI レジスタ | [doc/spec_opn.md](doc/spec_opn.md) |
 | ドメイン図・クラス図 | [doc/domain/README.md](doc/domain/README.md) |
@@ -84,14 +85,16 @@ build.md / build_ja.md  # ビルド・書き込み・CMake 構成（人向け）
 ## レイヤと依存制約
 
 ```
-app → midi, synth, platform, drivers/usb
+app → midi, synth, platform, drivers/usb, smf（BUILD_SD_CARD=ON時）
 synth → midi（純粋なイベント型・Controller Action のみ）, drivers/fm, drivers/midi_panel（インターフェース経由）
-platform → drivers, extern, pico-sdk
+platform → drivers, extern, pico-sdk, smf（BUILD_SD_CARD=ON時）
 drivers → extern, pico-sdk（platform には依存しない）
+smf → なし
 ```
 
 - `app/`: ハード直接操作禁止。`Platform::*` と `synth` API のみ。例外: `MidiControlType::Debug*`（TL Trim トグル等のデバッグ用 SysEx コマンド）に限り `drivers/fm` の static API を直接呼ぶ
 - `midi/`: pico-sdk・FreeRTOS・ドライバに依存しない。Single Parse Rule（Core0 のみパース）
+- `smf/`: pico-sdk・FreeRTOS・ドライバに依存しない（`midi/`と同じ制約）。SMFファイルフォーマット（チャンク・VLQ・ランニングステータス・メタイベント）の解釈のみ行い、実I/O（SDカードアクセス）は `platform/` 側の実装（`SmfSdByteSource`）に委ねる。詳細は [doc/design_smf_player.md](doc/design_smf_player.md) 参照
 - `synth/` から `midi/` への依存は純粋な MIDI イベント型・Controller Action 定義に限る。`midi/` から `synth/` への逆依存は禁止
 - `synth/`: FM アクセスは `drivers/fm` 経由。ハードウェア操作は行わないが、実行時ポリシー定数（`config.h`）とログマクロ（`debugger.h`）に限り `app/` を include してよい。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
 - `platform/`: ピン割り当て・PIO 所有・初期化順を集約。GPIO は上位でハードコードしない。例外: `drivers/storage/hw_config.c` は no-OS-FatFS が要求する静的コールバック構造体のため SPI/CS ピン番号を直書きする

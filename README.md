@@ -18,10 +18,13 @@ A USB MIDI synthesizer using YAMAHA OPN-series FM sound chips.
   - [MIDI implementation chart](./doc/midi_implementation_chart.md)
   - **16 channels**, multi-timbral, per-channel ON/OFF
   - **Up to 24 simultaneous voices**
+- **SD card playback**
+  - Play Standard MIDI Files directly from an SD card, no USB MIDI host required
+  - Supports Format 0 / Format 1 (multiple tracks)
 - **System controller**
   - **Raspberry Pi Pico** (RP2040 / RP2350A)
   - High-speed FM bus via Programmable I/O (PIO)
-  - Multicore with FreeRTOS
+  - Multicore (SMP) with FreeRTOS
 - **Audio**
   - LINE OUT
   - LINE IN (for ADPCM, with anti-aliasing filter)

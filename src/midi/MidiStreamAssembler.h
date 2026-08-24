@@ -31,7 +31,7 @@ public:
 
 /**
  * @brief USB MIDI から受信したバイト列を組み立て、イベント/SysEx を確定させる
- * @details runningStatus 管理・SysEx バッファリング・暗黙終了を扱う状態機械。
+ * @details runningStatus 管理・SysEx バッファリング・暗黙終了を扱うステートマシン。
  *          pico-sdk / FreeRTOS に依存しない（AGENTS.md の midi/ レイヤ制約）。
  */
 class MidiStreamAssembler {

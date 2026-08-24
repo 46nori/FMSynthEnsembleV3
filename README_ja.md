@@ -18,7 +18,9 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
   - [MIDIインプリメンテーションチャート](./doc/midi_implementation_chart.md)
   - **16 チャンネル** マルチティンバー、チャンネルごとのON/OFF
   - **最大24音同時発音**
-
+- **SDカード再生**
+  - SMF（Standard MIDI File）をSDカードから直接再生。USB MIDIホスト接続なしでも演奏可能
+  - Format 0 / Format 1（複数トラック）対応
 - **システムコントローラ**
   - **Raspberry Pi Pico**（RP2040 / RP2350A）
   - Programmable I/O（PIO）によるFM音源LSIへの高速バスアクセス
@@ -36,7 +38,6 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
 - [回路図](./doc/schematics/README.md)
 
 ## ギャラリー
-
 
 ### モジュール
 

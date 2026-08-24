@@ -35,6 +35,10 @@
 #include "csm_frame_task.h"
 #endif
 
+#if BUILD_SD_CARD
+#include "smf_player_task.h"
+#endif
+
 int main()
 {
     // Platform全体の初期化
@@ -133,6 +137,16 @@ int main()
                                  TASK_PRIORITY_USB,
                                  AFFINITY_CORE0,
                                  nullptr) == pdPASS) && ok;
+
+#if BUILD_SD_CARD
+    ok = (xTaskCreateAffinitySet(SmfPlayerTask,
+                                 "SmfPlayer",
+                                 TASK_STACK_SMF_PLAYER,
+                                 nullptr,
+                                 TASK_PRIORITY_SMF_PLAYER,
+                                 AFFINITY_CORE0,
+                                 nullptr) == pdPASS) && ok;
+#endif
 
     ok = (xTaskCreateAffinitySet(DebuggerTask,
                                  "Debug",

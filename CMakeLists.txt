@@ -32,7 +32,7 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 # ====================================================================================
 option(USB_MIDI_IRQ_DRIVEN  "Enable TinyUSB event-driven wait mode for USB MIDI" ON)
 option(BUILD_MIDI_PANEL     "Enable MIDI panel controller"                       ON)
-option(BUILD_SD_CARD        "Enable SD card stack"                               OFF)
+option(BUILD_SD_CARD        "Enable SD card stack"                               ON)
 option(ENABLE_MIDI_TIMING_STATS "Enable detailed MIDI timing instrumentation"    OFF)
 # ====================================================================================
 
@@ -101,6 +101,7 @@ else()
 endif()
 
 # Device drivers
+add_subdirectory(src/smf)
 add_subdirectory(src/drivers)
 
 # Platform (RP2350/Pico specific)
@@ -126,6 +127,9 @@ add_executable(FMSynthEnsembleV3
     src/app/usb_midi_task.cpp
     src/app/midi_panel_task.cpp
 )
+if(BUILD_SD_CARD)
+    target_sources(FMSynthEnsembleV3 PRIVATE src/app/smf_player_task.cpp)
+endif()
 
 pico_set_program_name(FMSynthEnsembleV3 "FMSynthEnsembleV3")
 pico_set_program_version(FMSynthEnsembleV3 "0.1")

@@ -4,6 +4,12 @@ add_library(platform STATIC
     volume_controller.cpp
     freertos_hooks.cpp
 )
+if(BUILD_SD_CARD)
+    target_sources(platform PRIVATE
+        smf_sd_byte_source.cpp
+        smf_directory.cpp
+    )
+endif()
 
 target_include_directories(platform PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_include_directories(platform PRIVATE ${CMAKE_SOURCE_DIR}/src/drivers/usb)
@@ -25,7 +31,7 @@ target_link_libraries(platform PUBLIC
 )
 if(BUILD_SD_CARD)
     target_compile_definitions(platform PUBLIC BUILD_SD_CARD=1)
-    target_link_libraries(platform PUBLIC fatfs)
+    target_link_libraries(platform PUBLIC fatfs smf)
 else()
     target_compile_definitions(platform PUBLIC BUILD_SD_CARD=0)
 endif()
