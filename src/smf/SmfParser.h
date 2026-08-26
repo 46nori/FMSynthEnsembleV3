@@ -32,14 +32,22 @@ public:
      * @brief MThdと各MTrkのチャンク境界だけを読む
      * @details トラック本体は読まない、シーク不要の1回の順次スキャン。
      *          トラック用FILは1つも開かない段階なので、失敗時の後始末は不要。
+     *          最後の正常なチャンクの直後に、チャンクヘッダが不完全（8バイトに満たない）、
+     *          または宣言されたチャンク長が残りバイト数を超えるなど、チャンクとして辻褄が
+     *          合わないデータが続く場合、1つ以上のトラックが見つかっていればそこでスキャンを
+     *          打ち切り、末尾の異常データを無視して正常終了として扱う
+     *          （out_trailing_garbageにtrueを書き込む）。トラックが1つも見つからないまま
+     *          異常に到達した場合はFormatErrorを返す。
      * @param[in]  header_source ファイル先頭から読む一時的なSmfByteSource
      * @param[out] out_tracks 各トラックの開始/終端オフセットを書き込む配列
      * @param[in]  max_tracks out_tracksの要素数（kMaxSmfTracks等、呼び出し側が決める上限）
      * @param[out] out_track_count 見つかったトラック数
+     * @param[out] out_trailing_garbage 末尾の異常データを無視した場合にtrueを書き込む（nullptr可）
      * @return スキャン結果
      */
     SmfScanResult ScanChunks(SmfByteSource& header_source, SmfTrackInfo* out_tracks,
-                              uint8_t max_tracks, uint8_t& out_track_count);
+                              uint8_t max_tracks, uint8_t& out_track_count,
+                              bool* out_trailing_garbage = nullptr);
 
     /**
      * @brief ScanChunks()の結果をもとに再生を開始する

@@ -325,8 +325,9 @@ private:
 
         SmfTrackInfo track_infos[kMaxSmfTracks];
         uint8_t track_count = 0;
-        const SmfScanResult scan_result =
-            parser_.ScanChunks(header_source, track_infos, kMaxSmfTracks, track_count);
+        bool trailing_garbage = false;
+        const SmfScanResult scan_result = parser_.ScanChunks(
+            header_source, track_infos, kMaxSmfTracks, track_count, &trailing_garbage);
         header_source.Close();
 
         if (scan_result == SmfScanResult::TooManyTracks) {
@@ -336,6 +337,9 @@ private:
         if (scan_result != SmfScanResult::Ok) {
             std::printf("smf: format error in %s\n", path);
             return;
+        }
+        if (trailing_garbage) {
+            std::printf("smf: warning: ignored malformed trailing data in %s\n", path);
         }
 
         SmfByteSource* sources[kMaxSmfTracks];
@@ -362,12 +366,17 @@ private:
 
         SmfTrackInfo track_infos[kMaxSmfTracks];
         uint8_t track_count = 0;
-        const SmfScanResult scan_result =
-            parser_.ScanChunks(header_source, track_infos, kMaxSmfTracks, track_count);
+        bool trailing_garbage = false;
+        const SmfScanResult scan_result = parser_.ScanChunks(
+            header_source, track_infos, kMaxSmfTracks, track_count, &trailing_garbage);
 
         if (scan_result != SmfScanResult::Ok) {
             std::printf("smf: format error in builtin fixture %s\n", fixture.name);
             return;
+        }
+        if (trailing_garbage) {
+            std::printf("smf: warning: ignored malformed trailing data in builtin fixture %s\n",
+                        fixture.name);
         }
 
         SmfByteSource* sources[kMaxSmfTracks];

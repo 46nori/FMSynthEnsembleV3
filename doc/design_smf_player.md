@@ -262,7 +262,8 @@ public:
     // MThdと各MTrkのチャンク境界だけを読む（トラック本体は読まない、シーク不要の1回の順次スキャン）。
     // トラック用FILは1つも開かない段階なので、失敗時の後始末は不要
     SmfScanResult ScanChunks(SmfByteSource& header_source, SmfTrackInfo* out_tracks,
-                              uint8_t max_tracks, uint8_t& out_track_count);
+                              uint8_t max_tracks, uint8_t& out_track_count,
+                              bool* out_trailing_garbage = nullptr);
     // ScanChunks の結果をもとに、各トラック開始位置へ位置決め済みのSmfByteSourceを渡して再生を開始する
     bool Begin(SmfByteSource** track_sources, uint8_t track_count);
     bool NextEvent(SmfEvent& out);      // 次のイベントを1件取得（トラックマージ込み、シークしない）
@@ -275,6 +276,7 @@ public:
 `NextEvent()` はpull型のAPIとする。SmfPlayerTask側はdelta-timeを実時間に変換して待つ必要があり、呼ぶたびに1件返す形が自然に合う。コールバック/Sink方式（`MidiStreamAssembler`と同じ形）にすると、待機のタイミングをコールバック側から呼び出し側へ伝え返す必要が生じ、かえって複雑になる。
 
 - `MThd`: フォーマット種別（0/1）、トラック数、division（ticks per quarter note）を読む。SMPTE形式のdivision（top bit=1）は対象外
+- 1つ以上のトラックを読み終えた後、チャンクヘッダが不完全（8バイトに満たない）、または宣言されたチャンク長が残りバイト数を超えるなど、チャンクとして辻褄が合わないデータが続く場合は、その時点でスキャンを打ち切り、末尾の異常データ（末尾に紛れ込んだ改行コード、チャンクヘッダを失った断片データなど）を無視して正常終了として扱う。`out_trailing_garbage`にtrueを書き込み、呼び出し側（`SmfPlayerTask`）が警告を表示する。1つもトラックが見つからないまま異常に到達した場合は演奏できる中身がないため`FormatError`のまま
 - `MTrk`: delta-time（VLQ）→ イベント本体の繰り返し。イベント本体がステータスバイトを省略した場合はランニングステータスを引き継ぐ（既存 `MidiParser` の前提と同じ）
 - メタイベント（`FF <type> <len> <data>`）はSMFフォーマット固有の情報でありMIDIチャンネルメッセージではないため、`ChannelMessage`/`SysEx`としては返さずパーサー内部で解釈する
   - Set Tempo（`FF 51 03`）: `TempoChange` として返す。以降のdelta-time→µs変換にこのtempoを使うのはSmfPlayerTask側の責務

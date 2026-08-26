@@ -58,8 +58,12 @@ bool SmfParser::ReadVlq(SmfByteSource& source, uint32_t& out_value) {
 }
 
 SmfScanResult SmfParser::ScanChunks(SmfByteSource& header_source, SmfTrackInfo* out_tracks,
-                                     uint8_t max_tracks, uint8_t& out_track_count) {
+                                     uint8_t max_tracks, uint8_t& out_track_count,
+                                     bool* out_trailing_garbage) {
     out_track_count = 0;
+    if (out_trailing_garbage != nullptr) {
+        *out_trailing_garbage = false;
+    }
     uint32_t pos = 0;
 
     uint8_t magic[4];
@@ -108,33 +112,49 @@ SmfScanResult SmfParser::ScanChunks(SmfByteSource& header_source, SmfTrackInfo* 
                 break;
             }
         }
-        if (got == 0) {
-            break;  // ファイル終端。正常終了
-        }
         if (got != 4) {
-            return SmfScanResult::FormatError;  // チャンクヘッダが途中で切れている
+            // ファイル終端(got==0)、または末尾に不完全なチャンクヘッダ(1-3バイト)が残るのみ。
+            // 正常終了扱いとし、後者の場合のみ末尾異常ありとして報告する。
+            if (got != 0 && out_trailing_garbage != nullptr) {
+                *out_trailing_garbage = true;
+            }
+            break;
         }
         pos += 4;
 
         uint32_t chunk_len = 0;
         if (!ReadBigEndianU32(header_source, chunk_len)) {
-            return SmfScanResult::FormatError;
+            if (out_track_count == 0) {
+                return SmfScanResult::FormatError;
+            }
+            if (out_trailing_garbage != nullptr) {
+                *out_trailing_garbage = true;
+            }
+            break;
         }
         pos += 4;
 
         const bool is_mtrk = (chunk_id[0] == 'M' && chunk_id[1] == 'T' && chunk_id[2] == 'r' &&
                                chunk_id[3] == 'k');
-        if (is_mtrk) {
-            if (out_track_count >= max_tracks) {
-                return SmfScanResult::TooManyTracks;
-            }
-            out_tracks[out_track_count].start_offset = pos;
-            out_tracks[out_track_count].end_offset = pos + chunk_len;
-            ++out_track_count;
+        if (is_mtrk && out_track_count >= max_tracks) {
+            return SmfScanResult::TooManyTracks;
         }
 
         if (!SkipBytes(header_source, chunk_len)) {
-            return SmfScanResult::FormatError;
+            // 宣言されたチャンク長が残りバイト数を超えている。チャンクとして辻褄が合わない末尾データ。
+            if (out_track_count == 0) {
+                return SmfScanResult::FormatError;
+            }
+            if (out_trailing_garbage != nullptr) {
+                *out_trailing_garbage = true;
+            }
+            break;
+        }
+
+        if (is_mtrk) {
+            out_tracks[out_track_count].start_offset = pos;
+            out_tracks[out_track_count].end_offset = pos + chunk_len;
+            ++out_track_count;
         }
         pos += chunk_len;
     }
