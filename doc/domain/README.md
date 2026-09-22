@@ -10,7 +10,7 @@ flowchart TD
     midi["midi<br>MIDI parse / Routing"]
     synth["synth<br>Channels / Voices / Sound abstraction"]
     platform["platform<br>Board integration / Resource ownership"]
-    drivers["drivers<br>fm / midi_panel / usb / storage"]
+    drivers["drivers<br>fm / midi_panel / display / usb / storage"]
     ext["extern / pico-sdk / FreeRTOS"]
 
     app --> midi
@@ -29,7 +29,7 @@ flowchart TD
 
 依存制約（[AGENTS.md](../../AGENTS.md) と同一）:
 
-- `app` → `midi`, `synth`, `platform`, `drivers/usb`
+- `app` → `midi`, `synth`, `platform`, `drivers/usb`。例外: `app/ui` は `extern/LcdMenu` を直接扱う（[design_display_menu.md](../design_display_menu.md#6-レイヤ配置)）
 - `synth` → `drivers/fm`, `drivers/midi_panel`（インターフェース経由）。例外: `CsmVoice` の FM `/IRQ` ISR 登録・`FrameTick` 通知のみ `platform`/`app` に直接依存する（[domain_synth.md](domain_synth.md)、[design_csm_frame.md](../design_csm_frame.md) 7章）
 - `platform` → `drivers`, `extern`, pico-sdk
 - `drivers` → `extern`, pico-sdk（`platform` には依存しない）
@@ -39,8 +39,8 @@ flowchart TD
 
 | ドキュメント | 内容 |
 |---|---|
-| [domain_app.md](domain_app.md) | タスク・IPC・デバッガ・設定 |
+| [domain_app.md](domain_app.md) | タスク・IPC・デバッガ・設定・LCD メニュー |
 | [domain_midi.md](domain_midi.md) | MidiMessage / MidiParser / MidiController / MidiSysEx |
 | [domain_synth.md](domain_synth.md) | MidiProcessor / チャンネル / Voice / アロケータ |
-| [domain_platform.md](domain_platform.md) | 初期化 / VolumeController / ISR |
-| [domain_drivers.md](domain_drivers.md) | OpnBase 系 / opn_piolib / MIDI パネル / USB |
+| [domain_platform.md](domain_platform.md) | 初期化 / VolumeController / ISR / ディスプレイ |
+| [domain_drivers.md](domain_drivers.md) | OpnBase 系 / opn_piolib / MIDI パネル / ディスプレイ / USB |

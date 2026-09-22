@@ -62,7 +62,7 @@ PanelSubsystem（MIDI Panel）制御のソフトウェア設計。ハードウ�
 |-----------|--------|
 | マトリックス・CH 番号 | 列/行 → CH 変換（[5.3 節](#53-opnmidipaneldriver)） |
 | PA/PB・PB4-7 | Port 読書き（5.3 節） |
-| PB bit7 | LED モード（[5.3.1 節](#531-led-モード)・[11 章](#11-led-表示モード)） |
+| PB bit7 | ジョイスティックの PUSH（Center）。LED モードは PB からは読まず、`IMidiPanelDriver::SetLedMode()`によるソフトウェア制御（[11 章](#11-led-表示モード)） |
 | スキャン・押下論理化 | `OpnMidiPanelDriver::Tick()`（5.3 節） |
 | LED 出力フォーマット | PA 組み立て（5.3 節） |
 | モーメンタリスイッチ | トグル FSM（[3.3 節](#33-ソフトウェア機能要件)） |
@@ -74,9 +74,9 @@ PanelSubsystem（MIDI Panel）制御のソフトウェア設計。ハードウ�
 
 ### 3.1 原則
 
-1. **インターフェースは Panel の機能単位** — `IMidiPanelDriver` は LED 点灯・スイッチ状態取得程度の抽象度。PA/PB・トグルはドライバインスタンス内部
-2. **厚いドライバ、薄い synth** — `OpnMidiPanelDriver` がマトリックス・トグル・PB bit7 LED モードを担当。`MidiPanelController` は API 仲介のみ
-3. **LED モードはハード UI** — PB bit7（SW1 / PB4-7）。`IMidiPanelDriver` にモード設定 API は持たない
+1. **インターフェースは Panel の機能単位** — `IMidiPanelDriver` は LED 点灯・スイッチ状態取得・ジョイスティック状態取得程度の抽象度。PA/PB・トグルはドライバインスタンス内部
+2. **厚いドライバ、薄い synth** — `OpnMidiPanelDriver` がマトリックス・トグル・ジョイスティック・LED モードを担当。`MidiPanelController` は API 仲介のみ
+3. **LED モードはソフトウェア制御** — `IMidiPanelDriver::SetLedMode()`/`GetLedMode()`で明示的に設定する。PB bit7 はジョイスティックの PUSH に割り当てられており、モード切替に使える入力が無いため（[11 章](#11-led-表示モード)）
 4. **依存方向** — `synth` は `OpnBase` / `drivers/fm` に依存しない
 
 ```mermaid
@@ -106,10 +106,12 @@ flowchart LR
 
 #### LED 表示モード
 
-| モード | 動作 | PB bit7（[spec_midi_panel.md](spec_midi_panel.md#43-sw1-割り当てpb4-7)） |
+| モード | 動作 | 設定方法 |
 |--------|------|------|
-| **A** トグル反映 | ソフトトグル ON → LED 点灯 | High |
-| **B** MIDI 反映 | `gLastNoteOnBitmap` に LED 追従 | Low |
+| **A** トグル反映 | ソフトトグル ON → LED 点灯 | `SetLedMode(false)` |
+| **B** MIDI 反映（既定） | `gLastNoteOnBitmap` に LED 追従 | `SetLedMode(true)` |
+
+`IMidiPanelDriver::SetLedMode(bool note_reflect)` で切替える。PB bit7 はジョイスティックの PUSH に割り当てられており、モード切替用のハード入力は無いため、ソフトウェアのみの制御になる。呼び出し元は [design_display_menu.md](design_display_menu.md#54-led表示モード切替settings--led-mode) の `Settings > LED Mode` メニュー項目。
 
 モード B のルール: CH n ↔ MIDI ch n（1:1）。CH1–9 / CH11–16 は有効な Note On があれば点灯し、vel=0 は消灯扱い。CH10（リズム）のみ例外で、vel>0 のヒットごとに短いパルス点灯する（vel=0 は消灯しない。詳細は [design_rhythm.md](design_rhythm.md#10-未実装既知の限界)）。詳細は [11 章](#11-led-表示モード)。
 
@@ -132,8 +134,10 @@ flowchart LR
 ```mermaid
 flowchart TD
     task["app/MidiPanelTask<br>周期 Tick → gPanelChannelBitmap"]
-    ctrl["synth/MidiPanelController<br>SetLedBitmap / Tick / GetSwitchBitmap の仲介"]
+    info["app/InfoScreenTask<br>ジョイスティック取得 / LED モード設定"]
+    ctrl["synth/MidiPanelController<br>SetLedBitmap / Tick / GetSwitchBitmap / ジョイスティック / LED モードの仲介"]
     task --> ctrl
+    info --> ctrl
     ctrl -- IMidiPanelDriver --> opn["OpnMidiPanelDriver<br>マトリックス / トグル / LED モード / PA・PB"]
     ctrl -- IMidiPanelDriver --> null["NullMidiPanelDriver<br>no-op"]
     opn --> fm["drivers/fm/OpnBase"]
@@ -155,6 +159,8 @@ flowchart TD
 ### 5.2 `IMidiPanelDriver`
 
 ```cpp
+enum class JoystickDirection : uint8_t { None, Up, Down, Left, Right };
+
 class IMidiPanelDriver {
 public:
     virtual ~IMidiPanelDriver() = default;
@@ -165,10 +171,14 @@ public:
     virtual void Tick() = 0;                              // 1 回 = 1 列スロット
     virtual bool IsMidiReset() const = 0;                 // CH10 長押し（レベル）
     virtual void FlashAllLeds() = 0;                      // Reset 通知の全 LED 点滅トリガー
+    virtual JoystickDirection GetJoystickDirection() const = 0;  // デバウンス済み
+    virtual bool IsJoystickPushed() const = 0;                   // デバウンス済み
+    virtual void SetLedMode(bool note_reflect) = 0;              // true=モードB(既定)
+    virtual bool GetLedMode() const = 0;
 };
 ```
 
-インターフェースに含めないもの: `OpnBase`、デバウンスパラメータ、PB4-7 生データ。
+インターフェースに含めないもの: `OpnBase`、デバウンスパラメータ、PB4-7 生データ（ジョイスティックはデコード済みの`JoystickDirection`/PUSHのみを公開する）。
 
 ### 5.3 `OpnMidiPanelDriver`
 
@@ -179,7 +189,8 @@ public:
 | PortA/B 初期化 | ハード仕様（システム接続） |
 | マトリックススキャン・極性反転 | ハード仕様（スキャン手順） |
 | ソフトトグル・長押し | [3.3 節](#33-ソフトウェア機能要件) |
-| LED 出力・モード切替（PB bit7） | [5.3.1 節](#531-led-モード)・[11 章](#11-led-表示モード) |
+| LED 出力・モード切替（ソフトウェア API） | [5.3.1 節](#531-led-モード)・[11 章](#11-led-表示モード) |
+| ジョイスティックのデコード・デバウンス | [5.3.1a 節](#531a-ジョイスティック) |
 | CH10 長押し → MIDI Reset | 3.3 節 |
 | Reset 通知点滅（`FlashAllLeds`） | [11.5 節](#115-reset-通知点滅) |
 | PortA 組み立て（上位=行、下位=列） | ハード仕様（PA/PB 信号定義） |
@@ -193,15 +204,30 @@ public:
 | `long_press_bitmap_` | 長押し中 CH（bit i = CH(i+1)） |
 | `channels_[16]` | デバウンス・トグル・長押し per CH |
 | `reset_flash_`（`ResetFlashState`） | Reset 通知点滅の進行状態（[11.5 節](#115-reset-通知点滅)） |
+| `joystick_`（`JoystickInputState`） | ジョイスティック方向・PUSHのデバウンス状態（[5.3.1a 節](#531a-ジョイスティック)） |
+| `led_mode_note_` | 現在のLEDモード（`true`=モードB、既定） |
 
 #### 5.3.1 LED モード
 
-`OpnMidiPanelDriver::Tick()` では列選択後の `read_port_b()` で PB bit7 を読み、同一スロット内で LED ソースを選択する。
+`led_mode_note_`メンバで判定する。`SetLedMode()`で設定するソフトウェア状態で、PB bit7（ジョイスティックの PUSH）は LED モードの判定に使わない。
 
 ```cpp
-const bool led_mode_midi = (pb_raw & 0x80u) == 0u;
-const uint16_t effective_led = led_mode_midi ? host_led_bitmap_ : switch_bitmap_;
+const uint16_t effective_led = led_mode_note_ ? host_led_bitmap_ : switch_bitmap_;
 ```
+
+#### 5.3.1a ジョイスティック
+
+`Tick()`が読む`pb_raw`の上位4bitを、列スキャンとは独立に毎回デコードする（[spec_midi_panel.md 7.5節](spec_midi_panel.md#75-既知の制約)のとおりジョイスティックはマトリックススキャンと無関係に常時有効）。
+
+```cpp
+const uint8_t decoded = static_cast<uint8_t>((pb_raw >> 4) ^ 0x0Fu);
+// bit2=DOWN(/B直結)、bit3=PUSH(/Center直結)。bit0/bit1はUP・LEFT・RIGHTのAND合成で、
+// 両方立つとLEFT（spec_midi_panel.md 7.4節）。
+```
+
+UP/DOWN/LEFT/RIGHT/PUSHはそれぞれ独立に`config_.joystick_debounce_ms`（既定60ms）でデバウンスする。マトリックス読取り用の`debounce_ms`（20ms）とは別の値を使う。方向は単一レバー機構上排他だが、PUSHは方向と独立な接点のため別個に扱う（同時押しの組み合わせはPUSH+方向のみ想定）。
+
+**PUSH中の方向の扱い**: bit6/bit7 は AND ゲートを介さない直結・高インピーダンスでノイズに弱く（[spec_midi_panel.md 7.5節](spec_midi_panel.md#75-既知の制約)）、PUSH操作中に方向ビット（bit4-6）へ電気的な回り込みが生じて幽霊DOWN等が安定値として確定すると、カーソルが意図せず動く。そのため、**PUSHの生ビットが立っている間は方向の生値サンプリング自体を止め、直前の安定値を保持する**（`UpdateJoystickInput()`）。PUSH中の方向変化は仕様上不要なため、単純に無視してよい。
 
 #### 5.3.2 `Tick()`（1 列スロット）
 
@@ -211,7 +237,7 @@ const uint16_t effective_led = led_mode_midi ? host_led_bitmap_ : switch_bitmap_
 flowchart TD
     A["列切替（PortA = kColumnPortA[col]）"] --> B["settle_us 待ち"]
     B --> C["read PortB"]
-    C --> D["スイッチ（下位 4bit）・PB bit7（LED モード）"]
+    C --> D["スイッチ（下位 4bit）・ジョイスティック（上位 4bit、5.3.1a 節）"]
     D --> E["トグル・長押し FSM 更新"]
     E --> F["effective_led 選択（11 章）"]
     F --> G{"led_row != 0 ?"}
@@ -231,7 +257,7 @@ flowchart TD
 | 2 ms | 8 ms | 125 Hz | 約 1% |
 | **4 ms** | **16 ms** | **62.5 Hz** | **約 0.5%** |
 
-**設定値（現行コード）**: `MIDI_PANEL_PERIOD_MS = 4`、`settle_us = 100`、`debounce_ms = 20`、`toggle_hold_ms = 30`、`long_press_ms = 2000`。これらのパラメータは実機での操作感に合わせて調整する。`settle_us` 待ちは FM バスロック外で行う。衝突時の追加待ちは数十 µs 程度。
+**設定値（現行コード）**: `MIDI_PANEL_PERIOD_MS = 4`、`settle_us = 100`、`debounce_ms = 20`、`toggle_hold_ms = 30`、`long_press_ms = 2000`、`joystick_debounce_ms = 60`。これらのパラメータは実機での操作感に合わせて調整する。`settle_us` 待ちは FM バスロック外で行う。衝突時の追加待ちは数十 µs 程度。
 
 `MidiPanelController::Tick()` は 1 周期あたり `driver->Tick()` を **1 回**呼ぶ。
 
@@ -282,7 +308,7 @@ std::unique_ptr<IMidiPanelDriver> CreateMidiPanelDriver(OpnBase* opn);
 
 | 担当 | 非担当 |
 |------|--------|
-| `SetLedBitmap` / `Tick` / `GetSwitchBitmap` の委譲 | マトリックス・トグル・PB4-7・PortA 変換 |
+| `SetLedBitmap` / `Tick` / `GetSwitchBitmap` / ジョイスティック取得 / LED モード設定の委譲 | マトリックス・トグル・PB4-7 のデコード・PortA 変換 |
 
 ### 6.2 公開 API
 
@@ -295,6 +321,10 @@ public:
     uint16_t GetChannelEnableBitmap() const;
     bool IsMidiReset() const;
     void FlashAllLeds();  // Reset 通知点滅トリガー（11.5 節）
+    JoystickDirection GetJoystickDirection() const;  // 未接続時は None
+    bool IsJoystickPushed() const;                   // 未接続時は false
+    void SetLedMode(bool note_reflect);              // 未接続時は no-op
+    bool GetLedMode() const;                         // 未接続時は true
 };
 ```
 
@@ -349,8 +379,8 @@ static MidiPanelController panelController(std::move(driver));
 
 | 項目 | 方針 |
 |------|------|
-| 呼び出し元 | `MidiPanelTask`（Core0）のみ |
-| `IMidiPanelDriver` | 単一タスク前提（スレッドセーフ不要） |
+| 呼び出し元 | `Tick` / `GetChannelEnableBitmap` / `IsMidiReset` / `FlashAllLeds`: `MidiPanelTask`（Core0）のみ。`GetJoystickDirection` / `IsJoystickPushed` / `SetLedMode` / `IsConnected`: `InfoScreenTask`（Core0） |
+| `IMidiPanelDriver` | 2 タスクから呼ばれるが排他制御はしない。タスク間で共有するのは`joystick_`の安定値・`led_mode_note_`の単一バイト値で、片方のタスクが書き、もう片方が読むだけ（読み書きは Cortex-M33 で単一命令） |
 | FM バス | Port 操作はロック下。`settle_us` はロック外 |
 | `gPanelChannelBitmap` | Panel タスクのみが書き込み |
 
@@ -383,7 +413,8 @@ flowchart LR
 |--------|------|
 | `midi_ch_active` | app → `SetLedBitmap` |
 | トグル・デバウンス・長押し | `OpnMidiPanelDriver` |
-| LED モード | `OpnMidiPanelDriver`（PB bit7、[11 章](#11-led-表示モード)） |
+| LED モード | `OpnMidiPanelDriver`（`led_mode_note_`、[11 章](#11-led-表示モード)） |
+| ジョイスティック方向・PUSH | `OpnMidiPanelDriver`（`joystick_`、[5.3.1a 節](#531a-ジョイスティック)） |
 | Reset 通知点滅の進行状態 | `OpnMidiPanelDriver`（`reset_flash_`、[11.5 節](#115-reset-通知点滅)） |
 
 ---
@@ -392,55 +423,40 @@ flowchart LR
 
 | レベル | 内容 |
 |--------|------|
-| ユニット | 列パターン（`kColumnPortA`）、PortA 組み立て、デバウンス、トグル FSM、長押し Reset、LED モード A/B 切替（`tests/unit/drivers/midi_panel/test_opn_midi_panel_driver.cpp`。`IIoPort` フェイクと pico-sdk 時刻 API のフェイクで実機非依存に検証） |
+| ユニット | 列パターン（`kColumnPortA`）、PortA 組み立て、デバウンス、トグル FSM、長押し Reset、LED モード A/B 切替、ジョイスティックのデコード・デバウンス（`tests/unit/drivers/midi_panel/test_opn_midi_panel_driver.cpp`。`IIoPort` フェイクと pico-sdk 時刻 API のフェイクで実機非依存に検証） |
 | 結合 | `MidiPanelController` の呼び順 |
-| 実機 | 全 CH トグル、長押し Reset、PB bit7 による LED モード A/B |
+| 実機 | 全 CH トグル、長押し Reset、`Settings > LED Mode` による LED モード A/B 切替、ジョイスティック方向・PUSH |
 
 ---
 
 ## 11. LED 表示モード
 
-ハード入力・極性・読取りタイミング・LED ソース選択の詳細。概要は [3.3 節](#33-ソフトウェア機能要件)、ドライバ実装は [5.3.1 節](#531-led-モード)。回路定義は [spec_midi_panel.md](spec_midi_panel.md#43-sw1-割り当てpb4-7)。
+LED ソース選択の詳細。概要は [3.3 節](#33-ソフトウェア機能要件)、ドライバ実装は [5.3.1 節](#531-led-モード)。
 
-### 11.1 ハード入力（PB bit7）
+モードの切替は、`IMidiPanelDriver::SetLedMode(bool note_reflect)` によるソフトウェアのみで行う。PB bit7 はジョイスティックの PUSH に割り当てられており、モード切替に使えるハード入力が無いため（[spec_midi_panel.md 7 章](spec_midi_panel.md#7-ジョイスティック)）。呼び出し元は [design_display_menu.md](design_display_menu.md#54-led表示モード切替settings--led-mode) の `Settings > LED Mode` メニュー項目（既定はモード B）。
 
-| 項目 | 内容 |
-|------|------|
-| 信号 | PortB bit7（SW1、PB4-7 のモード選択ライン） |
-| 極性 | Active Low（スイッチ ON = Low、OFF = High） |
-| 読取り | 列選択・`settle_us` 待ち後の `read_port_b()` と同一タイミング |
-| 更新周期 | スキャンスロットごと（列 0〜3 の各 Tick） |
+### 11.1 モード定義
 
-PB4-7 の bit4〜6 は未割当。
-
-### 11.2 モード定義
-
-| PB bit7 | モード | 名称 | LED ソース | 表示内容 |
+| `led_mode_note_` | モード | 名称 | LED ソース | 表示内容 |
 |---------|--------|------|------------|----------|
-| **High** | A | トグル反映 | `switch_bitmap_` | ソフトトグル ON の CH を点灯 |
-| **Low** | B | MIDI 反映 | `host_led_bitmap_` | `SetLedBitmap` で渡された発音状態を反映 |
+| `false` | A | トグル反映 | `switch_bitmap_` | ソフトトグル ON の CH を点灯 |
+| `true`（既定） | B | MIDI 反映 | `host_led_bitmap_` | `SetLedBitmap` で渡された発音状態を反映 |
 
 モード B の CH 対応・vel=0 の扱いは [3.3 節](#33-ソフトウェア機能要件)に従う。`MidiPanelTask` が `gLastNoteOnBitmap` を `SetLedBitmap` へ渡す。
 
-### 11.3 ソフトウェア判定
-
-`OpnMidiPanelDriver::Tick()` では、スイッチ下位 4bit と PB bit7 を同じ `pb_raw` から解釈する。
+### 11.2 ソフトウェア判定
 
 ```cpp
-const uint8_t pb_raw = opn_.read_port_b();
-const uint8_t pressed_rows = static_cast<uint8_t>((~pb_raw) & 0x0Fu);
-const bool led_mode_midi = (pb_raw & 0x80u) == 0u;
-const uint16_t effective_led = led_mode_midi ? host_led_bitmap_ : switch_bitmap_;
+const uint16_t effective_led = led_mode_note_ ? host_led_bitmap_ : switch_bitmap_;
 ```
 
 | 要件 | 内容 |
 |------|------|
-| 判定マスク | `0x80`（PB bit7） |
-| キャッシュ | モード状態をメンバに保持しない（毎スロット再判定） |
-| 再読取り | LED 用 `write_port_a` の後に PB を読み直さない |
+| 状態保持 | `led_mode_note_`メンバに保持する（`SetLedMode()`で書き換わるまで維持） |
+| 既定値 | `true`（モード B） |
 | `led_row` 組み立て | `effective_led` の当列 4bit を PA 上位ニブルへ反映（[5.3.4 節](#534-porta-の設定)） |
 
-### 11.4 モード別動作要件
+### 11.3 モード別動作要件
 
 **モード A（トグル反映）**
 
@@ -466,7 +482,7 @@ IPC 経由の遅延がある（[design_concurrency.md](design_concurrency.md#4-c
 | 実装箇所 | `OpnMidiPanelDriver`（`reset_flash_`、`ResetFlashState`） |
 | 点滅回数 | 2 回（静的定数 `kResetFlashBlinkCount`） |
 | 点滅周期 | 1 秒あたり 4 回（静的定数 `kResetFlashRateHz`。ON/OFF 各半周期 `kResetFlashHalfPeriodMs`。トリガーから 500ms で 2 回点滅が完了する） |
-| LED ソースとの関係 | PB bit7（モード A/B）の判定より **優先**する。点滅中は `effective_led` を強制的に全 ON/全 OFF にする |
+| LED ソースとの関係 | `led_mode_note_`（モード A/B）の判定より **優先**する。点滅中は `effective_led` を強制的に全 ON/全 OFF にする |
 | 終了後 | 通常の `effective_led` 選択（モード A/B）に復帰する |
 
 点滅回数・周期はすべて `OpnMidiPanelDriver.cpp` 内の名前付き定数（`kResetFlashBlinkCount` /
@@ -475,4 +491,4 @@ IPC 経由の遅延がある（[design_concurrency.md](design_concurrency.md#4-c
 **共通**
 
 - 点灯する LED がないスロットでは `PortA = 0x0F`（全 P-MOS OFF）とする（[5.3.4 節](#534-porta-の設定)）
-- PB bit7 の切替は次スロット以降の `effective_led` 選択に即反映される
+- `SetLedMode()` の切替は次スロット以降の `effective_led` 選択に即反映される

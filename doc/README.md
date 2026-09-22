@@ -24,7 +24,9 @@
 | [design_csm_frame.md](design_csm_frame.md) | CSM音声合成 フレームタスク・IRQ・IPC |
 | [design_volume_controller.md](design_volume_controller.md) | NJU72343 電子ボリューム制御 |
 | [design_midi_panel.md](design_midi_panel.md) | MIDI パネルのソフトウェア設計 |
+| [design_display_menu.md](design_display_menu.md) | LcdMenuベースのジョイスティック操作メニュー設計 |
 | [design_smf_player.md](design_smf_player.md) | SDカード上のSMFファイル再生（SmfPlayerTask）設計 |
+| [design_smf_playback.md](design_smf_playback.md) | SMF再生制御（Stop/Pause・プレイリスト・リピート・シャッフル）設計 |
 | [midi_implementation_chart.md](midi_implementation_chart.md) | MIDI 1.0 インプリメンテーションチャート |
 
 ## ハードウェア仕様
@@ -35,6 +37,7 @@
 | [spec_fm_chip.md](spec_fm_chip.md) | YM2608/YM2203/YMF288 の機能比較と最大 4 台混在時の制約 |
 | [spec_opn.md](spec_opn.md) | FM音源LSI（YM2608/YM2203/YMF288）のレジスタ仕様・操作方法 |
 | [spec_midi_panel.md](spec_midi_panel.md) | MIDI パネル（PanelSubsystem）のハードウェア仕様 |
+| [spec_display_i2c.md](spec_display_i2c.md) | I2C接続キャラクタLCDのデバイス仕様・GPIO割り当て・バス接続 |
 | [piolib_spec.md](../src/drivers/fm/opn_piolib/doc/piolib_spec.md) | RaspberryPi PicoのPIOを使用したOPN/OPNAバス制御ライブラリ仕様 |
 
 ## 回路図

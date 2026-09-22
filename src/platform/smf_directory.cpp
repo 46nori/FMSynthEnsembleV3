@@ -76,22 +76,28 @@ bool HasSmfExtension(const char* name) {
 // dir_pathは呼び出し元の g_path_stack[depth-1]（または"0:"リテラル）を指す。
 // この関数は自分のスロット g_path_stack[depth] にしか書き込まないため、
 // dir_pathが指す親スロットの内容は本呼び出しの間ずっと有効。
-void VisitDirectory(const char* dir_path, SmfFileVisitor visitor, void* context, int depth,
-                     bool* stop) {
+bool VisitDirectory(const char* dir_path, SmfFileVisitor visitor, void* context, int depth,
+                    bool* stop) {
     if (depth > kMaxDirectoryDepth) {
-        return;
+        return true;
     }
 
     DIR& dir = g_dir_stack[depth];
     if (f_opendir(&dir, dir_path) != FR_OK) {
-        return;
+        return false;
     }
 
+    bool success = true;
     FILINFO& fno = g_fno_stack[depth];
     char* child_path = g_path_stack[depth];
     for (;;) {
-        if (f_readdir(&dir, &fno) != FR_OK || fno.fname[0] == 0) {
-            break;  // エラーまたは走査終了
+        const FRESULT read_result = f_readdir(&dir, &fno);
+        if (read_result != FR_OK) {
+            success = false;
+            break;
+        }
+        if (fno.fname[0] == 0) {
+            break;  // 正常な走査終了
         }
 
         const int n = std::snprintf(child_path, kMaxPathLength, "%s/%s", dir_path, fno.fname);
@@ -104,7 +110,10 @@ void VisitDirectory(const char* dir_path, SmfFileVisitor visitor, void* context,
         }
 
         if (fno.fattrib & AM_DIR) {
-            VisitDirectory(child_path, visitor, context, depth + 1, stop);
+            if (!VisitDirectory(child_path, visitor, context, depth + 1, stop)) {
+                success = false;
+                break;
+            }
         } else if (HasSmfExtension(fno.fname)) {
             if (!visitor(context, child_path)) {
                 *stop = true;
@@ -115,7 +124,56 @@ void VisitDirectory(const char* dir_path, SmfFileVisitor visitor, void* context,
             break;
         }
     }
-    f_closedir(&dir);
+    if (f_closedir(&dir) != FR_OK) {
+        success = false;
+    }
+    return success;
+}
+
+// Playlist用の作業表。名前昇順に並べたファイル名を保持する
+constexpr const char* kPlaylistDirectory = "0:/playlist";
+char g_playlist_names[kPlaylistMaxFiles][kPlaylistNameMax + 1];
+DIR g_playlist_dir;
+FILINFO g_playlist_fno;
+char g_playlist_path[kMaxPathLength];
+
+// ASCIIの大文字小文字を区別しない比較。同値なら通常のバイト順
+int ComparePlaylistNames(const char* a, const char* b) {
+    const char* pa = a;
+    const char* pb = b;
+    while (*pa != '\0' && *pb != '\0') {
+        char ca = *pa;
+        char cb = *pb;
+        if (ca >= 'A' && ca <= 'Z') {
+            ca = static_cast<char>(ca - 'A' + 'a');
+        }
+        if (cb >= 'A' && cb <= 'Z') {
+            cb = static_cast<char>(cb - 'A' + 'a');
+        }
+        if (ca != cb) {
+            return static_cast<unsigned char>(ca) < static_cast<unsigned char>(cb) ? -1 : 1;
+        }
+        ++pa;
+        ++pb;
+    }
+    if (*pa != *pb) {
+        return *pa == '\0' ? -1 : 1;
+    }
+    return std::strcmp(a, b);
+}
+
+// 名前をg_playlist_names[0..count)へ昇順を保って挿入する。満杯なら捨てる
+void InsertPlaylistName(const char* name, int* count) {
+    if (*count >= kPlaylistMaxFiles) {
+        return;
+    }
+    int pos = *count;
+    while (pos > 0 && ComparePlaylistNames(g_playlist_names[pos - 1], name) > 0) {
+        std::memcpy(g_playlist_names[pos], g_playlist_names[pos - 1], kPlaylistNameMax + 1);
+        --pos;
+    }
+    std::memcpy(g_playlist_names[pos], name, std::strlen(name) + 1);
+    ++*count;
 }
 
 }  // namespace
@@ -134,10 +192,63 @@ bool ForEachSmfFile(SmfFileVisitor visitor, void* context) {
             return false;
         }
     }
-    f_closedir(&root);
+    if (f_closedir(&root) != FR_OK) {
+        return false;
+    }
 
     bool stop = false;
-    VisitDirectory("0:", visitor, context, 0, &stop);
+    return VisitDirectory("0:", visitor, context, 0, &stop);
+}
+
+bool ForEachPlaylistFile(SmfFileVisitor visitor, void* context) {
+    FRESULT fr = f_opendir(&g_playlist_dir, kPlaylistDirectory);
+    if (fr != FR_OK) {
+        // フォルダが無い(FR_NO_PATH等)場合は再マウントしても変わらない。
+        // カード未準備のときだけ、ForEachSmfFileと同様に1度だけ再マウントを試みる
+        if (!IndicatesCardNotReady(fr) || !RemountSdCard()) {
+            return false;
+        }
+        fr = f_opendir(&g_playlist_dir, kPlaylistDirectory);
+        if (fr != FR_OK) {
+            return false;
+        }
+    }
+
+    int count = 0;
+    bool success = true;
+    for (;;) {
+        const FRESULT read_result = f_readdir(&g_playlist_dir, &g_playlist_fno);
+        if (read_result != FR_OK) {
+            success = false;
+            break;
+        }
+        if (g_playlist_fno.fname[0] == 0) {
+            break;
+        }
+        if ((g_playlist_fno.fattrib & AM_DIR) || IsAppleDoubleFile(g_playlist_fno.fname) ||
+            !HasSmfExtension(g_playlist_fno.fname) ||
+            std::strlen(g_playlist_fno.fname) > static_cast<size_t>(kPlaylistNameMax)) {
+            continue;
+        }
+        InsertPlaylistName(g_playlist_fno.fname, &count);
+    }
+    if (f_closedir(&g_playlist_dir) != FR_OK) {
+        success = false;
+    }
+    if (!success) {
+        return false;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        const int n = std::snprintf(g_playlist_path, kMaxPathLength, "%s/%s",
+                                    kPlaylistDirectory, g_playlist_names[i]);
+        if (n <= 0 || static_cast<size_t>(n) >= kMaxPathLength) {
+            continue;
+        }
+        if (!visitor(context, g_playlist_path)) {
+            break;
+        }
+    }
     return true;
 }
 

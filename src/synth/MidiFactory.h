@@ -37,6 +37,7 @@ class MidiFactory {
 
 #if ENABLE_CSM != 0
     CsmVoiceStorage csm_voice_storage_{};
+    int csm_reserved_modules_ = 0;
 #endif
 
 public:
@@ -60,4 +61,16 @@ public:
 
     /** CSM ボイス（CsmFrameTask が参照する単一端末） */
     CsmVoice* GetCsmVoice();
+
+    /** @brief 実際に有効なNoteVoice数（CSM用CH3リザーブ後） */
+    int GetActiveNoteVoiceCount() const { return note_voice_count_; }
+
+    /** @brief CSM用にリザーブしたCH3の数（ENABLE_CSM=0またはリザーブなしなら0） */
+    int GetCsmReservedVoiceCount() const {
+#if ENABLE_CSM != 0
+        return csm_reserved_modules_;
+#else
+        return 0;
+#endif
+    }
 };

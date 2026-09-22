@@ -17,8 +17,26 @@ constexpr uint8_t kBlankPortA = 0x0F;
 // 列選択用のPortA値
 constexpr uint8_t kColumnPortA[4] = {0x0E, 0x0D, 0x0B, 0x07};
 
-// PB bit7 = LED モード選択（Active Low）
-constexpr uint8_t kPbBit7LedModeMask = 0x80;
+// ジョイスティックPB上位4bitのデコード（spec_midi_panel.md 7.4節）。
+// decoded = (pb_raw >> 4) ^ 0x0F。bit2=DOWN(/B直結)、bit3=PUSH(/Center直結)、
+// bit0/bit1はUP・LEFT・RIGHTのAND合成（U1/U2出力）で、両方立つとLEFTになる。
+JoystickDirection DecodeJoystickDirection(uint8_t pb_raw) {
+    const uint8_t decoded = static_cast<uint8_t>((pb_raw >> 4) ^ 0x0Fu);
+    if ((decoded & 0x04u) != 0u) {
+        return JoystickDirection::Down;
+    }
+    switch (decoded & 0x03u) {
+    case 0x01u: return JoystickDirection::Up;
+    case 0x02u: return JoystickDirection::Right;
+    case 0x03u: return JoystickDirection::Left;
+    default:    return JoystickDirection::None;
+    }
+}
+
+bool DecodeJoystickPush(uint8_t pb_raw) {
+    const uint8_t decoded = static_cast<uint8_t>((pb_raw >> 4) ^ 0x0Fu);
+    return (decoded & 0x08u) != 0u;
+}
 
 // Reset 通知点滅パラメータ（変更する場合はここを編集する）
 constexpr uint32_t kResetFlashRateHz       = 4;      // 点滅周期 [回/秒]
@@ -30,12 +48,20 @@ constexpr uint32_t kResetFlashTotalPhases  = kResetFlashBlinkCount * 2u;        
 
 OpnMidiPanelDriver::OpnMidiPanelDriver(IIoPort& io)
     : io_(io),
-      config_{.debounce_ms = 20, .toggle_hold_ms = 30, .long_press_ms = 2000, .settle_us = 100},
+      config_{.debounce_ms = 20, .toggle_hold_ms = 30, .long_press_ms = 2000, .settle_us = 100,
+              .joystick_debounce_ms = 60},
       host_led_bitmap_(0),
       switch_bitmap_(0xffff),  // 全 CH トグル ON
       long_press_bitmap_(0),
       scan_column_(0),
-      reset_flash_{.active = false, .phase_index = 0, .phase_start_ms = 0} {
+      reset_flash_{.active = false, .phase_index = 0, .phase_start_ms = 0},
+      joystick_{.stable_direction = JoystickDirection::None,
+                .last_raw_direction = JoystickDirection::None,
+                .direction_change_ms = 0,
+                .stable_push = false,
+                .last_raw_push = false,
+                .push_change_ms = 0},
+      led_mode_note_(true) {
     for (auto& ch : channels_) {
         ch.latched = true;
         ch.stable_pressed = false;
@@ -141,11 +167,41 @@ void OpnMidiPanelDriver::UpdateResetFlash(uint32_t now_ms) {
     }
 }
 
-uint16_t OpnMidiPanelDriver::ResolveEffectiveLedBitmap(bool led_mode_midi) const {
+// UP/DOWN/LEFT/RIGHT/PUSHそれぞれを独立にデバウンスする（joystick_debounce_msを共用）。
+// 方向は単一レバー機構のため排他だが、PUSHは方向と独立な接点なので別個に扱う。
+//
+// bit6(/B)・bit7(/Center)はANDゲートを介さない直結・高インピーダンスでノイズに弱く
+// (spec_midi_panel.md 7.5節)、PUSH操作中に方向ビットへ電気的な回り込みが生じて
+// 幽霊DOWN等が安定値になり、意図しないカーソル移動を招きうる。そのためPUSHの
+// 生ビットが立っている間は方向の生値サンプリング自体を止め、直前の安定値を保持する。
+void OpnMidiPanelDriver::UpdateJoystickInput(uint8_t pb_raw, uint32_t now_ms) {
+    const bool raw_push = DecodeJoystickPush(pb_raw);
+
+    if (!raw_push) {
+        const JoystickDirection raw_direction = DecodeJoystickDirection(pb_raw);
+        if (raw_direction != joystick_.last_raw_direction) {
+            joystick_.last_raw_direction = raw_direction;
+            joystick_.direction_change_ms = now_ms;
+        }
+        if ((now_ms - joystick_.direction_change_ms) >= config_.joystick_debounce_ms) {
+            joystick_.stable_direction = raw_direction;
+        }
+    }
+
+    if (raw_push != joystick_.last_raw_push) {
+        joystick_.last_raw_push = raw_push;
+        joystick_.push_change_ms = now_ms;
+    }
+    if ((now_ms - joystick_.push_change_ms) >= config_.joystick_debounce_ms) {
+        joystick_.stable_push = raw_push;
+    }
+}
+
+uint16_t OpnMidiPanelDriver::ResolveEffectiveLedBitmap() const {
     if (reset_flash_.active) {
         return ((reset_flash_.phase_index % 2u) == 0u) ? 0xffffu : 0x0000u;
     }
-    return led_mode_midi ? host_led_bitmap_ : switch_bitmap_;
+    return led_mode_note_ ? host_led_bitmap_ : switch_bitmap_;
 }
 
 // 列スロット: マトリックス読取 → トグル更新 → LED 出力
@@ -161,7 +217,6 @@ void OpnMidiPanelDriver::Tick() {
 
     const uint8_t pb_raw = io_.read_port_b();
     const uint8_t pressed_rows = static_cast<uint8_t>((~pb_raw) & 0x0Fu);
-    const bool led_mode_midi = (pb_raw & kPbBit7LedModeMask) == 0u;  // PB bit7: Low=モードB
 
     for (uint8_t row = 0; row < 4u; ++row) {
         const int ch_index = static_cast<int>(col * 4u + row);
@@ -169,10 +224,14 @@ void OpnMidiPanelDriver::Tick() {
         UpdateChannelInput(ch_index, raw_pressed, now_ms);
     }
 
+    // ジョイスティック(PB上位4bit)はマトリックススキャンと無関係に常時有効
+    // (spec_midi_panel.md 7.5節)なので、列に関わらず毎Tick()でデコードする。
+    UpdateJoystickInput(pb_raw, now_ms);
+
     RebuildSwitchBitmap();
     UpdateResetFlash(now_ms);
 
-    const uint16_t effective_led = ResolveEffectiveLedBitmap(led_mode_midi);
+    const uint16_t effective_led = ResolveEffectiveLedBitmap();
 
     uint8_t led_row = 0;
     for (uint8_t row = 0; row < 4u; ++row) {

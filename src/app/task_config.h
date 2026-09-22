@@ -22,6 +22,7 @@ static constexpr UBaseType_t TASK_PRIORITY_USB         = configMAX_PRIORITIES - 
 // I/OがMidiPanelTaskの周期スキャンより優先されるようMidiPanelより上に置く。
 static constexpr UBaseType_t TASK_PRIORITY_SMF_PLAYER  = configMAX_PRIORITIES - 4; // 28 (Core0)
 static constexpr UBaseType_t TASK_PRIORITY_MIDI_PANEL  = configMAX_PRIORITIES - 5; // 27 (Core0)
+static constexpr UBaseType_t TASK_PRIORITY_INFO_SCREEN = 2;                        //  2 (Core0)
 static constexpr UBaseType_t TASK_PRIORITY_DEBUG       = 1;                        //  1 (Core0)
 
 // ----------------------------------------------------------------------------
@@ -34,6 +35,9 @@ static constexpr uint32_t TASK_STACK_USB         = 768; // 3KB
 // ディレクトリ再帰走査（1段ごとにFILINFO 256バイト+パスバッファを消費）を含む
 static constexpr uint32_t TASK_STACK_SMF_PLAYER  = 1024; // 4KB
 static constexpr uint32_t TASK_STACK_MIDI_PANEL  = 256; // 1KB
+// LcdMenuのMenuScreen構築・CharacterDisplayRendererの文字列組み立てで使うスタックに
+// 余裕を持たせた値。
+static constexpr uint32_t TASK_STACK_INFO_SCREEN = 768; // 3KB
 static constexpr uint32_t TASK_STACK_DEBUG       = 384; // 1.5KB
 
 // ----------------------------------------------------------------------------
@@ -54,3 +58,15 @@ static constexpr UBaseType_t AFFINITY_CORE1 = (1u << 1);
 // MidiPanel fixed period
 // ----------------------------------------------------------------------------
 static constexpr uint32_t MIDI_PANEL_PERIOD_MS = 4;
+
+// ----------------------------------------------------------------------------
+// InfoScreen (LcdMenu) polling period
+// ----------------------------------------------------------------------------
+// ジョイスティックの応答性のため、演奏状態に関わらず常時この周期で起床する。
+// OpnMidiPanelDriverのデバウンス確定周期(4列 x MIDI_PANEL_PERIOD_MS = 16ms)より
+// 短いため、取りこぼしは無い。
+static constexpr uint32_t INFO_SCREEN_POLL_PERIOD_MS = 20;
+
+// System Info画面のVoice/CSM数の更新周期。表示内容が変わらなくても再描画のたびに
+// I2Cで3行書き直すため、ジョイスティックのポーリング周期とは分けて緩くする。
+static constexpr uint32_t INFO_SCREEN_SYSINFO_REFRESH_MS = 1000;

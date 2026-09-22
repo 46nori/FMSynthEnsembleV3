@@ -37,7 +37,7 @@ SDカード上のStandard MIDI File（SMF）を読み込み、既存のMIDI受�
 
 USB MIDIキーボードからのライブ入力と、SDカード上のSMFファイル再生を**混在演奏**を許容する。両者は対等な入力ソースとして `gMidiQueue` に合流し、Core1（MidiEngineTask）は入力元を区別しない。
 
-SMF再生の起動・停止・一時停止はDebuggerコンソールから行う。同時に再生できるファイルは1つまでとする。
+SMF再生の起動・停止・一時停止はDebuggerコンソールとLCDメニュー（[design_display_menu.md](design_display_menu.md#72-初期メニュー構成)）から行う。同時に再生できるファイルは1つまでとする。プレイリスト・リピート・シャッフル・Next/Prevなど、複数の曲にまたがる再生制御は [design_smf_playback.md](design_smf_playback.md) で定義する。
 
 ---
 
@@ -83,11 +83,12 @@ USBライブ入力の取りこぼしを最優先に防ぎつつ、SDカードの
 | 項目 | 内容 |
 |---|---|
 | SDカードアクセス | `Platform::`経由（`SmfSdByteSource`、[7.1](#71-レイヤ配置)）でのファイルオープン・ディレクトリ列挙・ストリーミング読み込み。**SDボリュームへの実アクセスを要求するのはこのタスクに一元化する**（[4.3](#43-fatfsアクセスの一元化とff_fs_reentrant) 参照）。FatFs APIそのものは直接呼ばない |
-| SMFフォーマット解釈 | `MThd`/`MTrk` チャンク読み取り、可変長数値（VLQ）のdelta-timeデコード、メタイベント（Tempo, End of Track）の解釈 |
+| SMFフォーマット解釈 | `MThd`/`MTrk` チャンク読み取り、可変長数値（VLQ）のdelta-timeデコード、メタイベント（Tempo, End of Track, Track Name）の解釈 |
 | タイミングスケジューリング | delta-time × 現在のtempoをµsに変換し、実時間で発火する。Format 1（複数トラック）は次イベント時刻が最も早いトラックから順にマージする |
 | チャンネルメッセージのバイトストリーム化 | メタイベントを除いた生のMIDIチャンネルメッセージ（ランニングステータス込み）を `MidiStreamAssembler::PushByte()` に投入する。**MIDIバイト列の意味解釈は既存の `MidiParser`/`MidiController` に委譲し、SMF側で独自に再実装しない**（Single Parse Ruleの趣旨を踏襲） |
 | IPC投入 | `IMidiStreamSink` 実装（`UsbMidiStreamSink` と同様の構造）経由で `MidiIpcSendMidiEvent()` を呼び出し、`gMidiQueue` へ送信する。タイムスタンプ付与のタイミングもUSB経路と同じ（`sink.OnMidiEvent` 内で `time_us_64()` を取得） |
-| 再生制御 | Debuggerからの Play/Stop/Pause/Resume/Ls/Mount を受け付ける（[4](#4-debugger--smfplayertask-制御)） |
+| 再生制御 | DebuggerとLCDメニューからの Play/Stop/Pause/Resume/Next/Prev/Ls/Mount などを受け付ける（[4](#4-debugger--smfplayertask-制御)、[design_smf_playback.md](design_smf_playback.md#3-コマンドと状態の公開)）。どちらも同じ `SmfPlayer::Request*()` を使う |
+| LCDへの通知 | 再生開始・曲名確定・終了・SDカードアクセスのエラーを、`InfoScreen::NotifyPlay` / `NotifyStop` / `NotifyError` でLCDのステータス行に通知する（`BUILD_I2C_DISPLAY=ON`時。[design_display_menu.md](design_display_menu.md#71-演奏状態の表示)） |
 
 非責務は既存タスクと同様、FMレジスタへの直接書き込み・Voice Allocator操作・`MidiProcessor::Exec` の直接呼び出し（すべてCore1の専管）、USBスタック操作、Panel制御。
 
@@ -99,18 +100,20 @@ DebuggerTaskとSmfPlayerTaskは同一Core（Core0）上の別タスクとする�
 
 ### 4.1 コマンドの受け渡し
 
-各タスクは生成時にすでにTCB内蔵の通知スロットを1つ持つため、コマンド用のキューオブジェクトを新設する必要がない。`Play`はファイル名ではなく`Ls`が表示した連番（インデックス）で対象を指定するため（[4.2](#42-lsとインデックス指定)）、マイルボックスは可変長データを持たない固定サイズの小さな構造体で済む。
+各タスクは生成時にすでにTCB内蔵の通知スロットを1つ持つため、コマンドの到着通知用のキューオブジェクトを新設する必要がない。`Play`はファイル名ではなく`Ls`が表示した連番（インデックス）で対象を指定するため（[4.2](#42-lsとインデックス指定)）、コマンドは可変長データを持たない固定サイズの小さな構造体で済む。コマンド本体は深さ8の固定長リングバッファに積み、通知はそれを取り出す合図として使う（[design_smf_playback.md 3.2](design_smf_playback.md#32-コマンドキュー)）。
 
 ```cpp
-enum class SmfCommand : uint8_t { Play, Stop, Pause, Resume, Ls, Mount };
+enum class SmfCommand : uint8_t {
+    Play, PlayPlaylist, Stop, Pause, Resume, Next, Prev, SetRepeat, SetShuffle, SetPlaybackMode, Ls, Mount
+};
 
-struct SmfCommandMailbox {
+struct SmfCommandMessage {
     SmfCommand type;
-    uint16_t   index;  // Play のときのみ有効。Lsが表示した連番（1始まり）
+    uint16_t   arg;  // Play/PlayPlaylist: 位置、SetRepeat: リピートモード、SetShuffle: 0/1
 };
 ```
 
-- DebuggerTaskは `taskENTER_CRITICAL()`/`taskEXIT_CRITICAL()` で保護した短い区間で `SmfCommandMailbox` を書き込み、`xTaskNotifyGive(gSmfPlayerTaskHandle)` で起床させる
+- 送信側は `taskENTER_CRITICAL()`/`taskEXIT_CRITICAL()` で保護した短い区間で `SmfCommandMessage` をリングバッファへ積み、`xTaskNotifyGive(gSmfPlayerTaskHandle)` で起床させる
 - SmfPlayerTaskのメインループは `ulTaskNotifyTake(pdTRUE, waitTicks)` で待機する。`waitTicks` は「次のSMFイベントまでの残りdelta-time」（Stop中は `portMAX_DELAY`）。通知が来れば即座に返るため、Stop/Pauseは次のSMFイベントを待たずに即時反映される。タイムアウト（戻り値0）はそのまま「次のSMFイベント発火時刻に到達した」を意味する
 - コマンドは**fire-and-forget**とする。既存の`stats`/`dc`等のDebuggerコマンド（`src/app/debugger_task.cpp`）も`Debugger::SendCommand()`で送信するだけで応答を待たず、Core1側の処理結果は非同期に標準出力へ現れる。SmfPlayerTask側のコマンドもこの既存の流儀に合わせる。DebuggerTaskはコマンド送信後、応答を待たずに直ちにプロンプトへ戻る。実行結果（成功・エラー理由）はSmfPlayerTaskが自分の判断で標準出力に書くタイミングで表示され、プロンプトの表示と前後する可能性があるが、これは`stats`等の既存コマンドも同じであり新しい制約ではない
 
@@ -118,12 +121,12 @@ struct SmfCommandMailbox {
 sequenceDiagram
     participant D as DebuggerTask
     participant S as SmfPlayerTask
-    D->>D: SmfCommandMailboxへ書き込み（クリティカルセクション）
+    D->>D: コマンドキューへ積む（クリティカルセクション）
     D->>S: xTaskNotifyGive()
     D->>D: 応答を待たずプロンプトに戻る
     Note over S: ulTaskNotifyTake()がdelta-time待機から即座に返る
-    S->>S: マイルボックス読み出し（クリティカルセクション）
-    S->>S: コマンド実行 (Play/Stop/Pause/Resume/Ls/Mount)
+    S->>S: キューから取り出し（クリティカルセクション）
+    S->>S: コマンド実行 (Play/Stop/Pause/Resume/Next/Prev/Ls/Mount ほか)
     S->>S: 必要なメッセージを標準出力に表示<br>（成功時は無出力でもよい、エラー時は理由を表示）
 ```
 
@@ -232,6 +235,7 @@ public:
 enum class SmfEventKind : uint8_t {
     ChannelMessage,  // ランニングステータス解決済みの生MIDIチャンネルメッセージ
     SysEx,
+    TrackName,       // Sequence/Track Nameメタイベント（FF 03）
     TempoChange,
     EndOfTrack,
     EndOfFile,
@@ -242,7 +246,7 @@ struct SmfEvent {
     SmfEventKind   kind;
     uint32_t       delta_ticks;       // 直前にNextEvent()が返したイベントからの経過tick（グローバル基準。後述）
     uint32_t       tempo_us_per_qn;   // TempoChangeのみ有効
-    const uint8_t* bytes = nullptr;   // ChannelMessage/SysExのみ有効
+    const uint8_t* bytes = nullptr;   // ChannelMessage/SysEx/TrackNameのみ有効
     uint8_t        length = 0;
 };
 
@@ -281,7 +285,8 @@ public:
 - メタイベント（`FF <type> <len> <data>`）はSMFフォーマット固有の情報でありMIDIチャンネルメッセージではないため、`ChannelMessage`/`SysEx`としては返さずパーサー内部で解釈する
   - Set Tempo（`FF 51 03`）: `TempoChange` として返す。以降のdelta-time→µs変換にこのtempoを使うのはSmfPlayerTask側の責務
   - End of Track（`FF 2F 00`）: `EndOfTrack` を返す。全トラックが終端に達したら以降は `EndOfFile`
-  - それ以外のメタイベントは読み飛ばす
+  - Sequence/Track Name（`FF 03`）: `TrackName` として返す。Format 0/1の先頭トラックでは曲名として使われることが多い。バイト列は内部バッファ上限（32バイト）を超える分を切り詰めて返す（超過分は読み捨てる）
+  - それ以外のメタイベント（Text/Copyright/Instrument Name/Lyric/Marker/Cue Point等）は読み飛ばす
 - SysExイベント（`F0`/`F7` で開始するSMF内SysExイベント）は `SysEx` として返す。バイト列は変更せずそのまま返し、意味解釈（`MidiSysEx::Classify()`）はSmfPlayerTaskが `MidiStreamAssembler::PushByte()` へ渡した先に委ねる
 - `ChannelMessage`/`SysEx` のバイト列はSMFのバイト列をそのまま渡すだけで、MIDIバイト列としての意味解釈はしない。Single Parse Ruleの趣旨（[design_midi_message.md](design_midi_message.md)）どおり、意味解釈は既存の `MidiParser`/`MidiController` に一本化する
 
@@ -382,6 +387,8 @@ flowchart TD
 
 ## 8. 状態遷移
 
+本章は1つの曲の再生状態を定義する。曲の終了後に次の曲へ進むか、セッションを終えて`Idle`へ戻るかは、再生列（[design_smf_playback.md 5章](design_smf_playback.md#5-セッションと状態遷移)）が決める。以下の`Idle`への遷移は、単発再生（次の曲が無い）の場合を示す。
+
 `Playing`/`Paused`から`Idle`へ抜けるすべての経路（自然終了・`Stop`・再生中のI/Oエラー）で、その時点で発音中のノートに対して All Notes Off 相当のクリーンアップを発行する。過去に発音の止め漏れ（stuck note）で問題が起きた経緯があるため、「非対称に終了する経路」を作らないことを設計上の原則とする。`Pause`も同様にAll Notes Off相当を発行して無音状態で保持し、`Resume`は無音から再開する（発音を継続させたまま止める方式は採らない）。
 
 ```mermaid
@@ -399,7 +406,7 @@ stateDiagram-v2
 
 `Play`が`ScanChunks()`の`SmfScanResult::TooManyTracks`/`FormatError`で失敗した場合は`Idle`から遷移しない（[7.4.4](#74-マルチトラックマージformat-1とsdアクセス設計)）。図中には表現していないが、`Idle`からの`Play`は成功時のみ`Playing`へ進む自己ループとして扱う。エラー内容はSmfPlayerTaskが標準出力に表示する（[4.1](#41-コマンドの受け渡し)のfire-and-forget方針どおり、DebuggerTaskは応答を待たない）。この場合はまだ何も再生していないのでAll Notes Offは不要。
 
-**再生中のI/Oエラー**: `NextEvent()`が内部の`ReadByte()`失敗（SDカード抜去等）を検知した場合、`SmfPlayerTask`は即座に`Idle`へ遷移する。`ReadByte()`の戻り値`false`はEOF（正常な終端）とI/Oエラーの両方を意味しうるため、`SmfByteSource`側でこの2つを区別できるようにする（[7.2](#72-smfbytesourceバイト列抽象化)の`SmfByteSource`に、直近の読み取り失敗がEOFかエラーかを返す手段を追加する）。エラー時はAll Notes Off相当のクリーンアップに加え、エラー内容を標準出力に表示する。この経路はDebuggerコマンドの実行結果ではなく再生中に非同期で発生するが、[4.1](#41-コマンドの受け渡し)のfire-and-forget方針のもとでは他のコマンド出力と同様、SmfPlayerTaskが任意のタイミングで直接標準出力へ書くだけでよい。
+**再生中のI/Oエラー**: `NextEvent()`が内部の`ReadByte()`失敗（SDカード抜去等）を検知した場合、`SmfPlayerTask`は現在の曲を即座に停止する。`ReadByte()`の戻り値`false`はEOF（正常な終端）とI/Oエラーの両方を意味しうるため、`SmfByteSource`側でこの2つを区別する。エラー時はAll Notes Off相当のクリーンアップに加え、エラー内容を標準出力に表示する。単発再生では`Idle`へ遷移し、複数曲のセッションでは [design_smf_playback.md 5.2](design_smf_playback.md#52-曲の終了時の動作) に従って次の曲を試す。
 
 ---
 
@@ -428,7 +435,7 @@ RP2040（`pico`）でのビルド実測:
 |---|---|
 | タスクスタック（LFN作業バッファ512バイト、Ls/Playのディレクトリ再帰走査を含む。[10](#10-既知の制約)参照） | 4KB（`TASK_STACK_SMF_PLAYER`実装値。ディレクトリ再帰走査1段ごとにFILINFO 256バイト分を消費するため2〜3KBの当初見積もりから増額） |
 | `SmfSdByteSource`（`FIL`約590バイト×`kMaxSmfTracks`、[7.4.4](#74-マルチトラックマージformat-1とsdアクセス設計)） | 約14.4KB（`kMaxSmfTracks=25`固定で静的確保。実際に使うのは再生中のファイルのトラック数分のみ） |
-| `SmfCommandMailbox` | 数バイト（`SmfCommand`+`uint16_t`。ファイル名を持たないため無視できる大きさ） |
+| コマンドキュー | 数十バイト（`SmfCommandMessage`×8。ファイル名を持たないため無視できる大きさ） |
 
 `FIL`は`kMaxSmfTracks`個の固定長配列として静的に確保する（ヒープ確保はしない）ため、SRAM上の占有は常にこの上限値ぶんになる。トラック数の少ないファイルを再生していても、配列自体は確保済みのまま（未使用スロットが残るだけ）。
 
@@ -446,7 +453,7 @@ RP2040（`pico`）でのビルド実測:
 - `Ls`/`Play`のディレクトリ再帰走査（`Platform::ForEachSmfFile()`）は深さ6階層、1階層あたりのパス長192バイトが上限。当初`DIR`/`FILINFO`/パスバッファを再帰1段ごとにスタック確保していたところ、`FILINFO`だけで`FF_LFN_BUF+1`=256バイトあり、6階層の再帰で約4KBを消費して`TASK_STACK_SMF_PLAYER`をオーバーフローし、`vApplicationStackOverflowHook`の`for(;;)`で実機がハングする不具合が実機テストで見つかった（`ls`実行後にコンソール全体が無反応になる症状）。階層ごとの静的配列（`.bss`、約4KB）に持ち回す実装に修正済み。呼び出し元は`SmfPlayerTask`のみで走査も逐次処理のため、階層インデックスでの使い回しは安全
 - macOSでFAT/exFATボリュームにファイルをコピーすると、拡張属性・リソースフォーク保存用のAppleDouble companion file（`._元のファイル名`。拡張子だけでは本物のSMFと区別がつかない）が自動生成される。`Ls`/`Play`の走査からファイル名の`._`プレフィックスで明示的に除外している
 - `ls`で大量行（100件超）を一気に出力すると、UART送信またはターミナル側の受信バッファがマルチバイトUTF-8（日本語ファイル名等）の境界を跨いで文字化けする事例が実機で見つかった。`LsVisitor`が1行出力するごとに`vTaskDelay(2ms)`を挟んでバーストを緩和している。根本原因（ファームウェア側のUART送信かターミナル側の受信処理か）は未特定
-- **SDカード抜去後の復帰**: `hw_config.c`のピン配線にCard Detectピンがないため、カードの抜き挿しをハードウェア的に検知する手段がない。抜去は実際のI/Oが失敗して初めて分かる。対応として、`Platform::ForEachSmfFile()`の起点（ルートディレクトリの`f_opendir`）と`SmfSdByteSource::OpenAt()`が`FR_DISK_ERR`/`FR_NOT_READY`を検出した場合に1回だけ`Platform::RemountSdCard()`（`f_mount()`の強制再実行）を試みてから操作をやり直す。再生中のストリーミング読み込み（`ReadByte()`）はこの対象外とし、[8](#8-状態遷移)の「再生中のI/Oエラー」どおり`Idle`へ中断する（位置合わせが必要な途中再開は複雑化するため）。手動での明示的な再マウント用に`mount`コマンドも用意する（DebuggerTaskから直接FatFsを呼ばず、他コマンドと同様SmfPlayerTask経由のfire-and-forgetとする一元化ルールを維持）。
+- **SDカード抜去後の復帰**: `hw_config.c`のピン配線にCard Detectピンがないため、カードの抜き挿しをハードウェア的に検知する手段がない。抜去は実際のI/Oが失敗して初めて分かる。対応として、`Platform::ForEachSmfFile()`の起点（ルートディレクトリの`f_opendir`）と`SmfSdByteSource::OpenAt()`が`FR_DISK_ERR`/`FR_NOT_READY`を検出した場合に1回だけ`Platform::RemountSdCard()`（`f_mount()`の強制再実行）を試みてから操作をやり直す。再生中のストリーミング読み込み（`ReadByte()`）はこの対象外とし、現在の曲を停止して再生列の次の曲へ進む。カード全体が読めなければ連続失敗数が範囲の曲数に達した時点で`Idle`へ戻る。手動での明示的な再マウント用に`mount`コマンドも用意する（DebuggerTaskから直接FatFsを呼ばず、他コマンドと同様SmfPlayerTask経由のfire-and-forgetとする一元化ルールを維持）。
 
   当初「`f_mount()`をopt=1の強制マウントで呼び直せば、`disk_initialize()`経由でカード初期化シーケンスがやり直される」と想定していたが、実機で`mount`コマンドを試したところ抜去→挿し直し後も`FR_DISK_ERR`で失敗した。原因は`no-OS-FatFS-SD-SDIO-SPI-RPi-Pico`の`sd_card_spi_init()`にあり、状態フラグ`STA_NOINIT`がクリアされたまま（＝初回マウント成功後の状態）だと「既に初期化済み」とみなしてカードの再走査そのものをスキップする。抜去時に何もこのフラグを再セットしないため、`f_mount()`を呼び直すだけでは実際のカード再走査が行われない。
 
@@ -461,5 +468,6 @@ RP2040（`pico`）でのビルド実測:
 | [design_concurrency.md](design_concurrency.md) | タスク配置・優先度・Single Writer Rule |
 | [design_midi_ipc.md](design_midi_ipc.md) | `gMidiQueue`/`gMidiControlQueue` の設計判断 |
 | [design_midi_message.md](design_midi_message.md) | `MidiParser`/`MidiStreamAssembler`/`IMidiStreamSink` |
+| [design_smf_playback.md](design_smf_playback.md) | プレイリスト・リピート・シャッフル・Stop/Pause/Next/Prevの再生制御 |
 | [../tests/README.md](../tests/README.md) | ホストユニットテストの実行方法（`src/smf/`もこの対象に含める） |
 | [build.md](build.md) / [build_ja.md](build_ja.md) | `BUILD_SD_CARD` オプション |

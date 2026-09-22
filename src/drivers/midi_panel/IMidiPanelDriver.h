@@ -9,6 +9,13 @@
 #include <cstdint>
 
 /**
+ * @brief ジョイスティックのレバー方向（spec_midi_panel.md 7.4節のデコード値に対応）
+ * @details 単一レバー機構のため、方向は排他（同時に複数の方向にはならない）。
+ *          PUSH（Center押下）は別途IsJoystickPushed()で扱う。
+ */
+enum class JoystickDirection : uint8_t { None, Up, Down, Left, Right };
+
+/**
  * @brief MIDI Panel デバイス抽象インターフェース
  * @details synth / app は PA・PB・マトリックス・PortA を知らない。
  *          具象実装（OPN 直結・シリアル等）を差し替え可能にする。
@@ -64,4 +71,31 @@ public:
      *          具象ドライバは未実装の場合 no-op でよい。
      */
     virtual void FlashAllLeds() = 0;
+
+    /**
+     * @brief ジョイスティックのレバー方向（デバウンス済み）
+     * @details spec_midi_panel.md 7章。パネル未接続時はNoneを返す。
+     */
+    virtual JoystickDirection GetJoystickDirection() const = 0;
+
+    /**
+     * @brief ジョイスティックのPUSH（Centerボタン）状態（デバウンス済み）
+     * @return 押下中ならtrue。パネル未接続時はfalse。
+     */
+    virtual bool IsJoystickPushed() const = 0;
+
+    /**
+     * @brief LED表示モードを設定する
+     * @param [in] note_reflect trueならNote Onに追従するLED表示（既定）、falseなら
+     *             ソフトトグルのON/OFF状態をそのまま表示する
+     * @details PB bit7はジョイスティックのPUSHに割り当てられておりモード切替に使えないため、
+     *          ソフトウェアのみで切り替える。
+     */
+    virtual void SetLedMode(bool note_reflect) = 0;
+
+    /**
+     * @brief 現在のLED表示モードを返す
+     * @return SetLedMode()で設定した値。既定はtrue（Note反映）。
+     */
+    virtual bool GetLedMode() const = 0;
 };

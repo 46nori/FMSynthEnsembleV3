@@ -21,6 +21,7 @@ A USB MIDI synthesizer using YAMAHA OPN-series FM sound chips.
 - **SD card playback**
   - Play Standard MIDI Files directly from an SD card, no USB MIDI host required
   - Supports Format 0 / Format 1 (multiple tracks)
+  - Playlist / single-track or continuous playback / repeat / shuffle
 - **System controller**
   - **Raspberry Pi Pico** (RP2040 / RP2350A)
   - High-speed FM bus via Programmable I/O (PIO)
@@ -120,3 +121,8 @@ Default board is **Pico 2 (RP2350A)**. CLI, board switching, debugger, and CI: [
     </td>
   </tr>
 </table>
+
+### Connection map
+
+![Connection map](./doc/image/ConnectionMap.png)
+

@@ -16,6 +16,10 @@
 
 #include "pico/time.h"
 
+#if BUILD_I2C_DISPLAY
+#include "info_screen_task.h"
+#endif
+
 namespace {
 
 // バイトストリーム組立（runningStatus管理・SysEx組立・暗黙終了）は
@@ -27,6 +31,9 @@ public:
         MidiEvent evt = event;
         evt.timestamp_us = static_cast<uint32_t>(time_us_64());
         (void)MidiIpcSendMidiEvent(evt);
+#if BUILD_I2C_DISPLAY
+        InfoScreen::NotifyPlay();
+#endif
     }
 
     void OnProfileReset() override {

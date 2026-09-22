@@ -39,6 +39,10 @@
 #include "smf_player_task.h"
 #endif
 
+#if BUILD_I2C_DISPLAY
+#include "info_screen_task.h"
+#endif
+
 int main()
 {
     // Platform全体の初期化
@@ -80,6 +84,12 @@ int main()
     static MidiPanelController panelController(std::move(panelDriver));
     // MidiPanelTaskのコンテキスト構築
     static MidiPanelTaskContext midiPanelCtx{&panelController};
+#endif
+
+#if BUILD_I2C_DISPLAY && (ENABLE_FREERTOS_SAMPLE_TASK != 1)
+    // InfoScreenTaskのコンテキスト構築(MIDIパネルはmodules[3]に接続する想定、上記に合わせる)
+    static InfoScreenTaskContext infoScreenCtx{&modules, &panelController, /*midiPanelDock=*/3,
+                                                factory.get()};
 #endif
 
     // IPCの初期化
@@ -126,6 +136,16 @@ int main()
                                  TASK_STACK_MIDI_PANEL,
                                  &midiPanelCtx,
                                  TASK_PRIORITY_MIDI_PANEL,
+                                 AFFINITY_CORE0,
+                                 nullptr) == pdPASS) && ok;
+#endif
+
+#if BUILD_I2C_DISPLAY && (ENABLE_FREERTOS_SAMPLE_TASK != 1)
+    ok = (xTaskCreateAffinitySet(InfoScreenTask,
+                                 "InfoScreen",
+                                 TASK_STACK_INFO_SCREEN,
+                                 &infoScreenCtx,
+                                 TASK_PRIORITY_INFO_SCREEN,
                                  AFFINITY_CORE0,
                                  nullptr) == pdPASS) && ok;
 #endif

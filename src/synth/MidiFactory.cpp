@@ -18,7 +18,6 @@ MidiFactory::MidiFactory(std::array<OpnBase*, 4>& modules) : modules_(modules) {
     static_assert(CSM_N_MAX >= 1 && CSM_N_MAX <= 16, "CSM_N_MAX must be in range 1..16.");
     static_assert(CSM_N <= CSM_N_MAX, "CSM_N must not exceed CSM_N_MAX.");
     constexpr int kCsmReservedModules = (CSM_N_MAX - 1) / 4 + 1;
-    int csm_reserved_modules = 0;
 #endif
 
     // VoiceAllocatorにFM音源モジュールのチャンネルを登録
@@ -29,8 +28,9 @@ MidiFactory::MidiFactory(std::array<OpnBase*, 4>& modules) : modules_(modules) {
             module->init();
             for (int ch = 0; ch < module->fm_get_channels(); ++ch) {
 #if ENABLE_CSM != 0
-                if (ch == 2 && module->has_csm() && csm_reserved_modules < kCsmReservedModules) {
-                    ++csm_reserved_modules;
+                if (ch == 2 && module->has_csm() &&
+                    csm_reserved_modules_ < kCsmReservedModules) {
+                    ++csm_reserved_modules_;
                     continue;
                 }
 #endif
@@ -46,7 +46,7 @@ MidiFactory::MidiFactory(std::array<OpnBase*, 4>& modules) : modules_(modules) {
     // CSM音声合成用 (CSM対応モジュールが1台以上ある場合のみallocatorに登録する)
     csm_voice_ = new (&csm_voice_storage_) CsmVoice(modules_, voice_id++);
     csm_voice_->Init();
-    if (csm_reserved_modules > 0) {
+    if (csm_reserved_modules_ > 0) {
         allocator.AddVoice(csm_voice_);
     }
 #endif

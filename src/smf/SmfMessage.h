@@ -14,10 +14,11 @@
 enum class SmfEventKind : uint8_t {
     ChannelMessage,  // ランニングステータス解決済みの生MIDIチャンネルメッセージ
     SysEx,           // SMF内SysExイベント（バイト列をそのまま返す）
-    TempoChange,      // Set Tempoメタイベント
-    EndOfTrack,       // あるトラックの終端
-    EndOfFile,        // 全トラックが終端に達した
-    FormatError,      // チャンク破損・VLQ異常等、続行不能な解釈エラー
+    TrackName,       // Sequence/Track Nameメタイベント（FF 03）
+    TempoChange,     // Set Tempoメタイベント
+    EndOfTrack,      // あるトラックの終端
+    EndOfFile,       // 全トラックが終端に達した
+    FormatError,     // チャンク破損・VLQ異常等、続行不能な解釈エラー
 };
 
 /**
@@ -29,7 +30,7 @@ struct SmfEvent {
     SmfEventKind   kind = SmfEventKind::EndOfFile;
     uint32_t       delta_ticks = 0;
     uint32_t       tempo_us_per_qn = 0;  // TempoChangeのみ有効
-    const uint8_t* bytes = nullptr;      // ChannelMessage/SysExのみ有効
+    const uint8_t* bytes = nullptr;      // ChannelMessage/SysEx/TrackNameのみ有効
     uint8_t        length = 0;
 };
 

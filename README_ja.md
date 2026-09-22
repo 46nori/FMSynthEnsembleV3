@@ -21,6 +21,7 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
 - **SDカード再生**
   - SMF（Standard MIDI File）をSDカードから直接再生。USB MIDIホスト接続なしでも演奏可能
   - Format 0 / Format 1（複数トラック）対応
+  - プレイリスト / 単発・連続再生 / リピート再生 / シャッフル再生 
 - **システムコントローラ**
   - **Raspberry Pi Pico**（RP2040 / RP2350A）
   - Programmable I/O（PIO）によるFM音源LSIへの高速バスアクセス
@@ -110,3 +111,7 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
     </td>
   </tr>
 </table>
+
+### 接続図
+
+![接続図](./doc/image/ConnectionMap.png)

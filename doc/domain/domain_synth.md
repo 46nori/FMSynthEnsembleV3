@@ -77,6 +77,11 @@ classDiagram
         +Tick(midi_ch_active_bitmap)
         +GetChannelEnableBitmap() uint16_t
         +IsMidiReset() bool
+        +FlashAllLeds()
+        +GetJoystickDirection() JoystickDirection
+        +IsJoystickPushed() bool
+        +SetLedMode(note_reflect)
+        +GetLedMode() bool
     }
 
     MidiProcessor o-- MidiChannel : 16ch

@@ -56,6 +56,31 @@ public:
      */
     void FlashAllLeds();
 
+    /**
+     * @brief ジョイスティックのレバー方向（デバウンス済み）
+     * @return 未接続時はJoystickDirection::None
+     */
+    JoystickDirection GetJoystickDirection() const;
+
+    /**
+     * @brief ジョイスティックのPUSH状態（デバウンス済み）
+     * @return 未接続時はfalse
+     */
+    bool IsJoystickPushed() const;
+
+    /**
+     * @brief LED表示モードを設定する
+     * @param [in] note_reflect trueならNote On追従、falseならトグル状態表示
+     * @details 未接続時はno-op。
+     */
+    void SetLedMode(bool note_reflect);
+
+    /**
+     * @brief 現在のLED表示モードを返す
+     * @return 未接続時はtrue（Note反映相当）
+     */
+    bool GetLedMode() const;
+
 private:
     std::unique_ptr<IMidiPanelDriver> driver_;
 };

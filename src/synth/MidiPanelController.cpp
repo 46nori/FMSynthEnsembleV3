@@ -45,3 +45,31 @@ void MidiPanelController::FlashAllLeds() {
     }
     driver_->FlashAllLeds();
 }
+
+JoystickDirection MidiPanelController::GetJoystickDirection() const {
+    if (!IsConnected()) {
+        return JoystickDirection::None;
+    }
+    return driver_->GetJoystickDirection();
+}
+
+bool MidiPanelController::IsJoystickPushed() const {
+    if (!IsConnected()) {
+        return false;
+    }
+    return driver_->IsJoystickPushed();
+}
+
+void MidiPanelController::SetLedMode(bool note_reflect) {
+    if (!IsConnected()) {
+        return;
+    }
+    driver_->SetLedMode(note_reflect);
+}
+
+bool MidiPanelController::GetLedMode() const {
+    if (!IsConnected()) {
+        return true;
+    }
+    return driver_->GetLedMode();
+}

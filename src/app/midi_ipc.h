@@ -75,6 +75,13 @@ bool MidiIpcInitialize();
  */
 bool MidiIpcSendMidiEvent(const MidiEvent& event);
 
+/**
+ * @brief Core1 で処理する MIDI イベントを、空きができるまで待って送信
+ * @details Stop/Pause時のAll Notes Offなど、破棄できないクリーンアップ専用。
+ *          通常の演奏イベントにはMidiIpcSendMidiEvent()を使う。
+ */
+bool MidiIpcSendMidiEventGuaranteed(const MidiEvent& event);
+
 #if ENABLE_MIDI_TIMING_STATS
 /**
  * @brief Core1 でのキュー滞留時間とイベント実行時間を記録

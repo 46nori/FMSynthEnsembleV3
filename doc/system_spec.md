@@ -70,7 +70,17 @@ OPNA/OPNからの割り込み信号はオープンドレインなので、すべ
 | /SDCS   |  GPIO17 / SPI0 CSn |    出力     |  正  | microSDHCのCS(DAT3) |
 | SD_CLK  |  GPIO18 / SPI0 SCK |    出力     |  正  | microSDHCのSCLK |
 | SD_MOSI |  GPIO19 / SPI0 TX  |    出力     |  正  | microSDHCのDI(CMD) |
-| /SD_SW  |  GPIO20  |    入力     |  負  | microSDHCのSW |
+
+**SDカードの挿抜検出は非サポート**とする。
+
+### I2C（ディスプレイ用）
+
+| 信号 | RPi Pico | 方向 | 用途 |
+| :-----: | :------: | :-------: | --- |
+|  SDA    |  GPIO20 / I2C0 SDA  |    入出力     | ディスプレイ I2C データ |
+|  SCL    |  GPIO21 / I2C0 SCL  |    入出力     | ディスプレイ I2C クロック |
+
+接続するディスプレイはVdd=5.0V系のため、3.3V(RPi Pico)/5V間のレベル変換はハードウェア側で行う。詳細は [spec_display_i2c.md](spec_display_i2c.md) を参照。
 
 ### 電子ボリューム(NJU72343)
 

@@ -263,6 +263,28 @@ void SmfParser::DecodeNextPendingEvent(TrackCursor& track) {
                 track.next_event_abs_tick = track.abs_tick;
                 return;
             }
+            if (meta_type == 0x03) {
+                // Sequence/Track Name。先頭トラックでは曲名として使われることが多い。
+                // バッファ上限を超える分は切り詰め、残りは読み捨てる
+                uint32_t copy_len = meta_len;
+                if (copy_len > kMaxPendingEventBytes) {
+                    copy_len = kMaxPendingEventBytes;
+                }
+                for (uint32_t i = 0; i < copy_len; ++i) {
+                    if (!track.source->ReadByte(track.pending_bytes[i])) {
+                        track.next_event_abs_tick = kEndOfTrackTick;
+                        return;
+                    }
+                }
+                if (meta_len > copy_len && !SkipBytes(*track.source, meta_len - copy_len)) {
+                    track.next_event_abs_tick = kEndOfTrackTick;
+                    return;
+                }
+                track.pending_length = static_cast<uint8_t>(copy_len);
+                track.pending_kind = SmfEventKind::TrackName;
+                track.next_event_abs_tick = track.abs_tick;
+                return;
+            }
             // それ以外のメタイベントは読み飛ばし、次のdelta+eventへ進む
             if (!SkipBytes(*track.source, meta_len)) {
                 track.next_event_abs_tick = kEndOfTrackTick;
@@ -364,6 +386,7 @@ bool SmfParser::NextEvent(SmfEvent& out) {
         break;
     case SmfEventKind::ChannelMessage:
     case SmfEventKind::SysEx:
+    case SmfEventKind::TrackName:
         // track.pending_bytes はこの直後の DecodeNextPendingEvent() で
         // 次イベント用に上書きされるため、呼び出し側へ返す前にコピーする。
         for (uint8_t i = 0; i < track.pending_length; ++i) {
