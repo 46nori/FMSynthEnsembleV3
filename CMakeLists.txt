@@ -33,6 +33,7 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 option(USB_MIDI_IRQ_DRIVEN  "Enable TinyUSB event-driven wait mode for USB MIDI" ON)
 option(BUILD_MIDI_PANEL     "Enable MIDI panel controller"                       ON)
 option(BUILD_SD_CARD        "Enable SD card stack"                               ON)
+option(BUILD_I2C_DISPLAY    "Enable I2C display support"                         ON)
 option(ENABLE_MIDI_TIMING_STATS "Enable detailed MIDI timing instrumentation"    OFF)
 # ====================================================================================
 
@@ -58,6 +59,7 @@ endif()
 message(STATUS "USB_MIDI_IRQ_DRIVEN: ${USB_MIDI_IRQ_DRIVEN}")
 message(STATUS "BUILD_MIDI_PANEL:    ${BUILD_MIDI_PANEL}")
 message(STATUS "BUILD_SD_CARD:       ${BUILD_SD_CARD}")
+message(STATUS "BUILD_I2C_DISPLAY:   ${BUILD_I2C_DISPLAY}")
 message(STATUS "MIDI_TIMING_STATS:   ${ENABLE_MIDI_TIMING_STATS}")
 message(STATUS "TINYUSB_OPT_OS:      ${TINYUSB_OPT_OS}")
 
@@ -129,6 +131,13 @@ add_executable(FMSynthEnsembleV3
 )
 if(BUILD_SD_CARD)
     target_sources(FMSynthEnsembleV3 PRIVATE src/app/smf_player_task.cpp)
+endif()
+if(BUILD_I2C_DISPLAY)
+    target_sources(FMSynthEnsembleV3 PRIVATE
+        src/app/info_screen_task.cpp
+        src/app/ui/menu_screens.cpp
+        src/app/ui/joystick_input_adapter.cpp
+    )
 endif()
 
 pico_set_program_name(FMSynthEnsembleV3 "FMSynthEnsembleV3")

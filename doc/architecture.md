@@ -60,18 +60,21 @@ MIDI Panel は FM 音源 LSI の I/O PortA/B を使用する外付けパネル�
 FMSynthEnsembleV3/
 ├── src/
 │   ├── app/               アプリケーションレイヤ
+│   │   └── ui/            LcdMenu の画面定義・入力アダプタ (BUILD_I2C_DISPLAY=ON時)
 │   ├── midi/              MIDI パース・ルーティングレイヤ
-│   ├── smf/               SMFファイルフォーマット解釈レイヤ (BUILD_SD_CARD=ON時)
+│   ├── smf/               SMFファイルフォーマット解釈・再生順序決定レイヤ (BUILD_SD_CARD=ON時)
 │   ├── synth/             シンセサイザー抽象化レイヤ
 │   ├── drivers/           デバイスドライバレイヤ
 │   │   ├── fm/            FM音源ドライバ (YM2203, YM2608, YMF288, OpnBase, opn_piolib)
 │   │   ├── midi_panel/    MIDI パネルドライバ (FM 経由 LED matrix + スイッチ)
+│   │   ├── display/       キャラクタ LCD ドライバ (RW1063 互換、BUILD_I2C_DISPLAY=ON時)
 │   │   ├── storage/       ストレージドライバ (FatFs)
 │   │   └── usb/           USB MIDI ドライバ (TinyUSB)
 │   └── platform/          ボード統合レイヤ
 ├── extern/                外部ライブラリ (git submodule)
 │   ├── NJU72343-library/
-│   └── no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/
+│   ├── no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/
+│   └── LcdMenu/
 └── doc/                   ドキュメント
 ```
 
@@ -86,8 +89,9 @@ FMSynthEnsembleV3/
 | `csm_ipc.h/cpp` | CSM フレーム処理用イベントキュー |
 | `*_task.h/cpp` | 各 FreeRTOS タスクの実装 |
 | `debugger.h/cpp` | デバッグ用モジュール、対話型デバッガの提供 |
+| `ui/`（`BUILD_I2C_DISPLAY=ON`時） | LcdMenu の画面定義・入力アダプタ。詳細は [design_display_menu.md](design_display_menu.md) |
 
-**ルール**: ハードウェアを直接操作しない。`Platform::*` と `synth` の API のみ使用する。
+**ルール**: ハードウェアを直接操作しない。`Platform::*` と `synth` の API のみ使用する。例外として、`ui/` は UI ロジックそのものである LcdMenu（`extern/LcdMenu`）を直接扱う。
 
 ---
 
@@ -106,9 +110,9 @@ MIDI バイト列の解釈と転送先決定を担うレイヤ。[Single Parse R
 
 ---
 
-### smf/（SMFファイルフォーマット解釈レイヤ）
+### smf/（SMFファイルフォーマット解釈・再生順序決定レイヤ）
 
-SDカード上のStandard MIDI File（SMF）のチャンク・可変長数値（VLQ）・ランニングステータス・メタイベントを解釈するレイヤ。`midi/` と同じく、SDカードの実I/Oには関与しない（実I/Oは `platform/` 側の `SmfSdByteSource` が担う）。
+SDカード上のStandard MIDI File（SMF）のチャンク・可変長数値（VLQ）・ランニングステータス・メタイベントを解釈し、連続再生の順序（範囲・リピート・シャッフル）を決めるレイヤ。`midi/` と同じく、SDカードの実I/Oには関与しない（実I/Oは `platform/` 側の `SmfSdByteSource` が担う）。
 
 | ファイル | 役割 |
 |---------|------|
@@ -116,6 +120,7 @@ SDカード上のStandard MIDI File（SMF）のチャンク・可変長数値（
 | `SmfByteSource.h` | バイト列供給の抽象インターフェース |
 | `SmfMemoryByteSource.h/cpp` | 固定バイト列をラップする実装（ホストユニットテスト・実機組み込みフィクスチャ用） |
 | `SmfParser.h/cpp` | チャンクスキャン・複数トラックマージ・イベント解釈 |
+| `PlaybackSequence.h/cpp` | 再生範囲の曲数・順序・カーソル・リピート・シャッフルを持ち、次/前の曲の位置を決める純粋ロジック（[design_smf_playback.md](design_smf_playback.md)） |
 
 **ルール**: `pico-sdk`・FreeRTOS・ドライバ層に依存しない。詳細設計は [design_smf_player.md](design_smf_player.md) を参照。
 
@@ -180,6 +185,10 @@ synth/
 
 `opn_piolib` は C API（`fm_bus_init`, `fm_device_init`, `write_reg`, `read_status`, `read_reg` 等）を提供し、PIO0 上の単一ステートマシン（`fm_bus`）で FM バスアクセスを実行するとともに、スピンロックにより CPU から見たトランザクション境界を保証する。仕様は [piolib_spec.md](../src/drivers/fm/opn_piolib/doc/piolib_spec.md)。
 
+#### drivers/display/
+
+RW1063-0A 互換の I2C キャラクタ LCD（ACM2004D-FLW-FBW-IIC）を制御するドライバ層。I2C バスの所有・初期化は `platform` が行い、本層は渡されたバスハンドルで読み書きする。詳細は [spec_display_i2c.md](spec_display_i2c.md)。
+
 #### drivers/storage/
 
 `hw_config.c` に SD カードの SPI ピン設定を記述する。no-OS-FatFS ライブラリが提供するコールバック構造体を実装する形式。
@@ -207,7 +216,10 @@ TinyUSB の `tud_task()` 呼び出しと MIDI ストリーム読み出し (`tud_
 | `volume_controller.h/cpp` | NJU72343 電子ボリューム制御のボード固有ラッパー。PIO1/GPIO27/28 の所有と音量 API を提供する |
 | `isr.h/cpp` | GPIO 割り込みの登録・有効化 API（`FM_IRQ` 等） |
 | `smf_sd_byte_source.h/cpp`（`BUILD_SD_CARD=ON`時） | `src/smf/` の `SmfByteSource` インターフェースをSDカードファイルで実装。FatFsの実アクセスはこのファイルに閉じる |
-| `smf_directory.h/cpp`（`BUILD_SD_CARD=ON`時） | SDカード上の`.mid`/`.midi`/`.smf`ファイルを再帰的に列挙する（`ForEachSmfFile()`） |
+| `smf_directory.h/cpp`（`BUILD_SD_CARD=ON`時） | SDカード上の`.mid`/`.midi`/`.smf`ファイルを再帰的に列挙する（`ForEachSmfFile()`）。`playlist`フォルダ直下を名前昇順で列挙する（`ForEachPlaylistFile()`） |
+| `display.h/cpp`（`BUILD_I2C_DISPLAY=ON`時） | I2C バスとキャラクタ LCD の所有・初期化。ステータス行用の書き込み API と、LcdMenu 向けの `CharacterDisplayInterface` を提供する |
+| `lcd_character_display_adapter.h/cpp`（`BUILD_I2C_DISPLAY=ON`時） | LcdMenu の `CharacterDisplayInterface` を `drivers/display` で実装するアダプタ |
+| `arduino_compat/`（`BUILD_I2C_DISPLAY=ON`時） | LcdMenu を pico-sdk 単体でビルドするための `Arduino.h` 互換シム |
 | `freertos_hooks.cpp` | FreeRTOS フック（スタックオーバーフロー・ヒープ枯渇） |
 | `FreeRTOSConfig.h` | FreeRTOS カーネルのコンパイル時設定 |
 
@@ -246,10 +258,11 @@ git submodule はここで管理する。本体コードとの変更衝突を防
 |------------|----------|------|
 | `NJU72343-library/` | NJU72343-library | 電子ボリューム IC 制御 |
 | `no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/` | no-OS-FatFS | SD カード / FatFs |
+| `LcdMenu/` | LcdMenu | キャラクタ LCD のメニュー UI フレームワーク（`app/ui` が使用） |
 
 FreeRTOS は `extern/` で管理せず、Raspberry Pi 公式レイアウトの `FreeRTOS-Kernel`（`pico-sdk` 隣接）を利用する。`PICO_PLATFORM=rp2350-arm-s` の場合は `FreeRTOS_Kernel_import.cmake` により **RP2350_ARM_NTZ** ポート（Community-Supported-Ports）が選択される。
 
-`NJU72343-library` は汎用ドライバとして扱い、アプリケーション層から直接操作しない。基板固有のピン割り当て、PIO 選択、起動時ミュート、0dB 復帰、デバッグ用調整は `Platform::VolumeController` に集約する。
+`NJU72343-library` は汎用ドライバとして扱い、アプリケーション層から直接操作しない。ただし `LcdMenu` は UI ロジックそのものであるため、`app/ui` が直接扱う（[design_display_menu.md](design_display_menu.md#6-レイヤ配置)）。基板固有のピン割り当て、PIO 選択、起動時ミュート、0dB 復帰、デバッグ用調整は `Platform::VolumeController` に集約する。
 
 ---
 
@@ -272,6 +285,7 @@ FMSynthEnsembleV3 (実行ファイル)
   │     ├── tinyusb_device
   │     ├── nju72343
   │     ├── fm
+  │     ├── display / lcdmenu (BUILD_I2C_DISPLAY=ON の場合のみ)
   │     ├── fatfs (BUILD_SD_CARD=ON の場合のみ)
   │     └── smf (BUILD_SD_CARD=ON の場合のみ)
   ├── drivers/fm
@@ -282,6 +296,8 @@ FMSynthEnsembleV3 (実行ファイル)
   │     ├── tinyusb_device
   │     ├── tinyusb_board
   │     └── pico_stdlib
+  ├── drivers/display (BUILD_I2C_DISPLAY=ON の場合のみ)
+  │     └── hardware_i2c
   ├── drivers/storage
   │     └── no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
   ├── nju72343
@@ -297,6 +313,7 @@ flowchart TD
     app --> synth["synth"]
     app --> platform["platform"]
     app --> usb["drivers/usb"]
+    app -. "app/ui のみ（LcdMenu）" .-> ext
     synth --> midi
     synth --> fm["drivers/fm"]
     synth --> panel["drivers/midi_panel"]
@@ -312,7 +329,7 @@ flowchart TD
 - `midi` は `pico-sdk`・FreeRTOS・ドライバ層に依存しない
 - `synth` は純粋な MIDI イベント型・Controller Action 定義に限り `midi` に依存してよい。`midi` から `synth` への逆依存は禁止
 - `synth` は必要な低レベル操作を `drivers` のインターフェース経由で行う。pico-sdk への直接依存は禁止。ハードウェア操作を伴わない実行時ポリシー定数（`config.h`）とログマクロ（`debugger.h`）に限り `app` を include してよい（CMake 上も `synth` は `platform` をリンクするが、これは [design_csm_frame.md](design_csm_frame.md) の `CsmVoice` ISR 登録要件による）
-- `app` はハードウェアを直接操作しないが、`MidiControlType::Debug*`（TL Trim トグル等のデバッグ用 SysEx コマンド、`midi_engine_task.cpp`）に限り `drivers/fm` の static API を直接呼ぶ
+- `app` はハードウェアを直接操作しないが、`MidiControlType::Debug*`（TL Trim トグル等のデバッグ用 SysEx コマンド、`midi_engine_task.cpp`）に限り `drivers/fm` の static API を直接呼ぶ。また `app/ui` は UI ロジックである `extern/LcdMenu` を直接扱う
 - `extern/` 内ファイルは直接編集しない（upstream との乖離を防ぐ）
 - GPIO ピン番号は `platform` レイヤ内に閉じ込め、上位レイヤでハードコードしない。共有ハードウェア資源のピン割り当ては、その資源を所有する `platform` 実装または公開が必要な `platform` ヘッダに集約する。例外: `drivers/storage/hw_config.c` は no-OS-FatFS が要求する静的コールバック構造体のため SPI/CS ピン番号を直書きする
 - `config.h` はアプリ層の実行時ポリシー定数に限定する。ドライバ/ミドル層の Build-time Switch は CMake `target_compile_definitions` で制御する。一覧は [7. Build-time Switch](#7-build-time-switch)
@@ -327,6 +344,8 @@ FreeRTOS SMP ポート（RP2350_ARM_NTZ）でデュアルコアタスクを管�
 タスク割り当て:
   Core0: UsbMidiTask    — TinyUSB + MIDI パース + Queue 投入
   Core0: MidiPanelTask  — Panel 固定周期 (MIDI_PANEL_PERIOD_MS)
+  Core0: SmfPlayerTask  — SMF 再生（BUILD_SD_CARD=ON 時）
+  Core0: InfoScreenTask — LCD メニュー・ステータス行（BUILD_I2C_DISPLAY=ON 時）
   Core0: DebugTask      — デバッガコンソール（最低優先度）
   Core1: MidiEngineTask — MidiProcessor + OPN 書き込み + TickVibrato
   Core1: CsmFrameTask   — CSM フレーム処理（CSM 有効時）
@@ -382,6 +401,7 @@ git submodule add <URL> extern/<ライブラリ名>
 | `USB_MIDI_IRQ_DRIVEN` | CMake `option()` + `CMakePresets.json` | TinyUSB OSAL モード切替（既定 ON = `OPT_OS_FREERTOS`。[design_concurrency.md](design_concurrency.md#331-usb-スケジューリングモード) 参照） |
 | `BUILD_MIDI_PANEL` | CMake `option()` | MIDI パネルコントローラの有効化 |
 | `BUILD_SD_CARD` | CMake `option()` | SD カードスタックの有効化 |
+| `BUILD_I2C_DISPLAY` | CMake `option()` | I2C キャラクタ LCD・LcdMenu の有効化。`BUILD_MIDI_PANEL=ON` が前提（メニューの操作にジョイスティックを使うため） |
 | `ENABLE_MIDI_TIMING_STATS` | CMake `option()` + `CMakePresets.json` | MIDI キュー滞留・イベント実行時間の詳細計測（既定 OFF） |
 | `ENABLE_DEBUG_PRINT` | `src/app/config.h` `#define` | midi_ipc Drop カウンタのシリアル出力有効化 |
 | `ENABLE_CSM` | `src/app/config.h` `#define` | CSM Voice の有効化 |

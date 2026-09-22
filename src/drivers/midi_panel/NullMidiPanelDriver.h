@@ -21,4 +21,8 @@ public:
     void Tick() override {}
     bool IsMidiReset() const override { return false; }
     void FlashAllLeds() override {}
+    JoystickDirection GetJoystickDirection() const override { return JoystickDirection::None; }
+    bool IsJoystickPushed() const override { return false; }
+    void SetLedMode(bool /*note_reflect*/) override {}
+    bool GetLedMode() const override { return true; }
 };

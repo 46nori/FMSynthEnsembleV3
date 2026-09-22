@@ -23,6 +23,9 @@
 #include "sd_card.h"
 #include "hw_config.h"  // sd_get_by_num()
 #endif
+#if BUILD_I2C_DISPLAY
+#include "display.h"
+#endif
 
 namespace Platform {
 
@@ -42,11 +45,12 @@ constexpr uint32_t kYm2608Clock =   8000000u;   // YM2608 clock:   8MHz
 constexpr uint32_t kYm2203Clock =   4000000u;   // YM2203 clock:   4MHz
 constexpr uint32_t kProbeClock  = kYm2203Clock; // probe at the lower of the two
 
-// GPIO pin assignments (internal use only; FM_IRQ* are public in init.h)
+// Board-wide GPIO reference (not all pins are configured by this file).
+// FM_IRQ* is public in init.h.
 //
-//   bit  28    27     26   20      17      16      19      18      22   15
-//       V_CLK V_DATA /IRQ /SD_SW /SDCS  SD_MISO SD_MOSI SD_CLK  /IC  /RD
-//   DIR  1     1      0    0      1       0       1       1       1    1
+//   bit  28    27     26   21   20   17      16      19      18      22   15
+//       V_CLK V_DATA /IRQ SCL  SDA /SDCS  SD_MISO SD_MOSI SD_CLK  /IC  /RD
+//   DIR  1     1      0    *    *   1       0       1       1       1    1
 //
 //   bit  14  13  12  11  10   9   8    7   6   5   4    3   2   1   0
 //        /WR CS1 CS0  A1  A0  D7  D6  D5  D4  D3  D2   D1  D0  --  --
@@ -55,6 +59,9 @@ constexpr uint32_t kProbeClock  = kYm2203Clock; // probe at the lower of the two
 //   -- : Not used by this driver
 //   DIR: 0(INPUT), 1(OUTPUT), *(I/O)
 //
+// InitGpio()が設定するのはGPIO2-15(FMバス)・22(/IC)・26(/IRQ)のみ。
+// V_CLK/V_DATA(27/28)はvolume_controller.cpp、SCL/SDA(20/21)はdisplay.cpp、
+// SD系(16-19)はdrivers/storage/hw_config.c（no-OS-FatFS経由）がそれぞれ個別に設定する。
 constexpr uint kFM_D0    =  2;
 constexpr uint kFM_D1    =  3;
 constexpr uint kFM_D2    =  4;
@@ -237,22 +244,27 @@ bool IsYm2608(const fm_device_t* dev) {
  * @brief プラットフォーム全体の初期化
  */
 void Initialize() {
-    // NJU72343 ボリュームコントローラ 
+    // NJU72343 ボリュームコントローラ (GPIO27/28, PIO1)
     //   GPIO/FMの初期化前の不安定 mute
     InitNJU72343();
 
     // 標準入出力の初期化 (UART + USB)
     stdio_init_all();
 
-    // GPIO初期化
+    // GPIO初期化 (GPIO2-15: FMバス, GPIO22: /IC, GPIO26: /IRQ)
     InitGpio();
 
     // FM音源LSIのリセット
     ResetFmChip();
 
 #if BUILD_SD_CARD
-    // SD カード
+    // SD カード (GPIO16-19, SPI0)
     InitSdCard();
+#endif
+
+#if BUILD_I2C_DISPLAY
+    // ディスプレイ用I2Cバス (GPIO20/21, I2C0)
+    InitializeI2cBus();
 #endif
 
     // TinyUSB MIDI デバイス

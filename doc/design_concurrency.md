@@ -106,6 +106,7 @@ flowchart LR
 | `UsbMidiTask` | Core0 | MIDI 入力を取りこぼさない範囲で、音源処理より下に置く | USB イベント待機/ポーリング |
 | `SmfPlayerTask`（`BUILD_SD_CARD=ON`時） | Core0 | `UsbMidiTask` より下、SDカードのブロッキングI/Oが `MidiPanelTask` の周期スキャンより優先される位置に置く | Debuggerコマンド通知 + 再生中は次のSMFイベントまでの待機（[design_smf_player.md 2.1](design_smf_player.md#21-優先度)） |
 | `MidiPanelTask` | Core0 | USB（および有効時はSmfPlayerTask）より下でも周期を維持できる位置に置く | 固定周期（`MIDI_PANEL_PERIOD_MS`） |
+| `InfoScreenTask`（`BUILD_I2C_DISPLAY=ON`時） | Core0 | `DebugTask` より上、I/O 系タスクを阻害しない低優先度に置く | 固定周期（`INFO_SCREEN_POLL_PERIOD_MS`、ジョイスティックのポーリング）+ 他タスクからの通知で即時起床（[design_display_menu.md](design_display_menu.md#71-演奏状態の表示)） |
 | `DebugTask` | Core0 | デバッグ用の最低優先度タスクとする | イベント駆動 |
 | TimerTask | Core0 | FreeRTOS 内部処理として、USB/Panel を阻害しない位置に置く | FreeRTOS 内部 |
 
@@ -251,10 +252,10 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 |---|---|---|---|
 | `gPanelChannelBitmap` | MidiPanelTask (Core0) | MidiEngineTask (Core1) | `volatile uint16_t` |
 | `gLastNoteOnBitmap` | MidiEngineTask (Core1) | MidiPanelTask (Core0) | `volatile uint16_t` |
-| `gResetPulseSeq` | MidiEngineTask (Core1) | MidiPanelTask (Core0) | `volatile uint32_t` |
+| `gResetPulseSeq` | MidiEngineTask (Core1) | MidiPanelTask (Core0)、InfoScreenTask (Core0、`BUILD_I2C_DISPLAY=ON`時) | `volatile uint32_t` |
 | `gPendingReset` | `MidiIpcSendMidiControl` (Core0) / `MidiEngineTask` (Core1) | MidiEngineTask (Core1) | `std::atomic<bool>` |
 
-`gPanelChannelBitmap` / `gLastNoteOnBitmap` は 16-bit アライン済みの単純値であり、Cortex-M33 では 1 命令でアトミックに読み書きされる。複合操作を行う場合はクリティカルセクションを設けること。`gResetPulseSeq` は MidiEngineTask が MIDI Reset を実適用するたびに単調増加させる 32-bit カウンタで、同様に単一命令でアトミックに読み書きされる。MidiPanelTask は前回値との比較（`!=`）でエッジを検出し、パネル LED の Reset 通知点滅（[design_midi_panel.md](design_midi_panel.md#11-led-表示モード)）をトリガーする。
+`gPanelChannelBitmap` / `gLastNoteOnBitmap` は 16-bit アライン済みの単純値であり、Cortex-M33 では 1 命令でアトミックに読み書きされる。複合操作を行う場合はクリティカルセクションを設けること。`gResetPulseSeq` は MidiEngineTask が MIDI Reset を実適用するたびに単調増加させる 32-bit カウンタで、同様に単一命令でアトミックに読み書きされる。MidiPanelTask は前回値との比較（`!=`）でエッジを検出し、パネル LED の Reset 通知点滅（[design_midi_panel.md](design_midi_panel.md#11-led-表示モード)）をトリガーする。InfoScreenTask も同様にエッジを検出し、LCD のステータス行に Reset を表示する（[design_display_menu.md](design_display_menu.md#71-演奏状態の表示)）。
 
 `gPendingReset` は `gMidiControlQueue` が満杯で Reset イベントを投入できなかった場合のフォールバックフラグである。Core0 の `MidiIpcSendMidiControl()` が `store(true, release)` し、Core1 の `MidiEngineTask` が MIDI イベント処理後に `exchange(false, acq_rel)` で取得とクリアを同時に行う。`load` のあと別操作で `store(false)` すると、その間に Core0 が再度 `store(true)` した後発 Reset を消すため、取得とクリアはアトミックにする。両コアから書き込まれるため、コンパイラ最適化の抑制だけでなく CPU 間メモリ可視性の保証も必要であり、`volatile bool` ではなく `std::atomic<bool>` を使用する。
 
@@ -270,7 +271,8 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 | Panel ハードウェア (OPN PortA/B) | `MidiPanelTask`（Core0）のみ | なし |
 | `gPanelChannelBitmap` | `MidiPanelTask` のみ（デバッグ専用の例外: `DebugTask` の `cs` コマンドも書き込み可。Panel 接続中は次回スキャンで上書きされる） | `MidiEngineTask` |
 | `gLastNoteOnBitmap` | `MidiEngineTask` のみ | `MidiPanelTask` |
-| `gResetPulseSeq` | `MidiEngineTask` のみ | `MidiPanelTask` |
+| `gResetPulseSeq` | `MidiEngineTask` のみ | `MidiPanelTask`、`InfoScreenTask` |
+| Panel のジョイスティック状態・LED モード（`MidiPanelController` 経由） | ジョイスティック状態は `MidiPanelTask`（`Tick()`）、LED モードは `InfoScreenTask`（`SetLedMode()`） | ジョイスティック状態は `InfoScreenTask`、LED モードは `MidiPanelTask`（[design_midi_panel.md](design_midi_panel.md#8-並行性所有権)） |
 | `gMidiQueue` への書き込み | `UsbMidiTask`、`SmfPlayerTask`（`BUILD_SD_CARD=ON` 時。[design_smf_player.md](design_smf_player.md#5-gmidiqueue-への合流) 参照。`gMidiControlQueue` 同様、複数 Producer を許容） | `MidiEngineTask`（`xQueueReceive`） |
 | `gMidiControlQueue` への書き込み | `UsbMidiTask`、`MidiPanelTask`、`DebugTask`（いずれも `MidiIpcSendMidiControl`。FreeRTOS Queue は複数 Producer を許容する） | `MidiEngineTask`（`xQueueReceive`） |
 

@@ -76,6 +76,12 @@ int c_smf_play(token_list* t);
 int c_smf_stop(token_list* t);
 int c_smf_pause(token_list* t);
 int c_smf_resume(token_list* t);
+int c_smf_playlist(token_list* t);
+int c_smf_next(token_list* t);
+int c_smf_prev(token_list* t);
+int c_smf_repeat(token_list* t);
+int c_smf_shuffle(token_list* t);
+int c_smf_playmode(token_list* t);
 int c_smf_ls(token_list* t);
 int c_smf_mount(token_list* t);
 #endif
@@ -104,6 +110,12 @@ const struct {
     {  "stop",         c_smf_stop},
     { "pause",        c_smf_pause},
     {"resume",       c_smf_resume},
+    {    "pl",      c_smf_playlist},
+    {  "next",           c_smf_next},
+    {  "prev",           c_smf_prev},
+    {"repeat",         c_smf_repeat},
+    {"shuffle",       c_smf_shuffle},
+    {"playmode",   c_smf_playmode},
     {    "ls",           c_smf_ls},
     { "mount",        c_smf_mount},
 #endif
@@ -216,6 +228,12 @@ int c_help(token_list* t) {
         "stop      : Stop SMF playback\n"
         "pause     : Pause SMF playback\n"
         "resume    : Resume SMF playback\n"
+        "pl <n>    : Play playlist folder file by position (name order, 1-based)\n"
+        "next      : Next track in the current playback order\n"
+        "prev      : Previous track in the current playback order\n"
+        "repeat <0-2> : Repeat 0=Off 1=One 2=Loop\n"
+        "shuffle <0|1> : Shuffle OFF/ON\n"
+        "playmode <0|1> : Playback Mode 0=Single 1=Continuous\n"
         "mount     : Remount SD card (after removing/reinserting)\n"
 #endif
         "";
@@ -555,6 +573,63 @@ int c_smf_pause(token_list* t) {
 int c_smf_resume(token_list* t) {
     (void)t;
     SmfPlayer::RequestResume();
+    return NO_ERROR;
+}
+
+int c_smf_playlist(token_list* t) {
+    unsigned int position = 0;
+    if (get_uint(t, T_PARAM1, &position) != NO_ERROR) {
+        return ERR_PARAM_MISS;
+    }
+    SmfPlayer::RequestPlayPlaylist(static_cast<uint16_t>(position));
+    return NO_ERROR;
+}
+
+int c_smf_next(token_list* t) {
+    (void)t;
+    SmfPlayer::RequestNext();
+    return NO_ERROR;
+}
+
+int c_smf_prev(token_list* t) {
+    (void)t;
+    SmfPlayer::RequestPrev();
+    return NO_ERROR;
+}
+
+int c_smf_repeat(token_list* t) {
+    unsigned int mode = 0;
+    if (get_uint(t, T_PARAM1, &mode) != NO_ERROR) {
+        return ERR_PARAM_MISS;
+    }
+    if (mode > static_cast<unsigned int>(RepeatMode::Loop)) {
+        return ERR_PARAM_VAL;
+    }
+    SmfPlayer::RequestSetRepeat(static_cast<RepeatMode>(mode));
+    return NO_ERROR;
+}
+
+int c_smf_shuffle(token_list* t) {
+    unsigned int on = 0;
+    if (get_uint(t, T_PARAM1, &on) != NO_ERROR) {
+        return ERR_PARAM_MISS;
+    }
+    if (on > 1) {
+        return ERR_PARAM_VAL;
+    }
+    SmfPlayer::RequestSetShuffle(on != 0);
+    return NO_ERROR;
+}
+
+int c_smf_playmode(token_list* t) {
+    unsigned int mode = 0;
+    if (get_uint(t, T_PARAM1, &mode) != NO_ERROR) {
+        return ERR_PARAM_MISS;
+    }
+    if (mode > static_cast<unsigned int>(PlaybackMode::Continuous)) {
+        return ERR_PARAM_VAL;
+    }
+    SmfPlayer::RequestSetPlaybackMode(static_cast<PlaybackMode>(mode));
     return NO_ERROR;
 }
 

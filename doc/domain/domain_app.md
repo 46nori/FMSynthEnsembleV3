@@ -16,7 +16,7 @@ classDiagram
         Platform init / Module detect
         MidiFactory / MidiProcessor setup
         MidiIpcInitialize / CsmIpcInitialize
-        xTaskCreateAffinitySet × 5
+        xTaskCreateAffinitySet（有効な機能のタスクを生成）
         vTaskStartScheduler
     }
 
@@ -86,6 +86,19 @@ classDiagram
         Debugger console
     }
 
+    class SmfPlayerTask {
+        <<task Core0 / BUILD_SD_CARD>>
+        SMF 再生 → gMidiQueue
+        InfoScreen へ Play/Stop/Error 通知
+    }
+
+    class InfoScreenTask {
+        <<task Core0 / BUILD_I2C_DISPLAY>>
+        INFO_SCREEN_POLL_PERIOD_MS period
+        LcdMenu（app/ui）とジョイスティック入力
+        行0のステータス行
+    }
+
     class Debugger {
         <<module>>
         +HandleSysEx(data, len)
@@ -111,11 +124,16 @@ classDiagram
     main ..> MidiPanelTask : creates
     main ..> CsmFrameTask : creates
     main ..> DebugTask : creates
+    main ..> SmfPlayerTask : creates
+    main ..> InfoScreenTask : creates
     UsbMidiTask --> UsbMidiStreamSink : owns
     UsbMidiTask --> MidiStreamAssembler : PushByte（midi層、詳細はdomain_midi.md）
     UsbMidiStreamSink --> midi_ipc : enqueue
     MidiEngineTask --> midi_ipc : drain
     MidiPanelTask --> midi_ipc : bitmap / Reset
+    InfoScreenTask --> midi_ipc : Reset 通知
+    SmfPlayerTask --> midi_ipc : enqueue
+    SmfPlayerTask ..> InfoScreenTask : Notify*
     CsmFrameTask --> csm_ipc : wait
     CsmEventSink --> csm_ipc : forwards
     main ..> CsmEventSink : CsmVoiceへ注入
@@ -131,5 +149,7 @@ classDiagram
 | `CsmEventSink` | `csm_ipc.h/cpp` | `synth` の `ICsmEventSink` を実装し `CsmSignalStart`/`CsmSignalStop` へ転送（[design_csm_frame.md](../design_csm_frame.md)） |
 | `UsbMidiStreamSink` | `usb_midi_task.cpp` | `midi` の `IMidiStreamSink` を実装し、確定したイベント/SysExをIPCキュー送信・`Debugger::HandleSysEx`へ転送（バイトストリーム組立自体は`MidiStreamAssembler`、[domain_midi.md](domain_midi.md)参照） |
 | 各タスク | `*_task.h/cpp` | [design_concurrency.md](../design_concurrency.md) のタスク構成を実装 |
+| `InfoScreenTask` | `info_screen_task.h/cpp` | LCD のステータス行と、LcdMenu によるジョイスティック操作メニューの駆動 |
+| `app/ui` | `ui/` | LcdMenu の画面定義（`menu_screens`）とジョイスティック入力アダプタ（`JoystickInputAdapter`）。`extern/LcdMenu` を直接扱う（[design_display_menu.md](../design_display_menu.md)） |
 | `Debugger` | `debugger.h/cpp` | 対話型デバッガ・独自 SysEx 処理 |
 | `config.h` / `task_config.h` | — | 実行時ポリシー定数とタスク設定の唯一の定義元 |

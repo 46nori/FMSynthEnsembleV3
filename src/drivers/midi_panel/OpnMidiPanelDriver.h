@@ -37,14 +37,21 @@ public:
     void Tick() override;
     bool IsMidiReset() const override;
     void FlashAllLeds() override;
+    JoystickDirection GetJoystickDirection() const override { return joystick_.stable_direction; }
+    bool IsJoystickPushed() const override { return joystick_.stable_push; }
+    void SetLedMode(bool note_reflect) override { led_mode_note_ = note_reflect; }
+    bool GetLedMode() const override { return led_mode_note_; }
 
 private:
     /** @brief マトリックス読取り・トグル用の調整パラメータ */
     struct HardwareConfig {
-        uint16_t debounce_ms;      ///< 押下時のチャタリング除去時間 [ms]
-        uint16_t toggle_hold_ms;   ///< トグル反転に必要な押下継続時間 [ms]
-        uint16_t long_press_ms;    ///< 長押し成立に必要な押下継続時間 [ms]
-        uint16_t settle_us;        ///< 列切替後のPB電位の安定待ち [µs]
+        uint16_t debounce_ms;          ///< 押下時のチャタリング除去時間 [ms]
+        uint16_t toggle_hold_ms;       ///< トグル反転に必要な押下継続時間 [ms]
+        uint16_t long_press_ms;        ///< 長押し成立に必要な押下継続時間 [ms]
+        uint16_t settle_us;            ///< 列切替後のPB電位の安定待ち [µs]
+        uint16_t joystick_debounce_ms; ///< ジョイスティックのチャタリング除去時間 [ms]
+                                       ///< （bit6/bit7は直結でノイズに弱いためdebounce_msより長め。
+                                       ///<  spec_midi_panel.md 7.5節）
     };
 
     /** @brief 1CH分の押下・デバウンス・トグル状態 */
@@ -63,10 +70,21 @@ private:
         uint32_t phase_start_ms; ///< 現フェーズ開始時刻 [ms]
     };
 
+    /** @brief ジョイスティック（方向・PUSH）のデバウンス状態 */
+    struct JoystickInputState {
+        JoystickDirection stable_direction;    ///< デバウンス後の方向
+        JoystickDirection last_raw_direction;  ///< 直近の生の方向
+        uint32_t direction_change_ms;          ///< 方向が変化した時刻 [ms]
+        bool stable_push;                      ///< デバウンス後のPUSH状態
+        bool last_raw_push;                    ///< 直近の生のPUSH状態
+        uint32_t push_change_ms;               ///< PUSHが変化した時刻 [ms]
+    };
+
     void UpdateChannelInput(int ch_index, bool raw_pressed, uint32_t now_ms);
     void RebuildSwitchBitmap();
     void UpdateResetFlash(uint32_t now_ms);
-    uint16_t ResolveEffectiveLedBitmap(bool led_mode_midi) const;
+    void UpdateJoystickInput(uint8_t pb_raw, uint32_t now_ms);
+    uint16_t ResolveEffectiveLedBitmap() const;
 
     IIoPort& io_;
     HardwareConfig config_;
@@ -76,4 +94,6 @@ private:
     uint8_t scan_column_;        ///< 現在スキャン中の列 0..3
     ChannelInputState channels_[16];
     ResetFlashState reset_flash_;
+    JoystickInputState joystick_;
+    bool led_mode_note_;  ///< LED表示モード。true=Note反映（既定）、false=Toggle反映
 };

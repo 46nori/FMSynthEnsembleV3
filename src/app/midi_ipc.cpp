@@ -93,6 +93,14 @@ bool MidiIpcSendMidiEvent(const MidiEvent& event) {
     return false;
 }
 
+bool MidiIpcSendMidiEventGuaranteed(const MidiEvent& event) {
+    if (gMidiQueue == nullptr) {
+        log_queue_failure_once_every_64("midi_uninitialized", gMidiQueueDropCount);
+        return false;
+    }
+    return xQueueSendToBack(gMidiQueue, &event, portMAX_DELAY) == pdTRUE;
+}
+
 #if ENABLE_MIDI_TIMING_STATS
 void MidiIpcRecordMidiEventTiming(const MidiEvent& event, UBaseType_t queue_depth,
                                   uint32_t dequeue_us, uint32_t completed_us) {

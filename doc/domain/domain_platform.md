@@ -39,6 +39,22 @@ classDiagram
         +DisableIsrCallback(pin)
     }
 
+    class Platform_display {
+        <<module>>
+        +InitializeI2cBus()
+        +DisplayWrite(column, row, text)
+        +GetCharacterDisplay() CharacterDisplayInterface&
+    }
+
+    class LcdCharacterDisplayAdapter {
+        <<implements CharacterDisplayInterface>>
+        行0をステータス行として予約し、LcdMenu には行1-3を見せる
+    }
+
+    class Rw1063Display {
+        <<drivers/display>>
+    }
+
     class freertos_hooks {
         <<module>>
         vApplicationStackOverflowHook
@@ -60,6 +76,9 @@ classDiagram
     Platform_init --> opn_piolib : fm_bus_init / fm_device_init
     FmSystem o-- OpnBase : 4 dock
     VolumeController --> NJU72343 : PIO1 / GPIO27-28
+    Platform_display --> Rw1063Display : I2C0 / GPIO20-21
+    Platform_display --> LcdCharacterDisplayAdapter : owns
+    LcdCharacterDisplayAdapter --> Rw1063Display : wraps
 ```
 
 `NJU72343` は `extern/` の外部ライブラリ、`opn_piolib` / `OpnBase` は `drivers/fm` に属する（灰色の外部要素として `<<extern>>` / `<<drivers/fm>>` を注記）。
@@ -70,5 +89,7 @@ classDiagram
 | `Platform::SetupFmModules` | `init.cpp` | FM バス（PIO0）初期化、モジュール自動識別（YM2608/YM2203/YMF288/未接続）、`FmSystem` 構築 |
 | `Platform::VolumeController` | `volume_controller.h/cpp` | NJU72343 のボード固有ラッパー。PIO1/GPIO27/28 の所有、dock 状態管理、dB 指定 API |
 | `Platform::AttachIsrCallback` 等 | `isr.h/cpp` | GPIO 割り込み登録（`FM_IRQ` = 全 Dock /IRQ の Wired-OR） |
+| `Platform::DisplayWrite` 等 | `display.h/cpp` | I2C バスとキャラクタ LCD の所有・初期化（`BUILD_I2C_DISPLAY=ON` 時）。ステータス行用の書き込み API と LcdMenu 向け `CharacterDisplayInterface` を提供 |
+| `LcdCharacterDisplayAdapter` | `lcd_character_display_adapter.h/cpp` | LcdMenu の `CharacterDisplayInterface` を `drivers/display` で実装（[design_display_menu.md](../design_display_menu.md#4-ディスプレイ側-characterdisplayinterfaceアダプタ)） |
 | FreeRTOS フック | `freertos_hooks.cpp` | スタックオーバーフロー・ヒープ枯渇時の記録 |
 | `FreeRTOSConfig.h` | — | FreeRTOS カーネル設定（[design_concurrency.md](../design_concurrency.md#6-freertos-設定)） |

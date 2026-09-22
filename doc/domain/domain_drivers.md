@@ -214,6 +214,11 @@ classDiagram
         +GetSwitchBitmap() uint16_t*
         +Tick()*
         +IsMidiReset() bool*
+        +FlashAllLeds()*
+        +GetJoystickDirection() JoystickDirection*
+        +IsJoystickPushed() bool*
+        +SetLedMode(note_reflect)*
+        +GetLedMode() bool*
     }
 
     class OpnMidiPanelDriver {
@@ -222,12 +227,15 @@ classDiagram
         -switch_bitmap_ : uint16_t
         -long_press_bitmap_ : uint16_t
         -channels_[16] : debounce / toggle / long-press
+        -joystick_ : direction / push (debounced)
+        -led_mode_note_ : bool
         +Tick()  one column slot per call
     }
 
     class NullMidiPanelDriver {
         +IsAvailable() returns false
         +GetSwitchBitmap() returns 0xFFFF
+        +GetJoystickDirection() returns None
     }
 
     class MidiPanelDriverFactory {
@@ -241,6 +249,25 @@ classDiagram
 ```
 
 設計は [design_midi_panel.md](../design_midi_panel.md)、ハードウェア仕様は [spec_midi_panel.md](../spec_midi_panel.md)。
+
+## drivers/display — キャラクタ LCD ドライバ
+
+`BUILD_I2C_DISPLAY=ON` 時のみ。関連設計書: [spec_display_i2c.md](../spec_display_i2c.md)
+
+```mermaid
+classDiagram
+    class Rw1063Display {
+        -bus_ : i2c_inst_t*
+        +Initialize()
+        +Clear()
+        +Write(column, row, text)
+        +SetCursor(column, row)
+        +WriteChar(ch)
+        +CreateChar(id, pattern)
+        +SetDisplayOn(on)
+        +SetBlink(on)
+    }
+```
 
 ## drivers/usb / drivers/storage
 
