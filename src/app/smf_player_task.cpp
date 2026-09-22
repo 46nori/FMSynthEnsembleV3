@@ -427,7 +427,13 @@ public:
                 std::memcpy(song_title_, pending_event_.bytes, len);
                 song_title_[len] = '\0';
 #if BUILD_I2C_DISPLAY
-                InfoScreen::NotifyPlay(song_title_);
+                // 空のTrack Nameイベント（FF 03 00）では通知しない。NotifyPlay()は
+                // 曲名確定としてゲートに関わらずステータス行を上書きするため、空文字列を
+                // 渡すとNotifyTrackStart()によるクリアが行われないまま上書きされ、
+                // 古い曲名が残ってしまう。
+                if (len != 0) {
+                    InfoScreen::NotifyPlay(song_title_);
+                }
 #endif
             }
             break;
