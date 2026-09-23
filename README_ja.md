@@ -18,7 +18,7 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
   - [MIDIインプリメンテーションチャート](./doc/midi_implementation_chart.md)
   - **16 チャンネル** マルチティンバー、チャンネルごとのON/OFF
   - **最大24音同時発音**
-- **SDカード再生**
+- **SMFファイル再生**
   - SMF（Standard MIDI File）をSDカードから直接再生。USB MIDIホスト接続なしでも演奏可能
   - Format 0 / Format 1（複数トラック）対応
   - プレイリスト / 単発・連続再生 / リピート再生 / シャッフル再生 
@@ -30,6 +30,9 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
   - LINE OUT
   - LINE IN(ADPCM用・アンチエイリアスフィルタあり)
   - 電子ボリューム/LPF付きオーディオミキサー
+- **LCD Display**
+  - SMFファイル選択・再生制御
+  - 各種動作設定
 - **モジュール形式のハードウェア**
 
 ## ドキュメント
@@ -81,10 +84,18 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
     <td align="center" width="33%">
       <a href="doc/image/MIDIPanel.jpeg"><img src="doc/image/MIDIPanel.jpeg" width="280" alt="MIDI パネル"></a><br>
       <b>MIDIパネルモジュール</b><br>
-      <sub>16CH ON/OFF + LED<br>YM2608/YM2203モジュールへ接続</sub>
+      <sub>16CH ON/OFF + LED<br>ジョイスティック<br>YM2608/YM2203モジュールへ接続</sub>
     </td>
-    <td></td>
-    <td></td>
+    <td align="center" width="33%">
+      <a href="doc/image/SDHCCard_Module.jpeg"><img src="doc/image/SDHCCard_Module.jpeg" width="280" alt="SDHC Cardモジュール"></a><br>
+      <b>SDHC Cardモジュール</b><br>
+      <sub>SMFファイル再生用</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/DisplayAdapter_Module.jpeg"><img src="doc/image/DisplayAdapter_Module.jpeg" width="280" alt="LCD Displayモジュール"></a><br>
+      <b>LCD Displayモジュール</b><br>
+      <sub>20x4 I2C LCDパネル接続用</sub>
+    </td>
   </tr>
 </table>
 
@@ -106,10 +117,14 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
   <tr>
     <td align="center" width="33%">
       <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="モジュール接続"></a><br>
-      <b>全体接続</b><br>
+      <b>音源部接続</b><br>
       <sub>電源・コントローラ・<br>FM音源・ミキサー</sub>
     </td>
-  </tr>
+    <td align="center" width="33%">
+      <a href="doc/image/ConnectedModules_full.jpeg"><img src="doc/image/ConnectedModules_full.jpeg" width="280" alt="モジュール接続"></a><br>
+      <b>全モジュール接続</b><br>
+      <sub>音源部・<br>MIDIパネル・LCD Display・SDHC Card・<br>スピーカーアンプ</sub>
+    </td>  </tr>
 </table>
 
 ### 接続図

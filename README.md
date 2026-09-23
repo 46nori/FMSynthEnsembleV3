@@ -18,7 +18,7 @@ A USB MIDI synthesizer using YAMAHA OPN-series FM sound chips.
   - [MIDI implementation chart](./doc/midi_implementation_chart.md)
   - **16 channels**, multi-timbral, per-channel ON/OFF
   - **Up to 24 simultaneous voices**
-- **SD card playback**
+- **SMF playback**
   - Play Standard MIDI Files directly from an SD card, no USB MIDI host required
   - Supports Format 0 / Format 1 (multiple tracks)
   - Playlist / single-track or continuous playback / repeat / shuffle
@@ -30,6 +30,9 @@ A USB MIDI synthesizer using YAMAHA OPN-series FM sound chips.
   - LINE OUT
   - LINE IN (for ADPCM, with anti-aliasing filter)
   - Electronic volume / LPF audio mixer
+- **LCD display**
+  - SMF file selection and playback control
+  - Various operating settings
 - **Modular hardware**
 
 ## Documentation
@@ -91,10 +94,18 @@ Default board is **Pico 2 (RP2350A)**. CLI, board switching, debugger, and CI: [
     <td align="center" width="33%">
       <a href="doc/image/MIDIPanel.jpeg"><img src="doc/image/MIDIPanel.jpeg" width="280" alt="MIDI panel"></a><br>
       <b>MIDI panel module</b><br>
-      <sub>16-ch ON/OFF + LED<br>Connects to YM2608/YM2203 module</sub>
+      <sub>16-ch ON/OFF + LED<br>Joystick<br>Connects to YM2608/YM2203 module</sub>
     </td>
-    <td></td>
-    <td></td>
+    <td align="center" width="33%">
+      <a href="doc/image/SDHCCard_Module.jpeg"><img src="doc/image/SDHCCard_Module.jpeg" width="280" alt="SDHC card module"></a><br>
+      <b>SDHC card module</b><br>
+      <sub>For SMF playback</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/DisplayAdapter_Module.jpeg"><img src="doc/image/DisplayAdapter_Module.jpeg" width="280" alt="LCD display module"></a><br>
+      <b>LCD display module</b><br>
+      <sub>For 20x4 I2C LCD panel</sub>
+    </td>
   </tr>
 </table>
 
@@ -115,9 +126,14 @@ Default board is **Pico 2 (RP2350A)**. CLI, board switching, debugger, and CI: [
   </tr>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="Full assembly"></a><br>
-      <b>Full assembly</b><br>
+      <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="Sound section"></a><br>
+      <b>Sound section</b><br>
       <sub>Power, controller,<br>FM sound, mixer</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="doc/image/ConnectedModules_full.jpeg"><img src="doc/image/ConnectedModules_full.jpeg" width="280" alt="Full assembly"></a><br>
+      <b>Full assembly</b><br>
+      <sub>Sound section,<br>MIDI panel, LCD display, SDHC card,<br>speaker amplifier</sub>
     </td>
   </tr>
 </table>
