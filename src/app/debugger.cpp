@@ -150,7 +150,7 @@ void Debugger::SendCommand(DebugCommandId id, uint8_t value) {
         ctl.type = MidiControlType::DebugTlTrim;
         break;
     case DebugCommandId::RhythmMix:
-        ctl.type = MidiControlType::DebugRhythmMix;
+        ctl.type = MidiControlType::RhythmLevelOffset;
         break;
     }
 

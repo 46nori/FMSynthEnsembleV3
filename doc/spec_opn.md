@@ -679,9 +679,9 @@ FM通常音色（`NoteVoice` / `NoteChannel`）とリズム音源（`RhythmChann
 本システムでは **リズムを基準より下げる** 方向で FM とのバランスを取る。FM 側の音色 TL や `fm_tl_trim` を一律にいじってリズムに合わせる方式は採用しない（Program ごとの測定補正と競合するため）。
 
 1. **コンパイル時既定** — `src/app/config.h` の `RHYTHM_LEVEL_OFFSET`（step 数、1 step = 0.75 dB）。RTL と IL の両方に、テーブル参照後の値からこの step 数を **減算**する（0 で無補正、大きいほどリズムが小さくなる）。初期値は **0**（無補正）。
-2. **実行時調整** — デバッガコマンド `rmix [0-31]` で `g_rhythm_level_offset` を変更する。試聴しながら決め、納得の値を `RHYTHM_LEVEL_OFFSET` に反映してビルドし直す運用を推奨する。
+2. **実行時調整** — デバッガコマンド `rmix [0-31]`、または LCD メニューの Settings > `RhythmVol`（0.75 dB 単位の dB 表示）で `g_rhythm_level_offset` を変更する。どちらも `MidiControlType::RhythmLevelOffset` を経由して Core1 で反映する。試聴しながら決め、納得の値を `RHYTHM_LEVEL_OFFSET` に反映してビルドし直す運用を推奨する。
 3. **反映タイミング**
-   - **RTL**（CC #7 / #11 相当）: `rmix` 変更時に `RhythmChannel::RefreshRhythmLevels()` で即時再適用。
+   - **RTL**（CC #7 / #11 相当）: `rmix` / `RhythmVol` 変更時に `RhythmChannel::RefreshRhythmLevels()` で即時再適用。
    - **IL**（Velocity 相当）: 変更後の **次回 NoteOn 以降** のヒットに適用（発音中ヒットの IL は追跡しない）。
 4. **FM 側の既存手段**（リズムバランスとは別目的） — Program 別レベル平準化は `fm_tl_trim` / デバッガ `trim`。アナログ出力段のバランスは `VolumeController`（NJU72343）。これらは **FM 音色の均一化** や **筐体出力** 用であり、FM–リズムの相対バランスの第一手段ではない。
 5. **MIDI シーケンス側** — 演奏データのリズム ch（MIDI ch 10）の CC #7 等で下げることも可能だが、本オフセットは **ファームウェア既定のミックス** として全曲に共通適用する。
@@ -702,3 +702,4 @@ FM通常音色（`NoteVoice` / `NoteChannel`）とリズム音源（`RhythmChann
 - テーブル適用とオフセット: `src/synth/channel/RhythmChannel.cpp`（`RhythmLevelWithOffset`, `g_rhythm_level_offset`）
 - 既定値: `src/app/config.h`（`RHYTHM_LEVEL_OFFSET`）
 - 実行時コマンド: `src/app/debugger_task.cpp`（`rmix`）
+- LCD メニュー: `src/app/ui/menu_screens.cpp`（`RhythmVol`）、`src/app/ui/volume_db_widget.h`（`RhythmLevelWidget`）

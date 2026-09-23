@@ -478,7 +478,8 @@ int c_trim(token_list* t) {
 int c_rmix(token_list* t) {
     if (t->n > 1) {
         unsigned int offset = 0;
-        if (get_uint(t, T_PARAM1, &offset) != NO_ERROR || offset > 31) {
+        if (get_uint(t, T_PARAM1, &offset) != NO_ERROR ||
+            offset > static_cast<unsigned int>(RHYTHM_LEVEL_OFFSET_MAX)) {
             return ERR_PARAM_VAL;
         }
         Debugger::SendCommand(Debugger::DebugCommandId::RhythmMix,

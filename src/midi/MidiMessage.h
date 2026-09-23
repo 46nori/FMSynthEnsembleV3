@@ -50,7 +50,7 @@ enum class MidiControlType : uint8_t {
     DebugStats,
     DebugVibratoOverride,
     DebugTlTrim,
-    DebugRhythmMix,
+    RhythmLevelOffset,
 };
 
 struct MidiControlEvent {

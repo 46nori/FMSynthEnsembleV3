@@ -98,7 +98,7 @@ enum class MidiControlType : uint8_t {
     DebugStats,            // デバッグ: 統計情報
     DebugVibratoOverride,  // デバッグ: ビブラート強制モード
     DebugTlTrim,           // デバッグ: FM TL Trim ON/OFF
-    DebugRhythmMix,        // デバッグ: リズムレベルオフセット
+    RhythmLevelOffset,     // リズムレベルオフセット（デバッガ rmix / LCD の RhythmVol）
 };
 
 struct MidiControlEvent {
@@ -121,7 +121,7 @@ struct MidiControlEvent {
 | `DebugStats` | 未使用 |
 | `DebugVibratoOverride` | ビブラート強制モード値（`VibOverride` 列挙） |
 | `DebugTlTrim` | FM TL Trim の ON/OFF（0/1） |
-| `DebugRhythmMix` | リズムレベルオフセット（0–31） |
+| `RhythmLevelOffset` | リズムレベルオフセット（0–`RHYTHM_LEVEL_OFFSET_MAX`(31)）。範囲外は無視する |
 
 ---
 
