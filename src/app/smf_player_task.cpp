@@ -38,12 +38,12 @@ constexpr uint8_t kMaxSmfTracks = 25;
 // ---------------------------------------------------------------------------
 
 enum class SmfCommand : uint8_t {
-    Play, PlayPlaylist, Stop, Pause, Resume, Next, Prev, SetRepeat, SetShuffle, SetPlaybackMode, Ls, Mount
+    Play, PlayPlaylist, Stop, Pause, Resume, Next, Prev, SetRepeat, SetShuffle, SetPlaybackMode, SetTempoScale, SetDefaultTempoScale, Ls, Mount
 };
 
 struct SmfCommandMessage {
     SmfCommand type;
-    uint16_t   arg;  // Play/PlayPlaylist: 位置、SetRepeat: RepeatMode、SetShuffle: 0/1
+    uint16_t   arg;  // Play/PlayPlaylist: 位置、SetRepeat: RepeatMode、SetShuffle: 0/1、SetTempoScale/SetDefaultTempoScale: %
 };
 
 // コマンドは固定長のリングバッファに積む。SmfPlayerTaskは通知で起床したとき、
@@ -384,6 +384,30 @@ public:
         PublishStatus();
     }
 
+    // テンポ倍率を変える。待ち中のイベントの残り時間も新しい倍率で計算し直し、
+    // 長い休符の途中でもすぐ効くようにする
+    void HandleSetTempoScale(uint16_t percent) {
+        if (state_ == PlayerState::Idle || percent == tempo_scale_percent_) {
+            return;
+        }
+        if (state_ == PlayerState::Playing) {
+            const uint64_t now = time_us_64();
+            if (scheduled_time_us_ > now) {
+                scheduled_time_us_ = now + Rescale(scheduled_time_us_ - now, percent);
+            }
+        } else {
+            paused_remaining_us_ = Rescale(paused_remaining_us_, percent);
+        }
+        tempo_scale_percent_ = percent;
+        PublishStatus();
+    }
+
+    // 曲開始時のテンポ倍率を変える。再生中の曲の倍率には影響しない
+    void HandleSetDefaultTempoScale(uint16_t percent) {
+        default_tempo_scale_percent_ = percent;
+        PublishStatus();
+    }
+
     // メインループのulTaskNotifyTake()に渡す待ちtick数
     TickType_t WaitTicks() const {
         if (pending_ != PendingEvent::None) {
@@ -414,6 +438,7 @@ public:
         switch (pending_event_.kind) {
         case SmfEventKind::TempoChange:
             current_tempo_us_per_qn_ = pending_event_.tempo_us_per_qn;
+            PublishStatus();
             break;
         case SmfEventKind::ChannelMessage:
         case SmfEventKind::SysEx:
@@ -478,6 +503,11 @@ public:
 private:
     static uint32_t Seed() { return static_cast<uint32_t>(time_us_64()); }
 
+    // 現在の倍率で計算した待ち時間を、新しい倍率での待ち時間に換算する
+    uint64_t Rescale(uint64_t remaining_us, uint16_t new_percent) const {
+        return remaining_us * tempo_scale_percent_ / new_percent;
+    }
+
     // 全トラックのSmfByteSourceのいずれかがIoErrorを報告しているか
     // （SmfMemoryByteSourceはIoErrorを返さないため、using_sd_のときのみ意味を持つ）
     bool HasSdIoError() const {
@@ -507,6 +537,12 @@ private:
         status.repeat = seq_.repeat();
         status.playback_mode = seq_.playback_mode();
         status.shuffle = seq_.shuffle();
+        if (state_ != PlayerState::Idle) {
+            status.tempo_us_per_qn = current_tempo_us_per_qn_;
+        }
+        status.tempo_scale_percent = tempo_scale_percent_;
+        status.default_tempo_scale_percent = default_tempo_scale_percent_;
+        status.track_serial = track_serial_;
         taskENTER_CRITICAL();
         gStatus = status;
         taskEXIT_CRITICAL();
@@ -738,6 +774,8 @@ private:
     bool StartPlayback(SmfByteSource* const* sources, uint8_t track_count) {
         song_title_[0] = '\0';
         current_tempo_us_per_qn_ = kSmfDefaultTempoUsPerQuarterNote;
+        tempo_scale_percent_ = default_tempo_scale_percent_;
+        ++track_serial_;
         if (!parser_.Begin(sources, track_count)) {
             std::printf("smf: no playable events\n");
 #if BUILD_I2C_DISPLAY
@@ -775,9 +813,10 @@ private:
         }
 
         const uint32_t ticks_per_qn = parser_.TicksPerQuarterNote();
+        // 倍率が大きいほど速く（待ちが短く）なる
         const uint64_t delta_us =
-            (static_cast<uint64_t>(pending_event_.delta_ticks) * current_tempo_us_per_qn_) /
-            ticks_per_qn;
+            (static_cast<uint64_t>(pending_event_.delta_ticks) * current_tempo_us_per_qn_ * 100) /
+            (static_cast<uint64_t>(ticks_per_qn) * tempo_scale_percent_);
         scheduled_time_us_ += delta_us;
     }
 
@@ -800,6 +839,9 @@ private:
 
     SmfEvent pending_event_{};
     uint32_t current_tempo_us_per_qn_ = kSmfDefaultTempoUsPerQuarterNote;
+    uint16_t tempo_scale_percent_ = SmfPlayer::kTempoScaleDefaultPercent;
+    uint16_t default_tempo_scale_percent_ = SmfPlayer::kTempoScaleDefaultPercent;  // 曲開始時に読み込む倍率
+    uint16_t track_serial_ = 0;
     uint64_t scheduled_time_us_ = 0;
     uint64_t paused_remaining_us_ = 0;
 
@@ -820,6 +862,8 @@ void SmfPlayer::RequestPrev()                          { SendCommand(SmfCommand:
 void SmfPlayer::RequestSetRepeat(RepeatMode mode)      { SendCommand(SmfCommand::SetRepeat, static_cast<uint16_t>(mode)); }
 void SmfPlayer::RequestSetShuffle(bool on)             { SendCommand(SmfCommand::SetShuffle, on ? 1 : 0); }
 void SmfPlayer::RequestSetPlaybackMode(PlaybackMode mode) { SendCommand(SmfCommand::SetPlaybackMode, static_cast<uint16_t>(mode)); }
+void SmfPlayer::RequestSetTempoScale(uint16_t percent) { SendCommand(SmfCommand::SetTempoScale, percent); }
+void SmfPlayer::RequestSetDefaultTempoScale(uint16_t percent) { SendCommand(SmfCommand::SetDefaultTempoScale, percent); }
 void SmfPlayer::RequestLs()                            { SendCommand(SmfCommand::Ls, 0); }
 void SmfPlayer::RequestMount()                         { SendCommand(SmfCommand::Mount, 0); }
 
@@ -859,6 +903,18 @@ void SmfPlayerTask(void* /*param*/) {
                 case SmfCommand::SetPlaybackMode:
                     if (cmd.arg <= static_cast<uint16_t>(PlaybackMode::Continuous)) {
                         runner.HandleSetPlaybackMode(static_cast<PlaybackMode>(cmd.arg));
+                    }
+                    break;
+                case SmfCommand::SetTempoScale:
+                    if (cmd.arg >= SmfPlayer::kTempoScaleMinPercent &&
+                        cmd.arg <= SmfPlayer::kTempoScaleMaxPercent) {
+                        runner.HandleSetTempoScale(cmd.arg);
+                    }
+                    break;
+                case SmfCommand::SetDefaultTempoScale:
+                    if (cmd.arg >= SmfPlayer::kTempoScaleMinPercent &&
+                        cmd.arg <= SmfPlayer::kTempoScaleMaxPercent) {
+                        runner.HandleSetDefaultTempoScale(cmd.arg);
                     }
                     break;
                 case SmfCommand::Ls:           runner.HandleLs(); break;

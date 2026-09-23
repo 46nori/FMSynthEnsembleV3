@@ -84,7 +84,7 @@ USBライブ入力の取りこぼしを最優先に防ぎつつ、SDカードの
 |---|---|
 | SDカードアクセス | `Platform::`経由（`SmfSdByteSource`、[7.1](#71-レイヤ配置)）でのファイルオープン・ディレクトリ列挙・ストリーミング読み込み。**SDボリュームへの実アクセスを要求するのはこのタスクに一元化する**（[4.3](#43-fatfsアクセスの一元化とff_fs_reentrant) 参照）。FatFs APIそのものは直接呼ばない |
 | SMFフォーマット解釈 | `MThd`/`MTrk` チャンク読み取り、可変長数値（VLQ）のdelta-timeデコード、メタイベント（Tempo, End of Track, Track Name）の解釈 |
-| タイミングスケジューリング | delta-time × 現在のtempoをµsに変換し、実時間で発火する。Format 1（複数トラック）は次イベント時刻が最も早いトラックから順にマージする |
+| タイミングスケジューリング | delta-time × 現在のtempoをµsに変換し（テンポ倍率で割る。[design_smf_playback.md 6.4](design_smf_playback.md#64-テンポ倍率)）、実時間で発火する。Format 1（複数トラック）は次イベント時刻が最も早いトラックから順にマージする |
 | チャンネルメッセージのバイトストリーム化 | メタイベントを除いた生のMIDIチャンネルメッセージ（ランニングステータス込み）を `MidiStreamAssembler::PushByte()` に投入する。**MIDIバイト列の意味解釈は既存の `MidiParser`/`MidiController` に委譲し、SMF側で独自に再実装しない**（Single Parse Ruleの趣旨を踏襲） |
 | IPC投入 | `IMidiStreamSink` 実装（`UsbMidiStreamSink` と同様の構造）経由で `MidiIpcSendMidiEvent()` を呼び出し、`gMidiQueue` へ送信する。タイムスタンプ付与のタイミングもUSB経路と同じ（`sink.OnMidiEvent` 内で `time_us_64()` を取得） |
 | 再生制御 | DebuggerとLCDメニューからの Play/Stop/Pause/Resume/Next/Prev/Ls/Mount などを受け付ける（[4](#4-debugger--smfplayertask-制御)、[design_smf_playback.md](design_smf_playback.md#3-コマンドと状態の公開)）。どちらも同じ `SmfPlayer::Request*()` を使う |
@@ -104,12 +104,12 @@ DebuggerTaskとSmfPlayerTaskは同一Core（Core0）上の別タスクとする�
 
 ```cpp
 enum class SmfCommand : uint8_t {
-    Play, PlayPlaylist, Stop, Pause, Resume, Next, Prev, SetRepeat, SetShuffle, SetPlaybackMode, Ls, Mount
+    Play, PlayPlaylist, Stop, Pause, Resume, Next, Prev, SetRepeat, SetShuffle, SetPlaybackMode, SetTempoScale, SetDefaultTempoScale, Ls, Mount
 };
 
 struct SmfCommandMessage {
     SmfCommand type;
-    uint16_t   arg;  // Play/PlayPlaylist: 位置、SetRepeat: リピートモード、SetShuffle: 0/1
+    uint16_t   arg;  // Play/PlayPlaylist: 位置、SetRepeat: リピートモード、SetShuffle: 0/1、SetTempoScale/SetDefaultTempoScale: %
 };
 ```
 

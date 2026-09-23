@@ -290,6 +290,7 @@ flowchart TD
         Repeat["Repeat"]
         Shuffle["Shuffle"]
         Playback["Playback"]
+        DefTempo["Tempo"]
     end
     subgraph SettingsItems["Settingsの項目"]
         LedMode["LED Mode"]
@@ -301,6 +302,7 @@ flowchart TD
     PlayOptions --> Repeat
     PlayOptions --> Shuffle
     PlayOptions --> Playback
+    PlayOptions --> DefTempo
     Settings --> LedMode
     Settings --> RhythmVol
     Settings --> Volume
@@ -318,8 +320,8 @@ flowchart TD
 | **Play SMF** | `Platform::ForEachSmfFile()`で列挙したSDカード上のファイルを、ファイルごとに1行の`ItemCommand`として並べる。PUSHで再生を始め、Transport画面へ移る。シリアルデバッガの`Ls`/`Play <index>`と同じ番号体系 |
 | **Playlist** | `Platform::ForEachPlaylistFile()`で列挙した`playlist`フォルダ内のファイルを名前昇順で並べる。PUSHで`SmfPlayer::RequestPlayPlaylist(position)`を呼び、Transport画面へ移る。フォルダが無い、または空のときは`(no files)` |
 | **Now Playing** | 再生中（`Playing`/`Paused`）なら Transport 画面へ直接移る（`OpenTransport(g_rootScreen)`）。`Idle` のときは何もしない |
-| **Play Options** | `Repeat`（`ItemCommand`: Off/1/Loop）・`Shuffle`（`ItemCommand`: Off/On）・`Playback`（`ItemCommand`: Single/Cont.）の再生制御設定 |
-| **Transport** | `Pause`/`Resume`・`Stop`・`Next`・`Prev`の固定4項目。曲を選んだときに移り、再生が終わると元の一覧へ戻る |
+| **Play Options** | `Repeat`（`ItemCommand`: Off/1/Loop）・`Shuffle`（`ItemCommand`: Off/On）・`Playback`（`ItemCommand`: Single/Cont.）・`Tempo`（`VolumeItem`: 曲開始時の既定テンポ倍率）の再生制御設定 |
+| **Transport** | `Pause`/`Resume`・`Stop`・`Next`・`Prev`・`Tempo`。曲を選んだときに移り、再生が終わると元の一覧へ戻る |
 | **Settings** | `LED Mode`（`ItemToggle`、[7.3節](#73-led表示モード切替settings--led-mode)）・`RhythmVol`（`VolumeItem`、[7.5節](#75-リズム音量補正settings--rhythmvol)）・`Volume`（[7.4節](#74-音量調整settings--volume)）・`System Info`（`ItemLabel`） |
 | **Volume** | NJU72343の全16CHを1行1CHで並べ、`PUSH`で編集モードに入り0.5dB単位（Mute含む）で個別調整する読み取り/書き込み画面。常時ミュート対象CHは表示のみで編集不可（[7.4節](#74-音量調整settings--volume)） |
 | **System Info** | Dock毎のFMモジュール種別、MIDIパネル接続有無、Voice/CSM数を表示する読み取り専用画面。Dock構成は起動時に確定し、Voice/CSM数は`RefreshSystemInfo()`が1000ms周期（`INFO_SCREEN_SYSINFO_REFRESH_MS`）で更新する |
@@ -411,7 +413,7 @@ RTL（リズム全体の音量）は変更時に全モジュールへ即時反�
 ## 8. リソースと制約
 
 - **スタック**: `TASK_STACK_INFO_SCREEN`は768 word（3KB）。LcdMenuの`MenuScreen`構築と`CharacterDisplayRenderer`の文字列組み立てに余裕を持たせる。SDカードのディレクトリ走査（`ForEachSmfFile()`）はバッファを静的配列で持つため、ファイル数が増えてもスタックは増えない
-- **ヒープフラグメンテーション**: LcdMenu内の`std::vector`は`MenuScreen::items`（`MenuScreen`構築時に一度だけ渡される`MenuItem*`配列）が唯一のコア利用箇所で、`addItem`/`removeItemAt`/`clear`等による実行時の再構築は使わないため、起動後の追加ヒープ確保は発生しない。使う`MenuItem`は`ItemCommand`/`ItemToggle`/`ItemSubMenu`/`ItemLabel`、および音量調整（[7.4節](#74-音量調整settings--volume)、[7.5節](#75-リズム音量補正settings--rhythmvol)）の`VolumeItem`（`VolumeDbWidget`または`RhythmLevelWidget`付き）に限る。`ItemWidget`が内部で持つ`std::vector<BaseWidget*>`・`WidgetRange`（`VolumeDbWidget`/`RhythmLevelWidget`）は構築時に1回だけ確保され、編集操作（`UP`/`DOWN`/`PUSH`/`BACK`）は数値の増減のみでヒープ再確保を伴わない。`ItemInput`/`ItemInputCharset`（自由テキスト編集項目）は、編集セッション中にキー入力のたびに`new char[]`を再確保する実装のため使わない
+- **ヒープフラグメンテーション**: LcdMenu内の`std::vector`は`MenuScreen::items`（`MenuScreen`構築時に一度だけ渡される`MenuItem*`配列）が唯一のコア利用箇所で、`addItem`/`removeItemAt`/`clear`等による実行時の再構築は使わないため、起動後の追加ヒープ確保は発生しない。使う`MenuItem`は`ItemCommand`/`ItemToggle`/`ItemSubMenu`/`ItemLabel`、および音量調整（[7.4節](#74-音量調整settings--volume)、[7.5節](#75-リズム音量補正settings--rhythmvol)）とTempo行（Play Options・Transport画面、[design_smf_playback.md 8](design_smf_playback.md#8-lcd-メニューとの連携)）の`VolumeItem`（`VolumeDbWidget`・`RhythmLevelWidget`・`TempoPercentWidget`・`TempoScaleWidget`のいずれか付き）に限る。`ItemWidget`が内部で持つ`std::vector<BaseWidget*>`・`WidgetRange`（`VolumeDbWidget`/`RhythmLevelWidget`/`TempoPercentWidget`/`TempoScaleWidget`）は構築時に1回だけ確保され、編集操作（`UP`/`DOWN`/`PUSH`/`BACK`）は数値の増減のみでヒープ再確保を伴わない。`ItemInput`/`ItemInputCharset`（自由テキスト編集項目）は、編集セッション中にキー入力のたびに`new char[]`を再確保する実装のため使わない
 - **Play SMFのファイル数とメモリ**: `MENU_MAX_SMF_FILES`に比例して、ファイル名バッファ（RAM）、再生コールバック表と再生関数（flash）、メニュー項目（`ItemCommand`、1件ずつヒープに確保）が増える。上限の255件でも合計は数KBから十数KBに収まり、RP2350のSRAM（520KB）に対して問題にならない。1件あたりの概算は`config.h`のコメントに記載する
 - **`InfoScreenTask`の周期**: 演奏状態に関わらず`INFO_SCREEN_POLL_PERIOD_MS`（20ms）で起床し、ジョイスティックのポーリング、ステータス行の更新、`menu.poll()`を行う。`OpnMidiPanelDriver`のデバウンス確定周期（4列 × `MIDI_PANEL_PERIOD_MS` = 16ms）より短く、取りこぼしは無い。System InfoのVoice/CSM数の再描画は、I2C書き込み量を抑えるため1000ms周期に分けている
 - **`drivers/midi_panel`**: `OpnMidiPanelDriver`はPB bit7をLEDモードとして読まず、上位4bitをジョイスティックとしてデコードする。LEDモードは`SetLedMode`/`GetLedMode`（[7.3節](#73-led表示モード切替settings--led-mode)）で保持する
