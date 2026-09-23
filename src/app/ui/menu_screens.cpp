@@ -310,6 +310,86 @@ void OnPlaymodeCycle() {
     g_menu->refresh();
 }
 
+// --- Play Options > Tempo / Transport > Tempo ---
+// テンポ倍率を5%刻みで表示・編集するWidget。値は倍率を5で割った段数で保持する
+// （RealtimeLevelWidgetのstepは1固定のため）。Play Optionsの既定倍率に使い、表示は倍率のみ。
+// 倍率の値はPlay Optionsの他の行（`Repeat:   Off`等）と桁をそろえて右詰めにする。
+class TempoPercentWidget : public RealtimeLevelWidget {
+public:
+    static constexpr int16_t kStepPercent = 5;
+    static constexpr int16_t kMinValue = SmfPlayer::kTempoScaleMinPercent / kStepPercent;
+    static constexpr int16_t kMaxValue = SmfPlayer::kTempoScaleMaxPercent / kStepPercent;
+    static constexpr int16_t kDefaultValue = SmfPlayer::kTempoScaleDefaultPercent / kStepPercent;
+
+    explicit TempoPercentWidget(void (*onChange)(const int16_t&))
+        : RealtimeLevelWidget(kDefaultValue, kMinValue, kMaxValue, onChange) {}
+
+    static int16_t ValueOf(uint16_t percent) { return static_cast<int16_t>(percent / kStepPercent); }
+    static uint16_t PercentOf(int16_t value) { return static_cast<uint16_t>(value * kStepPercent); }
+
+protected:
+    uint8_t draw(char* buffer, const uint8_t start) override {
+        if (start >= ITEM_DRAW_BUFFER_SIZE) return 0;
+        return snprintf(buffer + start, ITEM_DRAW_BUFFER_SIZE - start, "%7u%%",
+                        PercentOf(getValue()));
+    }
+};
+
+static_assert(SmfPlayer::kTempoScaleMinPercent % TempoPercentWidget::kStepPercent == 0 &&
+              SmfPlayer::kTempoScaleMaxPercent % TempoPercentWidget::kStepPercent == 0 &&
+              SmfPlayer::kTempoScaleDefaultPercent % TempoPercentWidget::kStepPercent == 0,
+              "tempo scale range must be a multiple of the UI step");
+
+// Transport画面のTempo行。再生中の曲の倍率を、倍率適用後のBPMと並べて表示する
+// （例: `132bpm 110%`）。BPMは曲中のテンポ変更に追従するため、UpdatePlaybackUi()が
+// setBpm()で外から与える。
+class TempoScaleWidget : public TempoPercentWidget {
+public:
+    using TempoPercentWidget::TempoPercentWidget;
+
+    // 表示するBPMを更新する。変化した場合はtrue
+    bool setBpm(uint16_t bpm) {
+        if (bpm_ == bpm) {
+            return false;
+        }
+        bpm_ = bpm;
+        return true;
+    }
+
+protected:
+    uint8_t draw(char* buffer, const uint8_t start) override {
+        if (start >= ITEM_DRAW_BUFFER_SIZE) return 0;
+        return snprintf(buffer + start, ITEM_DRAW_BUFFER_SIZE - start, "%3ubpm %3u%%",
+                        bpm_, PercentOf(getValue()));
+    }
+
+private:
+    uint16_t bpm_ = 0;
+};
+
+TempoPercentWidget* g_defaultTempoWidget = nullptr;
+TempoScaleWidget* g_tempoWidget = nullptr;
+uint16_t g_tempoTrackSerial = 0;  // UIが倍率を同期した曲の通し番号
+
+// Play Optionsの既定倍率。次に開始する曲から効き、再生中の曲の倍率は変えない
+void OnDefaultTempoScaleChanged(const int16_t& value) {
+    SmfPlayer::RequestSetDefaultTempoScale(TempoPercentWidget::PercentOf(value));
+}
+
+void OnTempoScaleChanged(const int16_t& value) {
+    SmfPlayer::RequestSetTempoScale(TempoPercentWidget::PercentOf(value));
+}
+
+// 曲のテンポ（µs/四分音符）と倍率から、表示用のBPM（四捨五入）を求める
+uint16_t EffectiveBpm(uint32_t tempo_us_per_qn, uint16_t scale_percent) {
+    if (tempo_us_per_qn == 0) {
+        return 0;
+    }
+    // BPM = 60e6 / tempo × scale / 100。四捨五入のため1000倍して計算する
+    const uint64_t numerator = 600000000ULL * scale_percent;
+    return static_cast<uint16_t>((numerator / tempo_us_per_qn + 500) / 1000);
+}
+
 void OnNowPlaying() {
     if (SmfPlayer::GetStatus().state != SmfPlayer::State::Idle) {
         OpenTransport(g_rootScreen);
@@ -328,10 +408,12 @@ MenuScreen* BuildRootScreen(const InfoScreenTaskContext& ctx) {
     g_repeatItem = ITEM_COMMAND(kRepeatLabels[0], &OnRepeatCycle);
     g_shuffleItem = ITEM_COMMAND(kShuffleLabels[0], &OnShuffleToggle);
     g_playmodeItem = ITEM_COMMAND(kPlaymodeLabels[0], &OnPlaymodeCycle);
+    g_defaultTempoWidget = new TempoPercentWidget(&OnDefaultTempoScaleChanged);
     g_playOptionsScreen = new MenuScreen(std::vector<MenuItem*>{
         g_repeatItem,
         g_shuffleItem,
         g_playmodeItem,
+        new VolumeItem("Tempo", g_defaultTempoWidget, true),
     });
 #endif
 
@@ -442,6 +524,7 @@ MenuScreen* BuildRootScreen(const InfoScreenTaskContext& ctx) {
         ITEM_COMMAND("Stop", &OnStop),
         ITEM_COMMAND("Next", &OnNext),
         ITEM_COMMAND("Prev", &OnPrev),
+        new VolumeItem("Tempo", g_tempoWidget = new TempoScaleWidget(&OnTempoScaleChanged), true),
     });
 #else
     g_playSmfScreen = new MenuScreen(std::vector<MenuItem*>{
@@ -559,6 +642,25 @@ void UpdatePlaybackUi() {
         g_playmodeItem->setText(kPlaymodeLabels[static_cast<uint8_t>(g_playmode)]);
         redraw = redraw || (current == g_playOptionsScreen);
     }
+    // Play OptionsのTempo行（既定倍率）。編集中でなければ、コマンドの取りこぼしに備えて合わせる
+    if (!MenuItem::isEditing() &&
+        g_defaultTempoWidget->syncValue(TempoPercentWidget::ValueOf(status.default_tempo_scale_percent))) {
+        redraw = redraw || (current == g_playOptionsScreen);
+    }
+
+    // Transport画面のTempo行。倍率はUIが正だが、曲の開始でSmfPlayerTaskが既定倍率を読み込むため、
+    // 曲が変わったら編集中でも合わせる。編集中でなければ、コマンドの取りこぼしに備えて常に合わせる
+    const int16_t scaleValue = TempoPercentWidget::ValueOf(status.tempo_scale_percent);
+    if (status.track_serial != g_tempoTrackSerial || !MenuItem::isEditing()) {
+        g_tempoTrackSerial = status.track_serial;
+        if (g_tempoWidget->syncValue(scaleValue)) {
+            redraw = redraw || (current == g_transportScreen);
+        }
+    }
+    if (g_tempoWidget->setBpm(EffectiveBpm(status.tempo_us_per_qn, status.tempo_scale_percent))) {
+        redraw = redraw || (current == g_transportScreen);
+    }
+
     if (redraw) {
         g_menu->refresh();
     }

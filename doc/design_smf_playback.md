@@ -21,15 +21,16 @@ Stop/Pause は単独で決めると、再生列の概念が入ったときに意
   - [5. セッションと状態遷移](#5-セッションと状態遷移)
     - [5.1 コマンドごとの動作](#51-コマンドごとの動作)
     - [5.2 曲の終了時の動作](#52-曲の終了時の動作)
-  - [6. リピートとシャッフルと再生モード](#6-リピートとシャッフルと再生モード)
+  - [6. リピートとシャッフルと再生モードとテンポ倍率](#6-リピートとシャッフルと再生モードとテンポ倍率)
     - [6.1 リピート](#61-リピート)
     - [6.2 シャッフル](#62-シャッフル)
     - [6.3 再生モード（PlaybackMode）](#63-再生モードplaybackmode)
+    - [6.4 テンポ倍率](#64-テンポ倍率)
   - [7. LCD への通知](#7-lcd-への通知)
   - [8. LCD メニューとの連携](#8-lcd-メニューとの連携)
     - [8.1 メニュー構成](#81-メニュー構成)
     - [8.2 Transport 画面](#82-transport-画面)
-    - [8.3 Settings](#83-settings)
+    - [8.3 Play Options](#83-play-options)
   - [9. リソースと制約](#9-リソースと制約)
   - [10. 関連ドキュメント](#10-関連ドキュメント)
 
@@ -88,9 +89,11 @@ flowchart LR
 | `SetRepeat` | Off / One / Loop | リピートモードを設定する |
 | `SetShuffle` | On / Off | シャッフルを設定する |
 | `SetPlaybackMode` | Single / Continuous | 再生モードを設定する |
+| `SetTempoScale` | 倍率（%、50〜200） | 再生中の曲のテンポ倍率を設定する（[6.4](#64-テンポ倍率)）。範囲外は無視する |
+| `SetDefaultTempoScale` | 倍率（%、50〜200） | 曲の開始時に読み込むテンポ倍率（既定倍率）を設定する。範囲外は無視する |
 | `Ls` / `Mount` | なし | 従来どおり |
 
-`SetRepeat`・`SetShuffle`・`SetPlaybackMode`はグローバル設定で、セッションの有無に関わらず保持する。電源投入時は Repeat=Off、Shuffle=Off、PlaybackMode=Single とし、永続化はしない。
+`SetRepeat`・`SetShuffle`・`SetPlaybackMode`・`SetDefaultTempoScale`はグローバル設定で、セッションの有無に関わらず保持する。電源投入時は Repeat=Off、Shuffle=Off、PlaybackMode=Single、既定倍率=100% とし、永続化はしない。
 
 Debugger からは`play <n>`（Play）、`pl <n>`（PlayPlaylist）、`stop`/`pause`/`resume`/`next`/`prev`、`repeat <0-2>`、`shuffle <0|1>`、`playmode <0|1>`（0=Single、1=Continuous）で同じコマンドを送れる。
 
@@ -110,6 +113,10 @@ UI は`SmfPlayer::GetStatus()`で、次の内容を持つ`PlaybackStatus`を読�
 | `count` | 範囲内の曲数 |
 | `repeat` / `shuffle` | 現在のモード（セッションの有無に関わらず有効） |
 | `playback_mode` | `Single` / `Continuous`（セッションの有無に関わらず有効） |
+| `tempo_us_per_qn` | 曲の現在のテンポ（倍率適用前のµs/四分音符）。Set Tempoのたびに更新する。`Idle`では0 |
+| `tempo_scale_percent` | 再生中の曲のテンポ倍率（%） |
+| `default_tempo_scale_percent` | 既定倍率（%、セッションの有無に関わらず有効） |
+| `track_serial` | 曲を開始するたびに進む通し番号。UIが既定倍率の読み込みを検知するのに使う |
 
 ## 4. 再生範囲
 
@@ -166,7 +173,9 @@ stateDiagram-v2
 | `Pause` | 何もしない | `Paused`へ（順序・カーソルは保持） | 何もしない |
 | `Resume` | 何もしない | 何もしない | `Playing`へ |
 | `Next` / `Prev` | 何もしない | 順序上の次 / 前の曲を再生（端の扱いは下記） | 同左（`Playing`になり、移動先の曲を再生する） |
-| `SetRepeat` / `SetShuffle` | モードだけ保持 | モードを更新（[6章](#6-リピートとシャッフル)） | 同左 |
+| `SetRepeat` / `SetShuffle` | モードだけ保持 | モードを更新（[6章](#6-リピートとシャッフルと再生モードとテンポ倍率)） | 同左 |
+| `SetTempoScale` | 何もしない | 再生中の曲の倍率を更新（[6.4節](#64-テンポ倍率)） | 同左 |
+| `SetDefaultTempoScale` | 既定倍率だけ保持 | 既定倍率を更新（再生中の曲の倍率は変えない） | 同左 |
 
 - **Stop**: セッションごと終了する。カーソル位置は残さない。次の`Play`は新しいセッションになる。
 - **Pause**: 順序とカーソルを保持する。`Resume`は無音から曲の続きを再開する。
@@ -204,7 +213,7 @@ flowchart TD
 - **Continuousモードのエラー**: 開けない・形式不正・I/Oエラーの曲は、エラーをステータス行に通知したうえで次の曲へ進む（Repeat=One でも同じ曲を繰り返さず次へ進む）。曲が最後まで正常に再生できたら（End of File）連続失敗数を0に戻す。連続失敗数が範囲の曲数に達したら、全曲が再生不能とみなしてセッションを終了する。
 - Next/Prev による曲の切り替えは、Repeat=One でも「次/前の曲へ移る」。移った先で曲が終わったら、その曲を Repeat=One に従って繰り返す。
 
-## 6. リピートとシャッフルと再生モード
+## 6. リピートとシャッフルと再生モードとテンポ倍率
 
 ### 6.1 リピート
 
@@ -252,6 +261,15 @@ Next/Prev の動作は PlaybackMode に依存しない（常に順序上の移�
 | Continuous | One | 同曲繰り返し |
 | Continuous | Loop | 次へ進む → 末尾で先頭に戻る |
 
+### 6.4 テンポ倍率
+
+曲本来のテンポに倍率を掛けて、再生の速さを変える。倍率は曲中のSet Tempoと掛け合わせるため、曲中のテンポ変化（リタルダンドなど）は保たれる。BPMを直接指定する方式は、曲中のテンポ変化との関係が決まらないため採らない。
+
+- **範囲**: 50〜200%（`SmfPlayer::kTempoScaleMinPercent`/`kTempoScaleMaxPercent`）。上限を大きくすると、密度の高い曲で単位時間あたりのイベント数が増え、`gMidiQueue`とFMバスの負荷が上がるため200%に留める。
+- **既定倍率**: 曲を開始するたびに（Next/Prev・連続再生・Repeatによる再再生を含む）、再生中の曲の倍率を既定倍率（`SetDefaultTempoScale`、Play Options の`Tempo`）で初期化する。以後の`SetTempoScale`はその曲の再生中だけ効き、次の曲はまた既定倍率から始まる。
+- **既定倍率と再生中の倍率は掛け合わせない**: 既定倍率は曲開始時の初期値にすぎず、再生中の倍率は常に曲本来のテンポに対する倍率である。既定倍率を変えても、再生中の曲の倍率は変わらない。
+- **反映**: delta-time→µs変換で`delta_ticks × tempo × 100 / (TPQN × 倍率)`とし、次に取り出すイベントから効く。発火待ちのイベントの残り時間も新しい倍率で換算し直すため、長い休符の途中で変えても即座に効く。`Paused`中は保持している残り時間を換算し直す。
+
 ## 7. LCD への通知
 
 曲が切り替わるたびに`InfoScreen::NotifyPlay()`を呼び、ステータス行に新しい曲名を出す（曲名が判明した時点でも従来どおり呼ぶ）。
@@ -276,7 +294,7 @@ flowchart TD
     Home --> NowPlaying["Now Playing<br/>(再生中ならTransportへ。Idle時は無効)"]
     Home --> PlaySmf["Play SMF<br/>全曲の一覧 (範囲=All)"]
     Home --> Playlist["Playlist<br/>playlist フォルダの一覧 (範囲=Playlist)"]
-    Home --> PlayOptions["Play Options<br/>Repeat / Shuffle / Playback Mode"]
+    Home --> PlayOptions["Play Options<br/>Repeat / Shuffle / Playback Mode / Tempo"]
     Home --> Settings["Settings<br/>LED Mode / System Info"]
     PlaySmf -- "曲をPUSH" --> Transport["Transport"]
     Playlist -- "曲をPUSH" --> Transport
@@ -288,7 +306,7 @@ flowchart TD
 | **Play SMF** | SD上の全ファイルを1行ずつ並べる。曲をPUSHすると`Play(位置)`で再生を始め、Transport 画面へ移る |
 | **Playlist** | `playlist`フォルダ内のファイルを名前昇順で1行ずつ並べる。曲をPUSHすると`PlayPlaylist(位置)`で再生を始め、Transport 画面へ移る。フォルダが無い、または空なら`(no files)`を表示する |
 | **Now Playing** | 再生中（`Playing`/`Paused`）なら Transport 画面へ直接移る。`Idle` のときは何もしない |
-| **Play Options** | `Repeat`・`Shuffle`・`Playback`（再生制御の設定） |
+| **Play Options** | `Repeat`・`Shuffle`・`Playback`・`Tempo`（再生制御の設定） |
 | **Settings** | `LED Mode`・`System Info`（機器設定） |
 
 Home は5項目で、先頭3行が表示され、DOWNで Play Options / Settings に届く。
@@ -301,7 +319,7 @@ Home は5項目で、先頭3行が表示され、DOWNで Play Options / Settings
 
 ### 8.2 Transport 画面
 
-固定4項目の`MenuScreen`。3行の画面に対し1行あふれ、UP/DOWNのスクロールで最後の項目に届く。
+固定5項目の`MenuScreen`。3行の画面に対し2行あふれ、UP/DOWNのスクロールで最後の項目に届く。
 
 | 項目 | 動作 |
 |---|---|
@@ -309,10 +327,12 @@ Home は5項目で、先頭3行が表示され、DOWNで Play Options / Settings
 | `Stop` | `Stop`を送り、元の一覧に戻る |
 | `Next` | `Next`を送る |
 | `Prev` | `Prev`を送る |
+| `Tempo` | `VolumeItem`＋`TempoScaleWidget`。再生中の曲の倍率を、倍率適用後のBPMと並べて`Tempo:132bpm 110%`のように表示する。曲の開始時は既定倍率が入っている。PUSHで編集モードに入り、UP/DOWNで5%刻みに倍率を変え、そのたびに`SetTempoScale`を送る。編集の出入りと巻き戻し無効化はRhythmVol行と同じ（[design_display_menu.md 7.5](design_display_menu.md#75-リズム音量補正settings--rhythmvol)） |
 
 `InfoScreenTask`は周期処理で`GetStatus()`を読み、次を行う。
 
 - `Pause`/`Resume`のラベルを状態に合わせて更新する。
+- `Tempo`行のBPMを`tempo_us_per_qn`と`tempo_scale_percent`から計算し直す（曲中のSet Tempoに追従する）。倍率はUIが正として持つが、`track_serial`が変わったら（曲が変わって既定倍率を読み込んだ）編集中でも`tempo_scale_percent`に合わせる。編集中でなければ、コマンドの取りこぼしに備えて常に合わせる。
 - Transport 画面の表示中に`state`が`Idle`になったら（曲が終わってセッションが終了した、または連続失敗）、元の一覧へ戻る。
 
 ### 8.3 Play Options
@@ -320,7 +340,8 @@ Home は5項目で、先頭3行が表示され、DOWNで Play Options / Settings
 - `Repeat`: 3値の`ItemCommand`。押すたびに Off→One→Loop→Off と切り替え、ラベル（`Repeat: Off`/`Repeat: 1`/`Repeat: Loop`）を`setText()`で更新して`SetRepeat`を送る。
 - `Shuffle`: `ItemCommand`。押すたびに Off↔On を切り替え、ラベル（`Shuffle: Off`/`Shuffle: On`）を`setText()`で更新して`SetShuffle`を送る。
 - `Playback`: 2値の`ItemCommand`。押すたびに Single↔Continuous を切り替え、ラベル（`Playback: Single`/`Playback: Cont.`）を`setText()`で更新して`SetPlaybackMode`を送る。
-- モードは`SmfPlayerTask`が保持する。`InfoScreenTask`は毎周期`GetStatus()`から現在値を読み、ラベルが食い違っていれば合わせる（デバッガからの変更も反映される）。
+- `Tempo`: `VolumeItem`＋`TempoPercentWidget`。既定倍率を`Tempo:    100%`のように表示し、PUSHで編集モードに入ってUP/DOWNで5%刻み（50〜200%）に変え、そのたびに`SetDefaultTempoScale`を送る。次に開始する曲から効き、再生中の曲の倍率は変えない。
+- モードと既定倍率は`SmfPlayerTask`が保持する。`InfoScreenTask`は毎周期`GetStatus()`から現在値を読み、ラベルが食い違っていれば合わせる（デバッガからの変更も反映される）。
 
 ## 9. リソースと制約
 
@@ -331,7 +352,8 @@ Home は5項目で、先頭3行が表示され、DOWNで Play Options / Settings
 - **`All`と`Playlist`の重複**: `playlist`フォルダ内のファイルは`All`にも含まれる。`All`のシャッフルでは`playlist`フォルダ内の曲も対象になる。
 - **一覧は起動時のスナップショット**: LCDの Play SMF・Playlist の一覧は`InfoScreenTask`起動時に1回だけ走査して作る（[design_display_menu.md 7.2](design_display_menu.md#72-初期メニュー構成)）。SDカードを差し替えたときは、電源の入れ直しで一覧が更新される。セッションの位置は再生のたびに走査で解決するため、一覧と実際のファイルがずれると、意図しない曲を再生することがある。
 - **Prev**: 曲の先頭へ戻る動作は無い。Repeat=Off で順序の先頭にいるときの Prev は、現在の曲を最初から再生し直す。
-- **モードの永続化**: しない。電源投入のたびに Repeat=Off、Shuffle=Off、PlaybackMode=Single から始まる。
+- **テンポ倍率の刻み**: UIは5%刻み。`SetTempoScale`自体は範囲内の任意の整数%を受け付ける。
+- **モードの永続化**: しない。電源投入のたびに Repeat=Off、Shuffle=Off、PlaybackMode=Single、既定テンポ倍率=100% から始まる。
 - **`src/smf/`の責務**: `PlaybackSequence`の追加により、`smf/`は「SMFファイルの解釈」に加えて「再生順序の決定」を持つ。どちらもpico-sdk・FreeRTOS・ドライバに依存しない純粋ロジックであり、依存制約は変わらない（[architecture.md](architecture.md)）。
 
 ## 10. 関連ドキュメント
