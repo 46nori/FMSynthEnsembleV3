@@ -89,6 +89,7 @@ OPNA/OPNからの割り込み信号はオープンドレインなので、すべ
 |  V_DATA |  GPIO27  |    出力     |  正  | NJU72343のDATA |
 |  V_CLK  |  GPIO28  |    出力     |  正  | NJU72343のCLK |
 
+NJU72343の信号接続と制御レジスタは [spec_volume_controller.md](spec_volume_controller.md) を参照。
 
 ## FM音源LSI
 

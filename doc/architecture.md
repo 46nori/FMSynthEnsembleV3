@@ -235,7 +235,8 @@ namespace Platform {
 // src/platform/volume_controller.h
 namespace Platform {
     class VolumeController;  // GetInstance / InitializeEarlyMute / SetDockModuleTypes /
-                             // MuteFmSsg / MuteLineIn / SetFmSsgVolumeDb ほか
+                             // MuteFmSsg / MuteLineIn / SetFmSsgVolumeDb /
+                             // SetChannelVolumeDb / SetChannelMute / GetChannelVolume ほか
 }
 
 // src/platform/isr.h
@@ -246,7 +247,7 @@ namespace Platform {
 }
 ```
 
-`VolumeController` の API 詳細と NJU72343 の設定方針は [design_volume_controller.md](design_volume_controller.md) を参照。
+`VolumeController` の API 詳細と NJU72343 の制御方針は [design_volume_controller.md](design_volume_controller.md)、配線・レジスタ仕様は [spec_volume_controller.md](spec_volume_controller.md) を参照。
 
 ---
 

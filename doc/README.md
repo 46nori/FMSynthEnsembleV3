@@ -36,6 +36,7 @@
 | [system_spec.md](system_spec.md) | ハードウェア構成・GPIO 接続・電気的仕様 |
 | [spec_fm_chip.md](spec_fm_chip.md) | YM2608/YM2203/YMF288 の機能比較と最大 4 台混在時の制約 |
 | [spec_opn.md](spec_opn.md) | FM音源LSI（YM2608/YM2203/YMF288）のレジスタ仕様・操作方法 |
+| [spec_volume_controller.md](spec_volume_controller.md) | NJU72343 電子ボリュームの配線・レジスタ仕様 |
 | [spec_midi_panel.md](spec_midi_panel.md) | MIDI パネル（PanelSubsystem）のハードウェア仕様 |
 | [spec_display_i2c.md](spec_display_i2c.md) | I2C接続キャラクタLCDのデバイス仕様・GPIO割り当て・バス接続 |
 | [piolib_spec.md](../src/drivers/fm/opn_piolib/doc/piolib_spec.md) | RaspberryPi PicoのPIOを使用したOPN/OPNAバス制御ライブラリ仕様 |

@@ -27,7 +27,7 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 | トレモロ（CC#92） | [doc/design_tremolo.md](doc/design_tremolo.md)（振幅合成、design_lfo.md の LFO を共有） |
 | リズム（ch10） | [doc/design_rhythm.md](doc/design_rhythm.md) |
 | CSM フレーム | [doc/design_csm_frame.md](doc/design_csm_frame.md) |
-| 電子ボリューム | [doc/design_volume_controller.md](doc/design_volume_controller.md) |
+| 電子ボリューム | [doc/design_volume_controller.md](doc/design_volume_controller.md)（ハード仕様: [doc/spec_volume_controller.md](doc/spec_volume_controller.md)） |
 | MIDI パネル | [doc/design_midi_panel.md](doc/design_midi_panel.md)（ハード仕様: [doc/spec_midi_panel.md](doc/spec_midi_panel.md)） |
 | I2C接続ディスプレイ（ハード仕様） | [doc/spec_display_i2c.md](doc/spec_display_i2c.md) |
 | LcdMenuによるジョイスティック操作メニュー | [doc/design_display_menu.md](doc/design_display_menu.md) |

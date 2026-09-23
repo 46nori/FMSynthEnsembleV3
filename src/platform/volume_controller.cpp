@@ -14,10 +14,10 @@ constexpr uint8_t kClockFreqKHz = 100;   // Clock frequency: 100kHz
 constexpr uint8_t kDataPin      = 27;    // Data pin for NJU72343 (GPIO27)
 constexpr uint8_t kClockPin     = 28;    // Clock pin for NJU72343 (GPIO28)
 constexpr uint8_t kMuteValue    = 0xff;  // Mute value: 0xff
-constexpr int16_t kMinDbX2      = -190;  // Minimum dB value: -95.0dB
-constexpr int16_t kMaxDbX2      = 63;    // Maximum dB value: +31.5dB
-constexpr uint8_t kControlG1H1ZeroCrossOff = 0x00;  // G1/H1 select, ZC off
-constexpr uint8_t kControlG1H1ZeroCrossOn  = 0x01;  // G1/H1 select, ZC on
+constexpr int16_t kMinDbX2      = static_cast<int16_t>(VolumeController::kMinDb * 2);
+constexpr int16_t kMaxDbX2      = static_cast<int16_t>(VolumeController::kMaxDb * 2);
+constexpr uint8_t kControlZeroCrossOff = 0x00;  // A1/B1/G1/H1 select, ZC off
+constexpr uint8_t kControlZeroCrossOn  = 0x01;  // A1/B1/G1/H1 select, ZC on
 
 constexpr uint8_t kChipAddresses[] = {
     NJU72343::CHIP_ADR0,
@@ -60,12 +60,41 @@ constexpr SignalConnection kSignalConnections[] = {
     {NJU72343::CHIP_ADR1, 7, SignalType::LineSample, kNoDock},
 };
 
-size_t ChipIndex(uint8_t chip_addr) {
-    return (chip_addr == NJU72343::CHIP_ADR1) ? 1 : 0;
+bool TryChipIndex(uint8_t chip_addr, size_t* chip_index) {
+    if (chip_addr == NJU72343::CHIP_ADR0) {
+        *chip_index = 0;
+        return true;
+    }
+    if (chip_addr == NJU72343::CHIP_ADR1) {
+        *chip_index = 1;
+        return true;
+    }
+    return false;
+}
+
+bool IsValidChipAddress(uint8_t chip_addr) {
+    size_t chip_index = 0;
+    return TryChipIndex(chip_addr, &chip_index);
 }
 
 bool IsLineSignal(SignalType signal) {
     return signal == SignalType::LineMix || signal == SignalType::LineSample;
+}
+
+// YMF288 はFM・リズム・SSGをチップ内部でディジタルミックスしてFM-L/FM-Rの1系統ステレオ出力の
+// み持つ（spec_opn.md参照）。SSG単独の出力はないため、モジュール側でSSG出力ピンをGNDレベルで
+// 駆動しており、該当dockのSSG入力にはGNDレベルの信号が供給される（オープンではない）。
+// YM2203はデフォルト設定でFM-RにFM-Lと同一信号を出力する（モジュール上でGNDレベルへ切替可能。
+// design_volume_controller.md参照）。
+bool IsAvailable(const SignalConnection& connection, const VolumeController::DockModuleTypes& types) {
+    if (IsLineSignal(connection.signal)) {
+        return true;
+    }
+    const auto module_type = types[connection.dock];
+    return (module_type == VolumeController::DockModuleType::YM2608) ||
+           (module_type == VolumeController::DockModuleType::YM2203) ||
+           (module_type == VolumeController::DockModuleType::YMF288 &&
+            connection.signal != SignalType::Ssg);
 }
 
 int16_t ClampDbX2(int16_t db_x2) {
@@ -80,8 +109,15 @@ int16_t ClampDbX2(int16_t db_x2) {
 
 int16_t RoundDbToX2(float db) {
     const float scaled = db * 2.0f;
-    const int16_t rounded = static_cast<int16_t>((scaled >= 0.0f) ? (scaled + 0.5f) : (scaled - 0.5f));
-    return ClampDbX2(rounded);
+    // Clamp before the int16_t cast. Out-of-range floats (and NaN) must not
+    // convert to int16_t; that conversion is undefined.
+    if (!(scaled > static_cast<float>(kMinDbX2))) {
+        return kMinDbX2;
+    }
+    if (scaled >= static_cast<float>(kMaxDbX2)) {
+        return kMaxDbX2;
+    }
+    return static_cast<int16_t>((scaled >= 0.0f) ? (scaled + 0.5f) : (scaled - 0.5f));
 }
 
 uint8_t DbToRegister(float db) {
@@ -149,19 +185,7 @@ void VolumeController::SetFmSsgVolumeDb(float db) {
         if (IsLineSignal(connection.signal)) {
             continue;
         }
-
-        const auto module_type = dock_module_types_[connection.dock];
-        // YMF288 はFM・リズム・SSGをチップ内部でディジタルミックスしてFM-L/FM-Rの
-        // 1系統ステレオ出力のみ持つ（spec_opn.md参照）。SSG単独の出力はないため、
-        // モジュール側でSSG出力ピンをGNDレベルで駆動しており、該当dockのSSG入力には
-        // GNDレベルの信号が供給される（オープンではない）。
-        // YM2203はデフォルト設定でFM-RにFM-Lと同一信号を出力する
-        // （モジュール上でGNDレベルへ切替可能。design_volume_controller.md参照）。
-        const bool available = (module_type == DockModuleType::YM2608) ||
-                               (module_type == DockModuleType::YM2203) ||
-                               (module_type == DockModuleType::YMF288 &&
-                                connection.signal != SignalType::Ssg);
-        if (available) {
+        if (IsAvailable(connection, dock_module_types_)) {
             SetChannelVolumeDb(connection.chip_addr, connection.channel, db);
         } else {
             SetChannelMute(connection.chip_addr, connection.channel);
@@ -184,6 +208,9 @@ void VolumeController::SetLineSampleVolumeDb(float db) {
 }
 
 void VolumeController::SetVolumeRaw(uint8_t chip_addr, uint8_t channel, uint8_t value) {
+    if (!IsValidChipAddress(chip_addr) || channel >= kChannelCount) {
+        return;
+    }
     EnsureInitialized();
     nju_.send(chip_addr, channel, value);
     UpdateShadowFromRaw(chip_addr, channel, value);
@@ -191,7 +218,7 @@ void VolumeController::SetVolumeRaw(uint8_t chip_addr, uint8_t channel, uint8_t 
 
 void VolumeController::SetZeroCrossDetection(bool enabled) {
     EnsureInitialized();
-    const uint8_t value = enabled ? kControlG1H1ZeroCrossOn : kControlG1H1ZeroCrossOff;
+    const uint8_t value = enabled ? kControlZeroCrossOn : kControlZeroCrossOff;
     for (uint8_t chip : kChipAddresses) {
         nju_.send(chip, 0x09, value);
     }
@@ -207,22 +234,52 @@ void VolumeController::EnsureInitialized() {
 }
 
 void VolumeController::SetChannelMute(uint8_t chip_addr, uint8_t channel) {
+    if (!IsValidChipAddress(chip_addr) || channel >= kChannelCount) {
+        return;
+    }
+    EnsureInitialized();
     nju_.send(chip_addr, channel, kMuteValue);
     UpdateShadowFromRaw(chip_addr, channel, kMuteValue);
 }
 
 void VolumeController::SetChannelVolumeDb(uint8_t chip_addr, uint8_t channel, float db) {
+    if (!IsValidChipAddress(chip_addr) || channel >= kChannelCount) {
+        return;
+    }
+    if (!IsChannelAvailable(chip_addr, channel)) {
+        SetChannelMute(chip_addr, channel);
+        return;
+    }
+    EnsureInitialized();
     const uint8_t value = DbToRegister(db);
     nju_.send(chip_addr, channel, value);
     UpdateShadowFromRaw(chip_addr, channel, value);
 }
 
+VolumeController::VolumeValue VolumeController::GetChannelVolume(uint8_t chip_addr, uint8_t channel) const {
+    size_t chip_index = 0;
+    if (!TryChipIndex(chip_addr, &chip_index) || channel >= kChannelCount) {
+        return VolumeValue{true, 0};
+    }
+    return volume_table_[chip_index][channel];
+}
+
+bool VolumeController::IsChannelAvailable(uint8_t chip_addr, uint8_t channel) const {
+    for (const auto& connection : kSignalConnections) {
+        if (connection.chip_addr == chip_addr && connection.channel == channel) {
+            return IsAvailable(connection, dock_module_types_);
+        }
+    }
+    return false;
+}
+
 void VolumeController::UpdateShadowFromRaw(uint8_t chip_addr, uint8_t channel, uint8_t value) {
-    if (channel >= kChannelCount) {
+    size_t chip_index = 0;
+    if (!TryChipIndex(chip_addr, &chip_index) || channel >= kChannelCount) {
         return;
     }
 
-    auto& entry = volume_table_[ChipIndex(chip_addr)][channel];
+    auto& entry = volume_table_[chip_index][channel];
     if (value == 0x00 || value == 0xff) {
         entry.muted = true;
         entry.db_x2 = 0;

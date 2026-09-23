@@ -25,6 +25,8 @@
 #include "config.h"
 #include "display.h"
 #include "info_screen_task.h"
+#include "volume_controller.h"
+#include "volume_db_widget.h"
 
 #if BUILD_SD_CARD
 #include "smf_directory.h"
@@ -42,6 +44,7 @@ MenuScreen* g_transportScreen = nullptr;
 MenuScreen* g_systemInfoScreen = nullptr;
 MenuScreen* g_playOptionsScreen = nullptr;
 MenuScreen* g_settingsScreen = nullptr;
+MenuScreen* g_volumeScreen = nullptr;
 
 LcdMenu* g_menu = nullptr;
 
@@ -68,6 +71,49 @@ void OnLedModeToggled(bool toggle_selected) {
         g_panel->SetLedMode(!toggle_selected);
     }
 }
+
+// --- Settings > Volume ---
+// NJU72343の物理配線（chip/channel）とLCD表示名の対応。
+struct VolumeChannelDef {
+    uint8_t chip_idx;  // 0=CHIP_ADR0, 1=CHIP_ADR1
+    uint8_t channel;   // 0=A, 1=B, ... 7=H
+    const char* label;
+};
+
+// dock順(0-3)に並べ、dock内はFM-L/FM-R/SSGの順。最後にLineMix-L/R、LineSmp-L/Rを置く。
+constexpr VolumeChannelDef kVolumeChannels[] = {
+    {0, 2, "0-FM-L"}, {1, 2, "0-FM-R"}, {0, 0, "0-SSG "},
+    {0, 4, "1-FM-L"}, {1, 4, "1-FM-R"}, {0, 1, "1-SSG "},
+    {0, 3, "2-FM-L"}, {1, 3, "2-FM-R"}, {1, 0, "2-SSG "},
+    {0, 5, "3-FM-L"}, {1, 5, "3-FM-R"}, {1, 1, "3-SSG "},
+    {0, 6, "LineMix-L"}, {1, 6, "LineMix-R"}, {0, 7, "LineSmp-L"}, {1, 7, "LineSmp-R"},
+};
+constexpr std::size_t kVolumeChannelCount = sizeof(kVolumeChannels) / sizeof(kVolumeChannels[0]);
+std::array<VolumeDbWidget*, kVolumeChannelCount> g_volumeWidgets{};
+
+// VolumeDbWidgetのonChangeコールバック。UP/DOWNのたびに
+// 呼ばれ、NJU72343へ即座に書き込む（リアルタイム反映）。ItemCommandのPlaySmfFileAt<Index>
+// と同じ理由（引数を取らない/型が固定の関数ポインタしか渡せない）で、チャンネルごとに
+// 個別の関数をテンプレートで機械的に生成する。
+template <std::size_t Index>
+void OnVolumeChanged(const int16_t& value) {
+    const auto& def = kVolumeChannels[Index];
+    const uint8_t chip_addr = Platform::VolumeController::kChipAddr[def.chip_idx];
+    auto& vc = Platform::VolumeController::GetInstance();
+    if (value == VolumeDbWidget::kMuteValue) {
+        vc.SetChannelMute(chip_addr, def.channel);
+    } else {
+        vc.SetChannelVolumeDb(chip_addr, def.channel, value / 2.0f);
+    }
+}
+
+template <std::size_t... Is>
+constexpr std::array<void (*)(const int16_t&), sizeof...(Is)> MakeVolumeChangeCallbacks(std::index_sequence<Is...>) {
+    return {&OnVolumeChanged<Is>...};
+}
+
+constexpr auto kVolumeChangeCallbacks =
+    MakeVolumeChangeCallbacks(std::make_index_sequence<kVolumeChannelCount>{});
 
 #if BUILD_SD_CARD
 // 表示上限はconfig.hのMENU_MAX_SMF_FILES。LcdMenuの項目位置はuint8_tで1画面の項目数が
@@ -257,9 +303,32 @@ MenuScreen* BuildRootScreen(const InfoScreenTaskContext& ctx) {
     });
 #endif
 
-    // --- Settings（機器設定: LED Mode / System Info） ---
+    // --- Settings（機器設定: LED Mode / Volume / System Info） ---
     std::vector<MenuItem*> settingsItems;
     settingsItems.push_back(new ItemToggle("LEDmode", "CH-Toggle", "Note", &OnLedModeToggled));
+
+    // --- Volume（NJU72343全16CHを個別に0.5dB単位で調整） ---
+    {
+        auto& vc = Platform::VolumeController::GetInstance();
+        std::vector<MenuItem*> volumeItems;
+        volumeItems.reserve(kVolumeChannelCount);
+        for (std::size_t i = 0; i < kVolumeChannelCount; ++i) {
+            const auto& def = kVolumeChannels[i];
+            const uint8_t chip_addr = Platform::VolumeController::kChipAddr[def.chip_idx];
+            const bool available = vc.IsChannelAvailable(chip_addr, def.channel);
+            int16_t initial = VolumeDbWidget::kUnavailableValue;
+            if (available) {
+                const auto shadow = vc.GetChannelVolume(chip_addr, def.channel);
+                initial = shadow.muted ? VolumeDbWidget::kMuteValue : shadow.db_x2;
+            }
+            auto* widget = new VolumeDbWidget(initial, kVolumeChangeCallbacks[i]);
+            g_volumeWidgets[i] = widget;
+            volumeItems.push_back(new VolumeItem(
+                def.label, widget, available));
+        }
+        g_volumeScreen = new MenuScreen(volumeItems);
+    }
+    settingsItems.push_back(ITEM_SUBMENU("Volume", g_volumeScreen));
 
     // --- System Info（Dock構成は起動時固定、Voice/CSM数のみ後で更新する） ---
     static char dockLine1[Platform::kDisplayColumns + 1];
@@ -377,6 +446,30 @@ MenuScreen* GetSystemInfoScreen() {
 
 void SetMenu(LcdMenu* menu) {
     g_menu = menu;
+}
+
+void RefreshVolumeUi() {
+    if (g_menu == nullptr || g_menu->getScreen() != g_volumeScreen || MenuItem::isEditing()) {
+        return;
+    }
+
+    auto& vc = Platform::VolumeController::GetInstance();
+    bool redraw = false;
+    for (std::size_t i = 0; i < kVolumeChannelCount; ++i) {
+        const auto& def = kVolumeChannels[i];
+        const uint8_t chip_addr = Platform::VolumeController::kChipAddr[def.chip_idx];
+        int16_t value = VolumeDbWidget::kUnavailableValue;
+        if (vc.IsChannelAvailable(chip_addr, def.channel)) {
+            const auto shadow = vc.GetChannelVolume(chip_addr, def.channel);
+            value = shadow.muted ? VolumeDbWidget::kMuteValue : shadow.db_x2;
+        }
+        if (g_volumeWidgets[i] != nullptr) {
+            redraw = g_volumeWidgets[i]->syncValue(value) || redraw;
+        }
+    }
+    if (redraw) {
+        g_menu->refresh();
+    }
 }
 
 void UpdatePlaybackUi() {

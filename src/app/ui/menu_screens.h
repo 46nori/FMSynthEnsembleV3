@@ -48,6 +48,13 @@ void SetMenu(LcdMenu* menu);
 void UpdatePlaybackUi();
 
 /**
+ * @brief Volume画面の表示値をVolumeControllerのシャドウ状態へ同期する
+ * @details 毎周期呼ぶ。Volume画面を表示中かつ編集中でない場合だけ同期し、
+ *          NJU72343への書き込みは行わない。
+ */
+void RefreshVolumeUi();
+
+/**
  * @brief System Info画面を返す
  */
 MenuScreen* GetSystemInfoScreen();

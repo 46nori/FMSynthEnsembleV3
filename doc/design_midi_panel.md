@@ -111,7 +111,7 @@ flowchart LR
 | **A** トグル反映 | ソフトトグル ON → LED 点灯 | `SetLedMode(false)` |
 | **B** MIDI 反映（既定） | `gLastNoteOnBitmap` に LED 追従 | `SetLedMode(true)` |
 
-`IMidiPanelDriver::SetLedMode(bool note_reflect)` で切替える。PB bit7 はジョイスティックの PUSH に割り当てられており、モード切替用のハード入力は無いため、ソフトウェアのみの制御になる。呼び出し元は [design_display_menu.md](design_display_menu.md#54-led表示モード切替settings--led-mode) の `Settings > LED Mode` メニュー項目。
+`IMidiPanelDriver::SetLedMode(bool note_reflect)` で切替える。PB bit7 はジョイスティックの PUSH に割り当てられており、モード切替用のハード入力は無いため、ソフトウェアのみの制御になる。呼び出し元は [design_display_menu.md](design_display_menu.md#73-led表示モード切替settings--led-mode) の `Settings > LED Mode` メニュー項目。
 
 モード B のルール: CH n ↔ MIDI ch n（1:1）。CH1–9 / CH11–16 は有効な Note On があれば点灯し、vel=0 は消灯扱い。CH10（リズム）のみ例外で、vel>0 のヒットごとに短いパルス点灯する（vel=0 は消灯しない。詳細は [design_rhythm.md](design_rhythm.md#10-未実装既知の限界)）。詳細は [11 章](#11-led-表示モード)。
 
@@ -433,7 +433,7 @@ flowchart LR
 
 LED ソース選択の詳細。概要は [3.3 節](#33-ソフトウェア機能要件)、ドライバ実装は [5.3.1 節](#531-led-モード)。
 
-モードの切替は、`IMidiPanelDriver::SetLedMode(bool note_reflect)` によるソフトウェアのみで行う。PB bit7 はジョイスティックの PUSH に割り当てられており、モード切替に使えるハード入力が無いため（[spec_midi_panel.md 7 章](spec_midi_panel.md#7-ジョイスティック)）。呼び出し元は [design_display_menu.md](design_display_menu.md#54-led表示モード切替settings--led-mode) の `Settings > LED Mode` メニュー項目（既定はモード B）。
+モードの切替は、`IMidiPanelDriver::SetLedMode(bool note_reflect)` によるソフトウェアのみで行う。PB bit7 はジョイスティックの PUSH に割り当てられており、モード切替に使えるハード入力が無いため（[spec_midi_panel.md 7 章](spec_midi_panel.md#7-ジョイスティック)）。呼び出し元は [design_display_menu.md](design_display_menu.md#73-led表示モード切替settings--led-mode) の `Settings > LED Mode` メニュー項目（既定はモード B）。
 
 ### 11.1 モード定義
 

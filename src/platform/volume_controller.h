@@ -36,10 +36,16 @@ public:
     static constexpr size_t kChannelCount = 8;  // Number of input channels(A-H)
     static constexpr size_t kDockCount    = 4;  // Number of docks(0-3)
 
+    // Volume range, per the NJU72343 chip spec.
+    static constexpr float kMinDb  = -95.0f;
+    static constexpr float kMaxDb  = 31.5f;
+    static constexpr float kStepDb = 0.5f;
+
     /**
-     * @brief NJU72343 chip I2C addresses, indexed by chip index (0/1).
-     * @details Exposed so callers (debugger) can select a chip without
-     *          depending on `extern/NJU72343-library` directly.
+     * @brief NJU72343 chip addresses, indexed by chip index (0/1).
+     * @details 2-wire serial addresses (`CHIP_ADR0` / `CHIP_ADR1`). Exposed so
+     *          callers (debugger) can select a chip without depending on
+     *          `extern/NJU72343-library` directly.
      */
     static constexpr std::array<uint8_t, kChipCount> kChipAddr = {NJU72343::CHIP_ADR0,
                                                                   NJU72343::CHIP_ADR1};
@@ -110,14 +116,46 @@ public:
     void SetLineSampleVolumeDb(float db);
 
     /**
+     * @brief Set one NJU72343 channel in dB.
+     * @details Used both internally (group operations) and directly by callers that need
+     *          per-channel control (e.g. the LCD Volume screen). Values are rounded to the
+     *          nearest 0.5dB step and clamped to [kMinDb, kMaxDb]. Unavailable channels
+     *          remain muted. Unknown chip addresses and out-of-range channels are ignored.
+     */
+    void SetChannelVolumeDb(uint8_t chip_addr, uint8_t channel, float db);
+
+    /**
+     * @brief Mute one NJU72343 channel.
+     * @details Unknown chip addresses and out-of-range channels are ignored.
+     */
+    void SetChannelMute(uint8_t chip_addr, uint8_t channel);
+
+    /**
+     * @brief Get the last volume value sent for one channel.
+     * @details This is a shadow value, not read back from NJU72343. Returns a muted value
+     *          for an unknown chip address or out-of-range channel.
+     */
+    VolumeValue GetChannelVolume(uint8_t chip_addr, uint8_t channel) const;
+
+    /**
+     * @brief Whether a channel currently carries a real signal.
+     * @details `false` for an unconnected dock's FM/SSG inputs, or a YMF288 dock's SSG input
+     *          (driven to GND on the module itself, not an open mixer input).
+     *          LineMix/LineSample are always `true`. Returns `false` for an unknown chip/channel.
+     */
+    bool IsChannelAvailable(uint8_t chip_addr, uint8_t channel) const;
+
+    /**
      * @brief Set one NJU72343 channel using the raw register value.
      * @details Intended for debugger/prototyping use where the optimal value is still being explored.
+     *          Unknown chip addresses and out-of-range channels are ignored.
      */
     void SetVolumeRaw(uint8_t chip_addr, uint8_t channel, uint8_t value);
 
     /**
-     * @brief Enable or disable G/H Zero Cross Detection on both NJU72343 chips.
-     * @details Debugger/verification use. G1/H1 selector bits in reg 0x09 are preserved.
+     * @brief Enable or disable Zero Cross Detection on both NJU72343 chips.
+     * @details Debugger/verification use. The A1/B1/G1/H1 selector bits in reg 0x09 are
+     *          kept fixed to their input-1 side.
      */
     void SetZeroCrossDetection(bool enabled);
 
@@ -132,8 +170,6 @@ private:
     ~VolumeController() = default;
 
     void EnsureInitialized();
-    void SetChannelMute(uint8_t chip_addr, uint8_t channel);
-    void SetChannelVolumeDb(uint8_t chip_addr, uint8_t channel, float db);
     void UpdateShadowFromRaw(uint8_t chip_addr, uint8_t channel, uint8_t value);
 
     NJU72343 nju_;
