@@ -284,6 +284,7 @@ void InfoScreenTask(void* param) {
         }
         wasShowingReset = showingReset;
 
+        AppUi::RefreshVolumeUi();
         joystick.observe();
         AppUi::UpdatePlaybackUi();
 

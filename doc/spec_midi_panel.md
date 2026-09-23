@@ -407,7 +407,7 @@ UP(/A) + RIGHT(/D) 同時: bit4 = 0 AND 1 = 0
 
 #### その他
 
-- **bit7 は Center Push であり、LED 表示モード切替（[6.2 節](#62-led_row_pattern-の内容モード-a--b)、[8 章](#8-制御上の考慮事項)）には使えない。** モード切替は`IMidiPanelDriver::SetLedMode()`によるソフトウェア制御で行う（[design_display_menu.md 5.4節](design_display_menu.md#54-led表示モード切替settings--led-mode)）
+- **bit7 は Center Push であり、LED 表示モード切替（[6.2 節](#62-led_row_pattern-の内容モード-a--b)、[8 章](#8-制御上の考慮事項)）には使えない。** モード切替は`IMidiPanelDriver::SetLedMode()`によるソフトウェア制御で行う（[design_display_menu.md 7.3節](design_display_menu.md#73-led表示モード切替settings--led-mode)）
 - ハードウェアのチャタリング除去回路は無い（プルアップのみ）。**ソフトウェアでのデバウンスが必須**
 - **bit6（`/B`）と bit7（`/Center`）は AND ゲートを介さない直結**で、10 kΩ プルアップのみでリボンケーブルを経由し LSI のポートピンに入る。bit4 / bit5（74AHC1G08 のプッシュプル出力駆動）より高インピーダンスでノイズに弱いため、デバウンスは特にこの 2bit で効かせること
 - ジョイスティックは**マトリックススキャンに関与しない静的配線**であり、PA の列選択状態と無関係に常時有効。PB 上位 4bit はどのスロットで読んでも valid（下位 4bit は列選択とセットでのみ意味を持つ）

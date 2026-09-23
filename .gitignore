@@ -3,6 +3,7 @@ build*/
 .cache
 tmp/
 tools/**/out/
+a.out
 
 # Python
 __pycache__/

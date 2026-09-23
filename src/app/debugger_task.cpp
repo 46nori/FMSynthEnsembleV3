@@ -361,7 +361,7 @@ int c_volume_table(token_list* t) {
     static constexpr char channel_names[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 
     std::printf("\n=== NJU72343 Volume Table ===\n");
-    //std::printf("(shadow values: last values sent by VolumeController)\n");
+    std::printf("(shadow values: last values sent by VolumeController)\n");
     for (size_t chip = 0; chip < Platform::VolumeController::kChipCount; ++chip) {
         std::printf("%s:", chip_names[chip]);
         for (size_t ch = 0; ch < Platform::VolumeController::kChannelCount; ++ch) {

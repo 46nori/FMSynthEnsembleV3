@@ -275,6 +275,9 @@ Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロ�
 | Panel のジョイスティック状態・LED モード（`MidiPanelController` 経由） | ジョイスティック状態は `MidiPanelTask`（`Tick()`）、LED モードは `InfoScreenTask`（`SetLedMode()`） | ジョイスティック状態は `InfoScreenTask`、LED モードは `MidiPanelTask`（[design_midi_panel.md](design_midi_panel.md#8-並行性所有権)） |
 | `gMidiQueue` への書き込み | `UsbMidiTask`、`SmfPlayerTask`（`BUILD_SD_CARD=ON` 時。[design_smf_player.md](design_smf_player.md#5-gmidiqueue-への合流) 参照。`gMidiControlQueue` 同様、複数 Producer を許容） | `MidiEngineTask`（`xQueueReceive`） |
 | `gMidiControlQueue` への書き込み | `UsbMidiTask`、`MidiPanelTask`、`DebugTask`（いずれも `MidiIpcSendMidiControl`。FreeRTOS Queue は複数 Producer を許容する） | `MidiEngineTask`（`xQueueReceive`） |
+| NJU72343（`VolumeController`経由のPIO 2-wire serial書き込み・シャドウ状態） | 起動時（スケジューラ開始前）は`Platform::Initialize()`と`main.cpp`、実行時は`InfoScreenTask`（`Settings > Volume`画面）。デバッグ専用の例外として`DebugTask`の`vraw`/`volzc`も書き込み可 | `InfoScreenTask`（`GetChannelVolume()`）、`DebugTask`の`vol` |
+
+`VolumeController`が使う`extern/NJU72343-library`には、FM バスの`opn_piolib`のようなロック機構が無い。`InfoScreenTask`（優先度2）と`DebugTask`（優先度1）は同じCore0上で動作し、優先度の高い`InfoScreenTask`は`DebugTask`をプリエンプトできる。Volume画面の操作中にデバッガの音量コマンドを実行すると、PIO 2-wire serial送信とシャドウ状態更新の間に割り込まれる可能性がある。実チップの値とシャドウ値が一時的に不一致になり得る既知の制約とし、ロックによる保護は行わない。デバッグ用コマンドとVolume画面は同時に操作しない。
 
 Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の **PIO バス spinlock** でレジスタトランザクションはシリアライズされる。同一 Voice への連続 `fm_set_pitch` は「最後の完全再計算が反映される」前提でよい（[design_pitch_effect.md](design_pitch_effect.md#3-アーキテクチャ) 参照）。
 
