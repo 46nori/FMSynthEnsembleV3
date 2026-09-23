@@ -23,6 +23,7 @@ I2C接続ディスプレイ（[spec_display_i2c.md](spec_display_i2c.md)）上�
     - [7.2 初期メニュー構成](#72-初期メニュー構成)
     - [7.3 LED表示モード切替（Settings \> LED Mode）](#73-led表示モード切替settings--led-mode)
     - [7.4 音量調整（Settings \> Volume）](#74-音量調整settings--volume)
+    - [7.5 リズム音量補正（Settings \> RhythmVol）](#75-リズム音量補正settings--rhythmvol)
   - [8. リソースと制約](#8-リソースと制約)
   - [9. 関連ドキュメント](#9-関連ドキュメント)
 
@@ -228,6 +229,7 @@ sequenceDiagram
 | `JoystickInputAdapter` | `app/ui/` | `extern/LcdMenu`、`synth::MidiPanelController` |
 | LcdMenuオブジェクトグラフの組み立て（`MenuScreen`/`MenuItem`定義） | `app/ui/` | `extern/LcdMenu`、`platform::LcdCharacterDisplayAdapter` |
 | `VolumeDbWidget` / `VolumeItem`（[7.4節](#74-音量調整settings--volume)、Mute/N/A表示と編集不可ガードを追加する拡張） | `app/ui/` | `extern/LcdMenu`（`WidgetRange` / `ItemWidget`を継承）、`platform::VolumeController` |
+| `RhythmLevelWidget`（[7.5節](#75-リズム音量補正settings--rhythmvol)、0.75dB刻み表示とN/A表示の拡張） | `app/ui/` | `extern/LcdMenu`（`WidgetRange`を継承）、`synth::RhythmChannel`（`g_rhythm_level_offset`の読み取りと上限定数のみ） |
 
 **`app`が`extern/`の型を直接扱う根拠**: `app`はハードウェアを直接操作せず、`Platform::*`と`synth` APIのみを使うのが原則で、NJU72343-libraryやno-OS-FatFSのような`extern/`のライブラリは`platform`/`drivers`が仲介する（[architecture.md「app（アプリケーションレイヤ）」](architecture.md#3-ディレクトリ構成とレイヤの役割)）。LcdMenuは「何を表示しどう遷移するか」というUIロジックそのもので、ハードウェア操作ではないため、`app`が直接扱ってよいとする。ハードウェア資源（I2C・Rw1063Display）の所有は`platform`に閉じ、`app/ui/`が触るのは`DisplayInterface`実装のポインタと`InputInterface`基底クラスに限る。UIの規模が大きくなりうるため、タスク生成・`InfoScreenTaskContext`・ステータス行だけを`app/`直下（`info_screen_task.h/cpp`）に置き、画面定義と入力アダプタは`app/ui/`に分ける。
 
@@ -236,7 +238,7 @@ src/app/
 ├── info_screen_task.h/cpp          # タスク生成・InfoScreenTaskContext・ステータス行
 └── ui/
     ├── menu_screens.h/cpp          # MenuScreen/MenuItem定義
-    ├── volume_db_widget.h          # VolumeDbWidget / VolumeItem
+    ├── volume_db_widget.h          # VolumeDbWidget / RhythmLevelWidget / VolumeItem
     └── joystick_input_adapter.h/cpp
 ```
 
@@ -291,6 +293,7 @@ flowchart TD
     end
     subgraph SettingsItems["Settingsの項目"]
         LedMode["LED Mode"]
+        RhythmVol["RhythmVol"]
         Volume["Volume"]
         SysInfo["System Info"]
     end
@@ -299,6 +302,7 @@ flowchart TD
     PlayOptions --> Shuffle
     PlayOptions --> Playback
     Settings --> LedMode
+    Settings --> RhythmVol
     Settings --> Volume
     Settings --> SysInfo
 
@@ -307,7 +311,7 @@ flowchart TD
     NowPlaying -. "再生中" .-> Transport
 ```
 
-戻る操作は、ジョイスティックのLEFT（[5.3節](#53-inputinterface実装)）が担う。専用の戻る項目は置かない。各画面の詳細は下表、`Play Options`と`Settings`配下の各項目の詳細はそれぞれの節（[7.3節](#73-led表示モード切替settings--led-mode)、[7.4節](#74-音量調整settings--volume)、[design_smf_playback.md](design_smf_playback.md#8-lcd-メニューとの連携)）を参照。
+戻る操作は、ジョイスティックのLEFT（[5.3節](#53-inputinterface実装)）が担う。専用の戻る項目は置かない。各画面の詳細は下表、`Play Options`と`Settings`配下の各項目の詳細はそれぞれの節（[7.3節](#73-led表示モード切替settings--led-mode)、[7.4節](#74-音量調整settings--volume)、[7.5節](#75-リズム音量補正settings--rhythmvol)、[design_smf_playback.md](design_smf_playback.md#8-lcd-メニューとの連携)）を参照。
 
 | 画面 | 内容 |
 |---|---|
@@ -316,7 +320,7 @@ flowchart TD
 | **Now Playing** | 再生中（`Playing`/`Paused`）なら Transport 画面へ直接移る（`OpenTransport(g_rootScreen)`）。`Idle` のときは何もしない |
 | **Play Options** | `Repeat`（`ItemCommand`: Off/1/Loop）・`Shuffle`（`ItemCommand`: Off/On）・`Playback`（`ItemCommand`: Single/Cont.）の再生制御設定 |
 | **Transport** | `Pause`/`Resume`・`Stop`・`Next`・`Prev`の固定4項目。曲を選んだときに移り、再生が終わると元の一覧へ戻る |
-| **Settings** | `LED Mode`（`ItemToggle`、[7.3節](#73-led表示モード切替settings--led-mode)）・`Volume`（[7.4節](#74-音量調整settings--volume)）・`System Info`（`ItemLabel`） |
+| **Settings** | `LED Mode`（`ItemToggle`、[7.3節](#73-led表示モード切替settings--led-mode)）・`RhythmVol`（`VolumeItem`、[7.5節](#75-リズム音量補正settings--rhythmvol)）・`Volume`（[7.4節](#74-音量調整settings--volume)）・`System Info`（`ItemLabel`） |
 | **Volume** | NJU72343の全16CHを1行1CHで並べ、`PUSH`で編集モードに入り0.5dB単位（Mute含む）で個別調整する読み取り/書き込み画面。常時ミュート対象CHは表示のみで編集不可（[7.4節](#74-音量調整settings--volume)） |
 | **System Info** | Dock毎のFMモジュール種別、MIDIパネル接続有無、Voice/CSM数を表示する読み取り専用画面。Dock構成は起動時に確定し、Voice/CSM数は`RefreshSystemInfo()`が1000ms周期（`INFO_SCREEN_SYSINFO_REFRESH_MS`）で更新する |
 
@@ -370,10 +374,44 @@ NJU72343の全16チャンネル（[spec_volume_controller.md 1.2節](spec_volume
 
 **リソース影響**: 16行分の`VolumeDbWidget`＋`VolumeItem`は、他の画面と同様`BuildRootScreen()`内で起動時に1回だけ構築する（8節の「起動後の追加ヒープ確保は発生しない」方針の範囲内）。使用するMenuItemは`VolumeItem`のみで、8節が列挙する許可Item種別にこれを加える。
 
+### 7.5 リズム音量補正（Settings > RhythmVol）
+
+リズム音源（ch10、[design_rhythm.md](design_rhythm.md)）のFMに対する音量バランスを、`Settings`画面の`RhythmVol`行で調整する。調整するのはデバッガの`rmix`コマンドと同じ`g_rhythm_level_offset`（RTL/ILの両方から差し引く追加減衰、1 step = 0.75dB、0〜31 step）で、NJU72343は操作しない。両者は同じ変数を書き換えるため、後から設定した側の値が有効になる。設定値は保存せず、再起動すると`config.h`の`RHYTHM_LEVEL_OFFSET`に戻る（Volume画面と同じ）。
+
+**行構成**: サブメニューを挟まず、`Settings`画面の`LED Mode`と`Volume`の間に1行の`VolumeItem`として直接置く。ラベルは`RhythmVol`。カーソル1桁 + ラベル9桁 + `:` + 値8桁（`-23.25dB`）の19桁で、上下矢印アイコン用の1桁を除いた表示幅（19桁）に収まる。
+
+**編集モードの出入り**: [7.4節](#74-音量調整settings--volume)と同じ。`PUSH`で編集モードに入り、`UP`/`DOWN`のたびに`onChange`で即座に反映し、`BACK`と再度の`PUSH`のどちらでも値を保持したまま抜ける。`cancelEdit()`による巻き戻しは無効化する。
+
+**値の範囲と表示**: Widgetは`WidgetRange<int16_t>`を継承した`RhythmLevelWidget`とし、減衰step数の符号を反転した値（`-RHYTHM_LEVEL_OFFSET_MAX`〜`0`）を保持する。これにより`UP`で音量が上がり（減衰が減り）、`DOWN`で下がる。Volume画面と向きを揃えるためである。上限`RHYTHM_LEVEL_OFFSET_MAX`（31、ILレジスタの最大値）は`RhythmChannel.h`に定数として置き、デバッガの`rmix`の範囲チェックと共用する。Mute状態は持たない。表示は`draw()`をオーバーライドし、Volume画面と同じく常に`+`/`-`符号を付け整数部を2桁幅にした書式で、0.75dB刻みのため小数部を2桁にして`dB`を付ける（例: `+ 0.00dB`、`- 0.75dB`、`-23.25dB`）。
+
+**編集不可の扱い**: リズム音源を持つモジュール（`OpnBase::rhythm() != nullptr`、YM2608/YMF288）が1台も無い構成では、Volume画面の編集不可CHと同じく`N/A`を表示し、`PUSH`を無視する。判定は`BuildRootScreen()`で`InfoScreenTaskContext::modules`から行う（Dock構成は起動時に確定するため、以降は再判定しない）。`N/A`は下限の1つ下の値を専用に予約して表現する。行の型は`VolumeItem`をそのまま使い、コンストラクタが受け取るWidgetの型を`VolumeDbWidget`から`RhythmLevelWidget`との共通基底に広げる。`cancelEdit()`の無効化と`syncValue()`はこの共通基底に置き、2つのWidgetで共用する。
+
+**反映経路**: `g_rhythm_level_offset`の更新と`RhythmChannel::RefreshRhythmLevels()`によるFMレジスタ書き込みは、FMバスを扱うCore1の`MidiEngineTask`で行う必要がある。そのため`onChange`は値を直接書き換えず、`rmix`と同じMIDI Control Eventを`MidiIpcSendMidiControl()`で送る。UIが常用する経路のため、種別名はデバッグ用の`Debug*`ではなく`MidiControlType::RhythmLevelOffset`とする。イベントは他のタスク（`UsbMidiTask`・`SmfPlayerTask`・`MidiPanelTask`）と同じく`onChange`内で組み立てて直接送り、専用の送信APIは設けない。`MidiEngineTask`側では範囲外の値を無視する。
+
+```mermaid
+sequenceDiagram
+    participant UI as InfoScreenTask (Core0)<br/>RhythmLevelWidget
+    participant IPC as Control queue
+    participant Eng as MidiEngineTask (Core1)
+    participant Rc as RhythmChannel
+
+    UI->>IPC: UP/DOWN → RhythmLevelOffset(step)
+    IPC->>Eng: MidiControlEvent
+    Eng->>Eng: g_rhythm_level_offset = step
+    Eng->>Rc: RefreshRhythmLevels()（RTLを即時再設定）
+    Note over Rc: ILは次の発音時に新しい値で計算する
+```
+
+RTL（リズム全体の音量）は変更時に全モジュールへ即時反映する。IL（楽器ごとの音量）は発音のたびにベロシティから計算して書き込む方式のため、次の発音から反映される（[design_rhythm.md](design_rhythm.md)）。
+
+**初期値と再同期**: 画面構築時に`g_rhythm_level_offset`から初期化する。`Settings`画面を表示中かつ編集中でない場合は、`RefreshVolumeUi()`の周期処理で`g_rhythm_level_offset`を読み、デバッガの`rmix`による変更などを表示へ再同期する（`onChange`は呼ばない）。Control キューが満杯で送信に失敗した場合、編集中は表示とエンジン側の値がずれるが、編集を抜けた後の再同期で実際の値に戻る。
+
+**リソース影響**: 追加は`RhythmLevelWidget`＋`VolumeItem`の1行分のみで、`BuildRootScreen()`で起動時に1回だけ構築する。
+
 ## 8. リソースと制約
 
 - **スタック**: `TASK_STACK_INFO_SCREEN`は768 word（3KB）。LcdMenuの`MenuScreen`構築と`CharacterDisplayRenderer`の文字列組み立てに余裕を持たせる。SDカードのディレクトリ走査（`ForEachSmfFile()`）はバッファを静的配列で持つため、ファイル数が増えてもスタックは増えない
-- **ヒープフラグメンテーション**: LcdMenu内の`std::vector`は`MenuScreen::items`（`MenuScreen`構築時に一度だけ渡される`MenuItem*`配列）が唯一のコア利用箇所で、`addItem`/`removeItemAt`/`clear`等による実行時の再構築は使わないため、起動後の追加ヒープ確保は発生しない。使う`MenuItem`は`ItemCommand`/`ItemToggle`/`ItemSubMenu`/`ItemLabel`、および音量調整画面（[7.4節](#74-音量調整settings--volume)）の`VolumeItem`（`VolumeDbWidget`付き）に限る。`ItemWidget`が内部で持つ`std::vector<BaseWidget*>`・`WidgetRange`（`VolumeDbWidget`）は構築時に1回だけ確保され、編集操作（`UP`/`DOWN`/`PUSH`/`BACK`）は数値の増減のみでヒープ再確保を伴わない。`ItemInput`/`ItemInputCharset`（自由テキスト編集項目）は、編集セッション中にキー入力のたびに`new char[]`を再確保する実装のため使わない
+- **ヒープフラグメンテーション**: LcdMenu内の`std::vector`は`MenuScreen::items`（`MenuScreen`構築時に一度だけ渡される`MenuItem*`配列）が唯一のコア利用箇所で、`addItem`/`removeItemAt`/`clear`等による実行時の再構築は使わないため、起動後の追加ヒープ確保は発生しない。使う`MenuItem`は`ItemCommand`/`ItemToggle`/`ItemSubMenu`/`ItemLabel`、および音量調整（[7.4節](#74-音量調整settings--volume)、[7.5節](#75-リズム音量補正settings--rhythmvol)）の`VolumeItem`（`VolumeDbWidget`または`RhythmLevelWidget`付き）に限る。`ItemWidget`が内部で持つ`std::vector<BaseWidget*>`・`WidgetRange`（`VolumeDbWidget`/`RhythmLevelWidget`）は構築時に1回だけ確保され、編集操作（`UP`/`DOWN`/`PUSH`/`BACK`）は数値の増減のみでヒープ再確保を伴わない。`ItemInput`/`ItemInputCharset`（自由テキスト編集項目）は、編集セッション中にキー入力のたびに`new char[]`を再確保する実装のため使わない
 - **Play SMFのファイル数とメモリ**: `MENU_MAX_SMF_FILES`に比例して、ファイル名バッファ（RAM）、再生コールバック表と再生関数（flash）、メニュー項目（`ItemCommand`、1件ずつヒープに確保）が増える。上限の255件でも合計は数KBから十数KBに収まり、RP2350のSRAM（520KB）に対して問題にならない。1件あたりの概算は`config.h`のコメントに記載する
 - **`InfoScreenTask`の周期**: 演奏状態に関わらず`INFO_SCREEN_POLL_PERIOD_MS`（20ms）で起床し、ジョイスティックのポーリング、ステータス行の更新、`menu.poll()`を行う。`OpnMidiPanelDriver`のデバウンス確定周期（4列 × `MIDI_PANEL_PERIOD_MS` = 16ms）より短く、取りこぼしは無い。System InfoのVoice/CSM数の再描画は、I2C書き込み量を抑えるため1000ms周期に分けている
 - **`drivers/midi_panel`**: `OpnMidiPanelDriver`はPB bit7をLEDモードとして読まず、上位4bitをジョイスティックとしてデコードする。LEDモードは`SetLedMode`/`GetLedMode`（[7.3節](#73-led表示モード切替settings--led-mode)）で保持する
@@ -387,5 +425,6 @@ NJU72343の全16チャンネル（[spec_volume_controller.md 1.2節](spec_volume
 | [spec_midi_panel.md](spec_midi_panel.md) | ジョイスティックのハード仕様（7章）・PB信号定義（4章） |
 | [design_volume_controller.md](design_volume_controller.md) | NJU72343の制御方針・音量API |
 | [spec_volume_controller.md](spec_volume_controller.md) | NJU72343の配線・レジスタ仕様 |
+| [design_rhythm.md](design_rhythm.md) | リズム音源（ch10）。`g_rhythm_level_offset`によるRTL/ILの減衰 |
 | [design_smf_player.md](design_smf_player.md) | SMF再生（Play SMFの再生要求の受け側） |
 | [architecture.md](architecture.md) | レイヤ・依存制約 |

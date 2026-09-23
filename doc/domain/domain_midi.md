@@ -67,7 +67,7 @@ classDiagram
         DebugStats
         DebugVibratoOverride
         DebugTlTrim
-        DebugRhythmMix
+        RhythmLevelOffset
     }
 
     class MidiControlEvent {

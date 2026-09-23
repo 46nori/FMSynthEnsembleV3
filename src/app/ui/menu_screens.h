@@ -48,9 +48,10 @@ void SetMenu(LcdMenu* menu);
 void UpdatePlaybackUi();
 
 /**
- * @brief Volume画面の表示値をVolumeControllerのシャドウ状態へ同期する
- * @details 毎周期呼ぶ。Volume画面を表示中かつ編集中でない場合だけ同期し、
- *          NJU72343への書き込みは行わない。
+ * @brief 音量調整の表示値を現在の設定値へ同期する
+ * @details 毎周期呼ぶ。編集中でない場合だけ、Volume画面の表示中はVolumeControllerの
+ *          シャドウ状態へ、Settings画面の表示中はRhythmVol行をg_rhythm_level_offsetへ
+ *          同期する。NJU72343やFMレジスタへの書き込みは行わない。
  */
 void RefreshVolumeUi();
 

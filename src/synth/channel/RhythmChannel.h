@@ -14,8 +14,11 @@
 
 class OpnBase;
 
-/** @brief リズム RTL/IL 追加減衰 (step)。`rmix` で変更、初期値は RHYTHM_LEVEL_OFFSET */
+/** @brief リズム RTL/IL 追加減衰 (step)。`rmix` / LCD の Settings > RhythmVol で変更、初期値は RHYTHM_LEVEL_OFFSET */
 extern volatile int8_t g_rhythm_level_offset;
+
+/** @brief g_rhythm_level_offset の上限 (step、1 step = 0.75 dB)。IL レジスタの最大値 31 に合わせる */
+constexpr int8_t RHYTHM_LEVEL_OFFSET_MAX = 31;
 
 /**
  * @brief Rhythm Channel class (CH=10)

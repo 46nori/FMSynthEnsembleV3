@@ -25,6 +25,8 @@
 #include "config.h"
 #include "display.h"
 #include "info_screen_task.h"
+#include "MidiMessage.h"
+#include "midi_ipc.h"
 #include "volume_controller.h"
 #include "volume_db_widget.h"
 
@@ -114,6 +116,36 @@ constexpr std::array<void (*)(const int16_t&), sizeof...(Is)> MakeVolumeChangeCa
 
 constexpr auto kVolumeChangeCallbacks =
     MakeVolumeChangeCallbacks(std::make_index_sequence<kVolumeChannelCount>{});
+
+// --- Settings > RhythmVol ---
+RhythmLevelWidget* g_rhythmWidget = nullptr;
+
+// g_rhythm_level_offset（減衰step数）をRhythmLevelWidgetの表示値（符号反転）に変換する
+int16_t RhythmLevelWidgetValue() {
+    return static_cast<int16_t>(-g_rhythm_level_offset);
+}
+
+// RhythmLevelWidgetのonChangeコールバック。g_rhythm_level_offsetの更新とRTLの再設定は
+// FMバスを扱うCore1で行うため、MIDI Control EventをMidiEngineTaskへ送るだけにする。
+void OnRhythmLevelChanged(const int16_t& value) {
+    if (value < RhythmLevelWidget::kMinValue || value > 0) {
+        return;
+    }
+    MidiControlEvent ctl{};
+    ctl.type = MidiControlType::RhythmLevelOffset;
+    ctl.channel = static_cast<uint8_t>(-value);
+    ctl.timestamp_us = 0;
+    (void)MidiIpcSendMidiControl(ctl);
+}
+
+bool HasRhythmModule(const std::array<OpnBase*, 4>& modules) {
+    for (const OpnBase* module : modules) {
+        if (module != nullptr && module->rhythm() != nullptr) {
+            return true;
+        }
+    }
+    return false;
+}
 
 #if BUILD_SD_CARD
 // 表示上限はconfig.hのMENU_MAX_SMF_FILES。LcdMenuの項目位置はuint8_tで1画面の項目数が
@@ -303,9 +335,18 @@ MenuScreen* BuildRootScreen(const InfoScreenTaskContext& ctx) {
     });
 #endif
 
-    // --- Settings（機器設定: LED Mode / Volume / System Info） ---
+    // --- Settings（機器設定: LED Mode / RhythmVol / Volume / System Info） ---
     std::vector<MenuItem*> settingsItems;
     settingsItems.push_back(new ItemToggle("LEDmode", "CH-Toggle", "Note", &OnLedModeToggled));
+
+    // --- RhythmVol（デバッガのrmixと同じg_rhythm_level_offsetを0.75dB単位で調整） ---
+    {
+        const bool available = HasRhythmModule(*ctx.modules);
+        const int16_t initial =
+            available ? RhythmLevelWidgetValue() : RhythmLevelWidget::kUnavailableValue;
+        g_rhythmWidget = new RhythmLevelWidget(initial, &OnRhythmLevelChanged);
+        settingsItems.push_back(new VolumeItem("RhythmVol", g_rhythmWidget, available));
+    }
 
     // --- Volume（NJU72343全16CHを個別に0.5dB単位で調整） ---
     {
@@ -449,7 +490,20 @@ void SetMenu(LcdMenu* menu) {
 }
 
 void RefreshVolumeUi() {
-    if (g_menu == nullptr || g_menu->getScreen() != g_volumeScreen || MenuItem::isEditing()) {
+    if (g_menu == nullptr || MenuItem::isEditing()) {
+        return;
+    }
+
+    // Settings画面のRhythmVol行。リズム音源が無い構成（N/A固定）は同期しない
+    if (g_menu->getScreen() == g_settingsScreen) {
+        if (g_rhythmWidget != nullptr &&
+            g_rhythmWidget->getValue() != RhythmLevelWidget::kUnavailableValue &&
+            g_rhythmWidget->syncValue(RhythmLevelWidgetValue())) {
+            g_menu->refresh();
+        }
+        return;
+    }
+    if (g_menu->getScreen() != g_volumeScreen) {
         return;
     }
 

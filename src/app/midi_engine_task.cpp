@@ -221,7 +221,10 @@ void handle_control_event(const MidiControlEvent& ctl, MidiEngineTaskContext* ct
             ch->RefreshActiveFmVolume();
         }
         break;
-    case MidiControlType::DebugRhythmMix: {
+    case MidiControlType::RhythmLevelOffset: {
+        if (ctl.channel > RHYTHM_LEVEL_OFFSET_MAX) {
+            break;
+        }
         g_rhythm_level_offset = static_cast<int8_t>(ctl.channel);
         auto* rc = static_cast<RhythmChannel*>(
             (*ctx->channels)[RhythmChannel::MIDI_RHYTHM_CHANNEL]);
