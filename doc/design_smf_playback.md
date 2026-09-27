@@ -333,7 +333,7 @@ Home は5項目で、先頭3行が表示され、DOWNで Play Options / Settings
 
 - `Pause`/`Resume`のラベルを状態に合わせて更新する。
 - `Tempo`行のBPMを`tempo_us_per_qn`と`tempo_scale_percent`から計算し直す（曲中のSet Tempoに追従する）。倍率はUIが正として持つが、`track_serial`が変わったら（曲が変わって既定倍率を読み込んだ）編集中でも`tempo_scale_percent`に合わせる。編集中でなければ、コマンドの取りこぼしに備えて常に合わせる。
-- Transport 画面の表示中に`state`が`Idle`になったら（曲が終わってセッションが終了した、または連続失敗）、元の一覧へ戻る。
+- Transport 画面の表示中に`state`が`Idle`になったら（曲が終わってセッションが終了した、または連続失敗）、元の一覧へ戻る。`Tempo`行の編集中は戻らず、編集を抜けた後の周期で戻る（画面を切り替えても LcdMenu の編集フラグは下りないため）。
 
 ### 8.3 Play Options
 

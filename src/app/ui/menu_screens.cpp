@@ -665,12 +665,15 @@ void UpdatePlaybackUi() {
         g_menu->refresh();
     }
 
-    // Transport画面は、再生が終わった（セッション終了・全曲再生不能）ら一覧へ戻る
+    // Transport画面は、再生が終わった（セッション終了・全曲再生不能）ら一覧へ戻る。
+    // Tempo行の編集中は戻らない。setScreen()は編集を終わらせないため、LcdMenuの編集フラグが残ってしまう。
+    // 編集を抜けた後の周期で戻る
     if (current == g_transportScreen) {
         if (status.state != SmfPlayer::State::Idle) {
             g_transportSawActive = true;
-        } else if (g_transportSawActive ||
-                   millis() - g_transportOpenedMs >= kTransportStartGraceMs) {
+        } else if (!MenuItem::isEditing() &&
+                   (g_transportSawActive ||
+                    millis() - g_transportOpenedMs >= kTransportStartGraceMs)) {
             CloseTransport();
         }
     }
