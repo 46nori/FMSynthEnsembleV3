@@ -44,7 +44,7 @@ flowchart TD
     subgraph app
         TaskApp["info_screen_task.cpp<br/>（タスク生成・Context定義・ステータス行）"]
         subgraph ui["app/ui/"]
-            ScreenApp["menu_screens.cpp<br/>（MenuScreen定義・LcdMenu合成）"]
+            ScreenApp["menu_screens.cpp / screen_*.cpp<br/>（MenuScreen定義・LcdMenu合成）"]
             JoyAdapter["JoystickInputAdapter<br/>（InputInterface実装）"]
         end
     end
@@ -237,10 +237,43 @@ sequenceDiagram
 src/app/
 ├── info_screen_task.h/cpp          # タスク生成・InfoScreenTaskContext・ステータス行
 └── ui/
-    ├── menu_screens.h/cpp          # MenuScreen/MenuItem定義
-    ├── volume_db_widget.h          # VolumeDbWidget / VolumeOffsetWidget / RhythmLevelWidget / VolumeItem
+    ├── menu_screens.h/cpp          # Home画面の組み立てと同期処理の振り分け（app/ui の公開API）
+    ├── menu_context.h/cpp          # 画面モジュールが共有するLcdMenuと再描画ヘルパ
+    ├── screen_settings.h/cpp       # Settings画面（LED Mode / RhythmVol）
+    ├── screen_volume.h/cpp         # Volume画面
+    ├── screen_system_info.h/cpp    # System Info画面
+    ├── screen_smf.h/cpp            # Play SMF / Playlist / Play Options / Transport（BUILD_SD_CARD=ON時のみ）
+    ├── level_widgets.h             # RealtimeLevelWidget / VolumeDbWidget / VolumeOffsetWidget / RhythmLevelWidget / VolumeItem
+    ├── tempo_widgets.h             # TempoPercentWidget / TempoScaleWidget
     └── joystick_input_adapter.h/cpp
 ```
+
+**画面モジュールの分け方**: 画面定義は、互いに独立な関心事（機器設定、音量、システム情報、SMF再生）ごとに`screen_*.cpp`へ分ける。各モジュールは、起動時に1回呼ぶ構築関数（`BuildXxxScreen()`）と、毎周期呼ぶ同期関数（`SyncXxx()`）を公開する。`SyncXxx()`は、自分の画面が表示中かどうかの判定と再描画までを自分で行う。`menu_screens.cpp`は各画面を組み立ててHome画面にぶら下げ、同期関数を入力処理の前後に振り分けるだけで、`InfoScreenTask`が使うのは`BuildRootScreen()`・`SetMenu()`・`SyncBeforeInput()`・`SyncAfterInput()`の4つに限る。
+
+同期を入力処理（`JoystickInputAdapter::observe()`）の前後に分けるのは、順序に意味があるため。
+
+| 関数 | 呼ぶ位置 | 呼び出す同期関数 | 理由 |
+|---|---|---|---|
+| `SyncBeforeInput()` | 入力処理の前 | `SyncSettings()`・`SyncVolume()` | デバッガなどによる変更を取り込んだ値から編集を始めるため |
+| `SyncAfterInput()` | 入力処理の後 | `SyncSmf()`・`SyncSystemInfo()` | 入力で起きた画面遷移（Transport画面への出入りなど）を同じ周期の判定に含めるため |
+
+```mermaid
+flowchart TD
+    Task["InfoScreenTask"] -->|"BuildRootScreen() / SetMenu() / SyncBeforeInput() / SyncAfterInput()"| Root["menu_screens"]
+    Root --> Settings["screen_settings"]
+    Root --> Volume["screen_volume"]
+    Root --> SysInfo["screen_system_info"]
+    Root -->|"BUILD_SD_CARD=ON"| Smf["screen_smf"]
+    Root --> Ctx["menu_context"]
+    Settings --> Ctx
+    Volume --> Ctx
+    SysInfo --> Ctx
+    Smf --> Ctx
+```
+
+LcdMenuのコールバック（`ItemCommand`の`void(*)()`、Widgetの`onChange`）は引数を取らない、または型が固定の関数ポインタで、対象の画面やWidgetを渡せない。そのため各モジュールは状態をファイルスコープの静的変数で持ち、画面遷移と再描画に使う`LcdMenu`は`menu_context`が1つ保持する。画面をクラスにしても静的変数は残るため、クラス化はしていない。
+
+`ItemSubMenu`は遷移先の画面を`MenuScreen*`への参照で保持する。`ITEM_SUBMENU()`に渡すポインタ変数は静的な変数に置く（ローカル変数を渡すと、構築関数を抜けた後に参照が無効になる）。そのため各モジュールの構築関数は、画面を指す自分の静的なポインタ変数への参照（`MenuScreen*&`）を返し、親の画面はそれをそのまま`ITEM_SUBMENU()`へ渡す。
 
 ## 7. 画面構成（MenuScreen）
 
@@ -319,12 +352,12 @@ flowchart TD
 |---|---|
 | **Play SMF** | `Platform::ForEachSmfFile()`で列挙したSDカード上のファイルを、ファイルごとに1行の`ItemCommand`として並べる。PUSHで再生を始め、Transport画面へ移る。シリアルデバッガの`Ls`/`Play <index>`と同じ番号体系 |
 | **Playlist** | `Platform::ForEachPlaylistFile()`で列挙した`playlist`フォルダ内のファイルを名前昇順で並べる。PUSHで`SmfPlayer::RequestPlayPlaylist(position)`を呼び、Transport画面へ移る。フォルダが無い、または空のときは`(no files)` |
-| **Now Playing** | 再生中（`Playing`/`Paused`）なら Transport 画面へ直接移る（`OpenTransport(g_rootScreen)`）。`Idle` のときは何もしない |
+| **Now Playing** | 再生中（`Playing`/`Paused`）なら Transport 画面へ直接移る（`OpenNowPlaying()`）。`Idle` のときは何もしない |
 | **Play Options** | `Repeat`（`ItemCommand`: Off/1/Loop）・`Shuffle`（`ItemCommand`: Off/On）・`Playback`（`ItemCommand`: Single/Cont.）・`Tempo`（`VolumeItem`: 曲開始時の既定テンポ倍率）の再生制御設定 |
 | **Transport** | `Pause`/`Resume`・`Stop`・`Next`・`Prev`・`Tempo`。曲を選んだときに移り、再生が終わると元の一覧へ戻る |
 | **Settings** | `LED Mode`（`ItemToggle`、[7.3節](#73-led表示モード切替settings--led-mode)）・`RhythmVol`（`VolumeItem`、[7.5節](#75-リズム音量補正settings--rhythmvol)）・`Volume`（[7.4節](#74-音量調整settings--volume)）・`System Info`（`ItemLabel`） |
 | **Volume** | 先頭にミキサー出力のオフセットを調整する`OutOffset`行、続いてNJU72343の全16CHを1行1CHで並べ、`PUSH`で編集モードに入り0.5dB単位（Mute含む）で個別調整する読み取り/書き込み画面。常時ミュート対象CHは表示のみで編集不可（[7.4節](#74-音量調整settings--volume)） |
-| **System Info** | Dock毎のFMモジュール種別、MIDIパネル接続有無、Voice/CSM数を表示する読み取り専用画面。Dock構成は起動時に確定し、Voice/CSM数は`RefreshSystemInfo()`が1000ms周期（`INFO_SCREEN_SYSINFO_REFRESH_MS`）で更新する |
+| **System Info** | Dock毎のFMモジュール種別、MIDIパネル接続有無、Voice/CSM数を表示する読み取り専用画面。Dock構成は起動時に確定し、Voice/CSM数は`SyncSystemInfo()`が1000ms周期（`INFO_SCREEN_SYSINFO_REFRESH_MS`）で更新する |
 
 Play SMF・Playlist・Transport・Repeat・Shuffleの動作は [design_smf_playback.md](design_smf_playback.md#8-lcd-メニューとの連携) で定義する。
 
@@ -368,11 +401,11 @@ NJU72343の全16チャンネル（[spec_volume_controller.md 1.2節](spec_volume
 
 **値の範囲とMute表現**: `VolumeController`の公開定数`kMinDb`/`kMaxDb`/`kStepDb`（`-95.0dB`〜`+31.5dB`、0.5dBステップ）をそのまま使う。Muteは数値レンジの外側の状態のため、レンジの下限をさらに1ステップ拡張し、その値をMute専用の特別な値として扱うことで表現する。`-95.0dB`から`DOWN`するとMuteに入り、Muteから`UP`すると`-95.0dB`に戻る。Mute専用の値からさらにもう1段下げた値を、編集不可チャンネル用の表示（`"N/A"`、後述）専用に予約する。UP/DOWNで到達することはなく、`available=false`の行の初期値としてのみ使う。
 
-`extern/LcdMenu`の`WidgetRange::draw()`は`snprintf(buffer, size, format, value)`で単一の数値をそのまま描画するだけで、レンジ外の値を任意の文字列（`Mute`/`N/A`）として描画する機能を持たない。`extern/`は直接編集しないため、`app/ui/`側に`WidgetRange<int16_t>`を継承したWidget（例: `VolumeDbWidget`、`app/ui/volume_db_widget.h`）を追加し、`draw()`をオーバーライドして、編集不可専用の値のときは`"N/A"`、Mute専用の値のときは`"Mute"`、それ以外は常に`+`/`-`符号を付け、整数部を2桁幅（0埋めなし、1桁の値は空白埋め）にした0.5dB表示に`dB`を付けて出す（例: `+31.5dB`、`+ 5.0dB`、`-95.0dB`）。デバッガの`vol`コマンド（`debugger_task.cpp`の`c_volume_table()`）は正符号を付けず値ごとに`dB`も付けない別書式のため、両者は一致しない。
+`extern/LcdMenu`の`WidgetRange::draw()`は`snprintf(buffer, size, format, value)`で単一の数値をそのまま描画するだけで、レンジ外の値を任意の文字列（`Mute`/`N/A`）として描画する機能を持たない。`extern/`は直接編集しないため、`app/ui/`側に`WidgetRange<int16_t>`を継承したWidget（例: `VolumeDbWidget`、`app/ui/level_widgets.h`）を追加し、`draw()`をオーバーライドして、編集不可専用の値のときは`"N/A"`、Mute専用の値のときは`"Mute"`、それ以外は常に`+`/`-`符号を付け、整数部を2桁幅（0埋めなし、1桁の値は空白埋め）にした0.5dB表示に`dB`を付けて出す（例: `+31.5dB`、`+ 5.0dB`、`-95.0dB`）。デバッガの`vol`コマンド（`debugger_task.cpp`の`c_volume_table()`）は正符号を付けず値ごとに`dB`も付けない別書式のため、両者は一致しない。
 
 **出力オフセット（OutOffset行）**: ミキサー全体の出力レベルを一律に上下する。実装上は、FM/SSGのうちMute以外の全CHに同じdB値を加える。LineMix/LineSampleはサンプリング用の入力のため対象外。CH行に表示・編集するのは各CHの設定値で、NJU72343へは「設定値 + オフセット」を書き込む。
 
-- 各CHの設定値は`menu_screens.cpp`の配列に保持する。オフセットを変えても設定値は変わらない。
+- 各CHの設定値は`screen_volume.cpp`の配列に保持する。オフセットを変えても設定値は変わらない。
 - 和がレンジ（`kMinDb`〜`kMaxDb`）を外れたら境界値にクリップする。下限を超えてもMuteにはせず`-95.0dB`を保つ。
 - オフセットを戻して和がレンジ内に入れば、単純な和がそのまま効く。オフセット`0`で各CHの設定値に戻る。
 - 設定値がMuteのCH、常時ミュートCH（後述）、LineMix/LineSampleはオフセットの対象外。
@@ -381,9 +414,9 @@ NJU72343の全16チャンネル（[spec_volume_controller.md 1.2節](spec_volume
 
 **常時ミュートCHの扱い**: 未接続dock、およびYMF288搭載dockのSSG入力（[design_volume_controller.md 1節](design_volume_controller.md#1-制御方針)）は、`VolumeController::IsChannelAvailable()`で判定する。該当行は一覧に表示するが編集不可にする。行の種類は他のCHと同じ`VolumeItem`のままとし、`VolumeItem::process()`内で`PUSH`（編集モード開始）を無視するガードを入れる（可否で行の種類自体を分けない方が、画面初期化ロジックがシンプルになる）。表示値も`"N/A"`（上記）にして、ユーザーが自分でMuteに設定した行と区別できるようにする。
 
-**初期値と再同期**: 画面構築時（`BuildRootScreen()`）に、編集可能な行の設定値と表示は`VolumeController::GetChannelVolume()`の戻り値で初期化する（オフセットは`0`）。編集不可の行（上記）は、シャドウ値に関わらず`"N/A"`用の特別値で固定する。Volume画面を表示中かつ編集中でない場合は、`InfoScreenTask`の周期処理から`RefreshVolumeUi()`を呼び、デバッガなどによる変更を表示へ再同期する。シャドウ値が「設定値 + オフセット」（クリップ後）と一致しないCHだけを外部からの変更とみなし、シャドウ値からオフセットを差し引いた値（レンジ内にクリップ、MuteはMuteのまま。LineMix/LineSampleはシャドウ値そのもの）を新しい設定値として取り込む。再同期はWidgetの値だけを更新し、`onChange`を呼ばないためNJU72343への重複書き込みは発生しない。
+**初期値と再同期**: 画面構築時（`BuildVolumeScreen()`）に、編集可能な行の設定値と表示は`VolumeController::GetChannelVolume()`の戻り値で初期化する（オフセットは`0`）。編集不可の行（上記）は、シャドウ値に関わらず`"N/A"`用の特別値で固定する。Volume画面を表示中かつ編集中でない場合は、`InfoScreenTask`の周期処理（`AppUi::SyncBeforeInput()`）から`SyncVolume()`を呼び、デバッガなどによる変更を表示へ再同期する。シャドウ値が「設定値 + オフセット」（クリップ後）と一致しないCHだけを外部からの変更とみなし、シャドウ値からオフセットを差し引いた値（レンジ内にクリップ、MuteはMuteのまま。LineMix/LineSampleはシャドウ値そのもの）を新しい設定値として取り込む。再同期はWidgetの値だけを更新し、`onChange`を呼ばないためNJU72343への重複書き込みは発生しない。
 
-**リソース影響**: 16行分の`VolumeDbWidget`＋`VolumeItem`とOutOffset行の`VolumeOffsetWidget`＋`VolumeItem`は、他の画面と同様`BuildRootScreen()`内で起動時に1回だけ構築する（8節の「起動後の追加ヒープ確保は発生しない」方針の範囲内）。使用するMenuItemは`VolumeItem`のみで、8節が列挙する許可Item種別にこれを加える。
+**リソース影響**: 16行分の`VolumeDbWidget`＋`VolumeItem`とOutOffset行の`VolumeOffsetWidget`＋`VolumeItem`は、他の画面と同様、起動時に1回だけ構築する（`BuildVolumeScreen()`）（8節の「起動後の追加ヒープ確保は発生しない」方針の範囲内）。使用するMenuItemは`VolumeItem`のみで、8節が列挙する許可Item種別にこれを加える。
 
 ### 7.5 リズム音量補正（Settings > RhythmVol）
 
@@ -395,7 +428,7 @@ NJU72343の全16チャンネル（[spec_volume_controller.md 1.2節](spec_volume
 
 **値の範囲と表示**: Widgetは`WidgetRange<int16_t>`を継承した`RhythmLevelWidget`とし、減衰step数の符号を反転した値（`-RHYTHM_LEVEL_OFFSET_MAX`〜`0`）を保持する。これにより`UP`で音量が上がり（減衰が減り）、`DOWN`で下がる。Volume画面と向きを揃えるためである。上限`RHYTHM_LEVEL_OFFSET_MAX`（31、ILレジスタの最大値）は`RhythmChannel.h`に定数として置き、デバッガの`rmix`の範囲チェックと共用する。Mute状態は持たない。表示は`draw()`をオーバーライドし、Volume画面と同じく常に`+`/`-`符号を付け整数部を2桁幅にした書式で、0.75dB刻みのため小数部を2桁にして`dB`を付ける（例: `+ 0.00dB`、`- 0.75dB`、`-23.25dB`）。
 
-**編集不可の扱い**: リズム音源を持つモジュール（`OpnBase::rhythm() != nullptr`、YM2608/YMF288）が1台も無い構成では、Volume画面の編集不可CHと同じく`N/A`を表示し、`PUSH`を無視する。判定は`BuildRootScreen()`で`InfoScreenTaskContext::modules`から行う（Dock構成は起動時に確定するため、以降は再判定しない）。`N/A`は下限の1つ下の値を専用に予約して表現する。行の型は`VolumeItem`をそのまま使い、コンストラクタが受け取るWidgetの型を`VolumeDbWidget`から`RhythmLevelWidget`との共通基底に広げる。`cancelEdit()`の無効化と`syncValue()`はこの共通基底に置き、2つのWidgetで共用する。
+**編集不可の扱い**: リズム音源を持つモジュール（`OpnBase::rhythm() != nullptr`、YM2608/YMF288）が1台も無い構成では、Volume画面の編集不可CHと同じく`N/A`を表示し、`PUSH`を無視する。判定は`BuildSettingsScreen()`で`InfoScreenTaskContext::modules`から行う（Dock構成は起動時に確定するため、以降は再判定しない）。`N/A`は下限の1つ下の値を専用に予約して表現する。行の型は`VolumeItem`をそのまま使い、コンストラクタが受け取るWidgetの型を`VolumeDbWidget`から`RhythmLevelWidget`との共通基底に広げる。`cancelEdit()`の無効化と`syncValue()`はこの共通基底に置き、2つのWidgetで共用する。
 
 **反映経路**: `g_rhythm_level_offset`の更新と`RhythmChannel::RefreshRhythmLevels()`によるFMレジスタ書き込みは、FMバスを扱うCore1の`MidiEngineTask`で行う必要がある。そのため`onChange`は値を直接書き換えず、`rmix`と同じMIDI Control Eventを`MidiIpcSendMidiControl()`で送る。UIが常用する経路のため、種別名はデバッグ用の`Debug*`ではなく`MidiControlType::RhythmLevelOffset`とする。イベントは他のタスク（`UsbMidiTask`・`SmfPlayerTask`・`MidiPanelTask`）と同じく`onChange`内で組み立てて直接送り、専用の送信APIは設けない。`MidiEngineTask`側では範囲外の値を無視する。
 
@@ -415,16 +448,16 @@ sequenceDiagram
 
 RTL（リズム全体の音量）は変更時に全モジュールへ即時反映する。IL（楽器ごとの音量）は発音のたびにベロシティから計算して書き込む方式のため、次の発音から反映される（[design_rhythm.md](design_rhythm.md)）。
 
-**初期値と再同期**: 画面構築時に`g_rhythm_level_offset`から初期化する。`Settings`画面を表示中かつ編集中でない場合は、`RefreshVolumeUi()`の周期処理で`g_rhythm_level_offset`を読み、デバッガの`rmix`による変更などを表示へ再同期する（`onChange`は呼ばない）。Control キューが満杯で送信に失敗した場合、編集中は表示とエンジン側の値がずれるが、編集を抜けた後の再同期で実際の値に戻る。
+**初期値と再同期**: 画面構築時に`g_rhythm_level_offset`から初期化する。`Settings`画面を表示中かつ編集中でない場合は、`SyncSettings()`の周期処理で`g_rhythm_level_offset`を読み、デバッガの`rmix`による変更などを表示へ再同期する（`onChange`は呼ばない）。Control キューが満杯で送信に失敗した場合、編集中は表示とエンジン側の値がずれるが、編集を抜けた後の再同期で実際の値に戻る。
 
-**リソース影響**: 追加は`RhythmLevelWidget`＋`VolumeItem`の1行分のみで、`BuildRootScreen()`で起動時に1回だけ構築する。
+**リソース影響**: 追加は`RhythmLevelWidget`＋`VolumeItem`の1行分のみで、`BuildSettingsScreen()`で起動時に1回だけ構築する。
 
 ## 8. リソースと制約
 
 - **スタック**: `TASK_STACK_INFO_SCREEN`は768 word（3KB）。LcdMenuの`MenuScreen`構築と`CharacterDisplayRenderer`の文字列組み立てに余裕を持たせる。SDカードのディレクトリ走査（`ForEachSmfFile()`）はバッファを静的配列で持つため、ファイル数が増えてもスタックは増えない
 - **ヒープフラグメンテーション**: LcdMenu内の`std::vector`は`MenuScreen::items`（`MenuScreen`構築時に一度だけ渡される`MenuItem*`配列）が唯一のコア利用箇所で、`addItem`/`removeItemAt`/`clear`等による実行時の再構築は使わないため、起動後の追加ヒープ確保は発生しない。使う`MenuItem`は`ItemCommand`/`ItemToggle`/`ItemSubMenu`/`ItemLabel`、および音量調整（[7.4節](#74-音量調整settings--volume)、[7.5節](#75-リズム音量補正settings--rhythmvol)）とTempo行（Play Options・Transport画面、[design_smf_playback.md 8](design_smf_playback.md#8-lcd-メニューとの連携)）の`VolumeItem`（`VolumeDbWidget`・`VolumeOffsetWidget`・`RhythmLevelWidget`・`TempoPercentWidget`・`TempoScaleWidget`のいずれか付き）に限る。`ItemWidget`が内部で持つ`std::vector<BaseWidget*>`・`WidgetRange`（`VolumeDbWidget`/`VolumeOffsetWidget`/`RhythmLevelWidget`/`TempoPercentWidget`/`TempoScaleWidget`）は構築時に1回だけ確保され、編集操作（`UP`/`DOWN`/`PUSH`/`BACK`）は数値の増減のみでヒープ再確保を伴わない。`ItemInput`/`ItemInputCharset`（自由テキスト編集項目）は、編集セッション中にキー入力のたびに`new char[]`を再確保する実装のため使わない
 - **Play SMFのファイル数とメモリ**: `MENU_MAX_SMF_FILES`に比例して、ファイル名バッファ（RAM）、再生コールバック表と再生関数（flash）、メニュー項目（`ItemCommand`、1件ずつヒープに確保）が増える。上限の255件でも合計は数KBから十数KBに収まり、RP2350のSRAM（520KB）に対して問題にならない。1件あたりの概算は`config.h`のコメントに記載する
-- **`InfoScreenTask`の周期**: 演奏状態に関わらず`INFO_SCREEN_POLL_PERIOD_MS`（20ms）で起床し、ジョイスティックのポーリング、ステータス行の更新、`menu.poll()`を行う。`OpnMidiPanelDriver`のデバウンス確定周期（4列 × `MIDI_PANEL_PERIOD_MS` = 16ms）より短く、取りこぼしは無い。System InfoのVoice/CSM数の再描画は、I2C書き込み量を抑えるため1000ms周期に分けている
+- **`InfoScreenTask`の周期**: 演奏状態に関わらず`INFO_SCREEN_POLL_PERIOD_MS`（20ms）で起床し、ステータス行の更新、ジョイスティックのポーリングとその前後の画面同期（`AppUi::SyncBeforeInput()` / `AppUi::SyncAfterInput()`）、`menu.poll()`を行う。`OpnMidiPanelDriver`のデバウンス確定周期（4列 × `MIDI_PANEL_PERIOD_MS` = 16ms）より短く、取りこぼしは無い。System InfoのVoice/CSM数の再描画は、I2C書き込み量を抑えるため1000ms周期に分けている
 - **`drivers/midi_panel`**: `OpnMidiPanelDriver`はPB bit7をLEDモードとして読まず、上位4bitをジョイスティックとしてデコードする。LEDモードは`SetLedMode`/`GetLedMode`（[7.3節](#73-led表示モード切替settings--led-mode)）で保持する
 
 ## 9. 関連ドキュメント

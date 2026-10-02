@@ -702,4 +702,4 @@ FM通常音色（`NoteVoice` / `NoteChannel`）とリズム音源（`RhythmChann
 - テーブル適用とオフセット: `src/synth/channel/RhythmChannel.cpp`（`RhythmLevelWithOffset`, `g_rhythm_level_offset`）
 - 既定値: `src/app/config.h`（`RHYTHM_LEVEL_OFFSET`）
 - 実行時コマンド: `src/app/debugger_task.cpp`（`rmix`）
-- LCD メニュー: `src/app/ui/menu_screens.cpp`（`RhythmVol`）、`src/app/ui/volume_db_widget.h`（`RhythmLevelWidget`）
+- LCD メニュー: `src/app/ui/screen_settings.cpp`（`RhythmVol`）、`src/app/ui/level_widgets.h`（`RhythmLevelWidget`）

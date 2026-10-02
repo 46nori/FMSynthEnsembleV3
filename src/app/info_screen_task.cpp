@@ -224,7 +224,6 @@ void InfoScreenTask(void* param) {
     AppUi::SetMenu(&menu);
 
     AppUi::JoystickInputAdapter joystick(&menu, ctx->panel);
-    uint64_t lastSystemInfoRefreshUs = 0;
     uint32_t lastSeenResetPulseSeq = gResetPulseSeq;
     uint64_t resetDisplayUntilUs = 0;
     bool wasShowingReset = false;
@@ -284,17 +283,9 @@ void InfoScreenTask(void* param) {
         }
         wasShowingReset = showingReset;
 
-        AppUi::RefreshVolumeUi();
+        AppUi::SyncBeforeInput();
         joystick.observe();
-        AppUi::UpdatePlaybackUi();
-
-        if (nowUs - lastSystemInfoRefreshUs >= INFO_SCREEN_SYSINFO_REFRESH_MS * 1000ULL) {
-            lastSystemInfoRefreshUs = nowUs;
-            AppUi::RefreshSystemInfo();
-            if (menu.getScreen() == AppUi::GetSystemInfoScreen()) {
-                menu.refresh();
-            }
-        }
+        AppUi::SyncAfterInput();
         menu.poll();
     }
 }
