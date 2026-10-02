@@ -138,8 +138,15 @@ if(BUILD_I2C_DISPLAY)
     target_sources(FMSynthEnsembleV3 PRIVATE
         src/app/info_screen_task.cpp
         src/app/ui/menu_screens.cpp
+        src/app/ui/menu_context.cpp
+        src/app/ui/screen_settings.cpp
+        src/app/ui/screen_volume.cpp
+        src/app/ui/screen_system_info.cpp
         src/app/ui/joystick_input_adapter.cpp
     )
+    if(BUILD_SD_CARD)
+        target_sources(FMSynthEnsembleV3 PRIVATE src/app/ui/screen_smf.cpp)
+    endif()
 endif()
 
 pico_set_program_name(FMSynthEnsembleV3 "FMSynthEnsembleV3")

@@ -150,6 +150,6 @@ classDiagram
 | `UsbMidiStreamSink` | `usb_midi_task.cpp` | `midi` の `IMidiStreamSink` を実装し、確定したイベント/SysExをIPCキュー送信・`Debugger::HandleSysEx`へ転送（バイトストリーム組立自体は`MidiStreamAssembler`、[domain_midi.md](domain_midi.md)参照） |
 | 各タスク | `*_task.h/cpp` | [design_concurrency.md](../design_concurrency.md) のタスク構成を実装 |
 | `InfoScreenTask` | `info_screen_task.h/cpp` | LCD のステータス行と、LcdMenu によるジョイスティック操作メニューの駆動 |
-| `app/ui` | `ui/` | LcdMenu の画面定義（`menu_screens`）とジョイスティック入力アダプタ（`JoystickInputAdapter`）。`extern/LcdMenu` を直接扱う（[design_display_menu.md](../design_display_menu.md)） |
+| `app/ui` | `ui/` | LcdMenu の画面定義（`menu_screens` と画面ごとの `screen_*`）とジョイスティック入力アダプタ（`JoystickInputAdapter`）。`extern/LcdMenu` を直接扱う（[design_display_menu.md](../design_display_menu.md)） |
 | `Debugger` | `debugger.h/cpp` | 対話型デバッガ・独自 SysEx 処理 |
 | `config.h` / `task_config.h` | — | 実行時ポリシー定数とタスク設定の唯一の定義元 |
