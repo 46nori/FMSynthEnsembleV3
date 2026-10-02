@@ -51,7 +51,9 @@ void UpdatePlaybackUi();
  * @brief 音量調整の表示値を現在の設定値へ同期する
  * @details 毎周期呼ぶ。編集中でない場合だけ、Volume画面の表示中はVolumeControllerの
  *          シャドウ状態へ、Settings画面の表示中はRhythmVol行をg_rhythm_level_offsetへ
- *          同期する。NJU72343やFMレジスタへの書き込みは行わない。
+ *          同期する。Volume画面では、シャドウ値が各CHの設定値+オフセットと異なるCHだけ、
+ *          オフセットを差し引いた値（LineMix/LineSampleはシャドウ値そのもの）を設定値として取り込む。NJU72343やFMレジスタへの
+ *          書き込みは行わない。
  */
 void RefreshVolumeUi();
 
