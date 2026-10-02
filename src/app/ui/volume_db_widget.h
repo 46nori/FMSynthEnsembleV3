@@ -48,6 +48,15 @@ public:
 };
 
 /**
+ * @brief `db_x2`（0.5dB単位）の値を`+`/`-`符号付き・整数部2桁幅で描画する（例: `+ 5.0dB`、`-95.0dB`）
+ */
+inline uint8_t DrawDbX2(char* buffer, const uint8_t start, const int16_t value) {
+    const int16_t abs_x2 = value < 0 ? static_cast<int16_t>(-value) : value;
+    return snprintf(buffer + start, ITEM_DRAW_BUFFER_SIZE - start, "%s%2d.%ddB",
+                    value < 0 ? "-" : "+", abs_x2 / 2, (abs_x2 % 2) ? 5 : 0);
+}
+
+/**
  * @brief NJU72343の1チャンネル分の音量を表示・編集するWidget
  * @details 値は`db_x2`（0.5dB単位、dBの2倍）のint16_tで保持する。レンジの下限
  *          （`kMinDbX2`、`Platform::VolumeController::kMinDb`由来）からさらに1ステップ
@@ -84,9 +93,26 @@ protected:
         if (value == kMuteValue) {
             return snprintf(buffer + start, ITEM_DRAW_BUFFER_SIZE - start, "Mute");
         }
-        const int16_t abs_x2 = value < 0 ? static_cast<int16_t>(-value) : value;
-        return snprintf(buffer + start, ITEM_DRAW_BUFFER_SIZE - start, "%s%2d.%ddB",
-                        value < 0 ? "-" : "+", abs_x2 / 2, (abs_x2 % 2) ? 5 : 0);
+        return DrawDbX2(buffer, start, value);
+    }
+};
+
+/**
+ * @brief Volume画面のミキサー出力オフセット（OutOffset行）を表示・編集するWidget
+ * @details 値は`VolumeDbWidget`と同じ`db_x2`で、範囲も同じ`kMinDbX2`〜`kMaxDbX2`
+ *          （Muteは持たない）。表示も`VolumeDbWidget`と同じ書式にする。
+ *          `UP`/`DOWN`のたびに`onChange`を呼び、Mute以外のFM/SSG各CHへ即座に反映する
+ *          （サンプリング用入力のLineMix/LineSampleは対象外）。
+ */
+class VolumeOffsetWidget : public RealtimeLevelWidget {
+public:
+    explicit VolumeOffsetWidget(void (*onChange)(const int16_t&))
+        : RealtimeLevelWidget(0, VolumeDbWidget::kMinDbX2, VolumeDbWidget::kMaxDbX2, onChange) {}
+
+protected:
+    uint8_t draw(char* buffer, const uint8_t start) override {
+        if (start >= ITEM_DRAW_BUFFER_SIZE) return 0;
+        return DrawDbX2(buffer, start, getValue());
     }
 };
 
