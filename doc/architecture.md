@@ -72,6 +72,7 @@ FMSynthEnsembleV3/
 │   │   └── usb/           USB MIDI ドライバ (TinyUSB)
 │   └── platform/          ボード統合レイヤ
 ├── extern/                外部ライブラリ (git submodule)
+│   ├── FreeRTOS-Kernel/
 │   ├── NJU72343-library/
 │   ├── no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/
 │   └── LcdMenu/
@@ -253,15 +254,26 @@ namespace Platform {
 
 ### extern/（外部ライブラリ）
 
-git submodule はここで管理する。本体コードとの変更衝突を防ぐため **extern/ 内のファイルを直接編集しない**。設定はラッパー経由で行う。
+git submodule はここで管理する。本体コードとの変更衝突を防ぐため **submodule の中身を直接編集しない**。設定はラッパー経由で行う。`extern/` 直下に置いた、submodule をこのプロジェクトに組み込むためのファイル（`CMakeLists.txt`、`submodules.lock`、`check_submodules.cmake`）はこの制約の対象外。
 
 | ディレクトリ | ライブラリ | 用途 |
 |------------|----------|------|
+| `FreeRTOS-Kernel/` | FreeRTOS-Kernel | RTOS カーネル |
 | `NJU72343-library/` | NJU72343-library | 電子ボリューム IC 制御 |
 | `no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/` | no-OS-FatFS | SD カード / FatFs |
 | `LcdMenu/` | LcdMenu | キャラクタ LCD のメニュー UI フレームワーク（`app/ui` が使用） |
 
-FreeRTOS は `extern/` で管理せず、Raspberry Pi 公式レイアウトの `FreeRTOS-Kernel`（`pico-sdk` 隣接）を利用する。`PICO_PLATFORM=rp2350-arm-s` の場合は `FreeRTOS_Kernel_import.cmake` により **RP2350_ARM_NTZ** ポート（Community-Supported-Ports）が選択される。
+各 submodule が指すコミットは `extern/submodules.lock` にも記録する。git が持つ submodule のコミット ID は履歴の中にしかなく、`git init` し直すと失われるため、追跡対象のファイルに同じ情報を置いている。
+
+| ファイル | 役割 |
+|---------|------|
+| `extern/submodules.lock` | submodule のパス・コミット ID・バージョンの目安。照合と復元の基準 |
+| `extern/check_submodules.cmake` | Configure 時に各 submodule の HEAD を lock と照合し、未初期化・バージョン違い・lock への登録漏れなら止める |
+| `scripts/restore-submodules.sh` | `.gitmodules` の URL と lock のコミットから submodule を登録し直す。`git init` し直したリポジトリ用（ZIP から始める場合を含む。手順は [build_ja.md](build_ja.md#14-zip-アーカイブから始める場合)） |
+
+`FREERTOS_KERNEL_PATH` で別の場所の FreeRTOS-Kernel を指定した場合、`extern/FreeRTOS-Kernel` は照合の対象外になり、Configure が警告を出す。このパスは CMake のキャッシュに残るため、以前の構成で作ったビルドディレクトリを使い回すと同じ警告が出る。その場合はビルドディレクトリを消して Configure し直す。
+
+FreeRTOS-Kernel は pico-sdk にも Pico 拡張にも含まれないため、公式リポジトリを submodule として持ち、リリースタグのコミットに固定する。root `CMakeLists.txt` が `FREERTOS_KERNEL_PATH`（既定は `extern/FreeRTOS-Kernel`）を決め、`FreeRTOS_Kernel_import.cmake` がボードに合うポートを取り込む。RP2040 用ポートは FreeRTOS-Kernel 本体にある。RP2350 用ポートは FreeRTOS-Kernel 側の submodule（Community-Supported-Ports）にあるため、submodule は再帰的に初期化する。`PICO_PLATFORM=rp2350-arm-s` では **RP2350_ARM_NTZ** ポートが選択される。
 
 `NJU72343-library` は汎用ドライバとして扱い、アプリケーション層から直接操作しない。ただし `LcdMenu` は UI ロジックそのものであるため、`app/ui` が直接扱う（[design_display_menu.md](design_display_menu.md#6-レイヤ配置)）。基板固有のピン割り当て、PIO 選択、起動時ミュート、0dB 復帰、デバッグ用調整は `Platform::VolumeController` に集約する。
 
@@ -302,8 +314,8 @@ FMSynthEnsembleV3 (実行ファイル)
   ├── drivers/storage
   │     └── no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
   ├── nju72343
-  ├── FreeRTOS-Kernel         (official FreeRTOS-Kernel から提供)
-  └── FreeRTOS-Kernel-Heap4   (official FreeRTOS-Kernel から提供)
+  ├── FreeRTOS-Kernel         (extern/FreeRTOS-Kernel から提供)
+  └── FreeRTOS-Kernel-Heap4   (extern/FreeRTOS-Kernel から提供)
 ```
 
 ### ソースコードの依存方向
@@ -331,7 +343,7 @@ flowchart TD
 - `synth` は純粋な MIDI イベント型・Controller Action 定義に限り `midi` に依存してよい。`midi` から `synth` への逆依存は禁止
 - `synth` は必要な低レベル操作を `drivers` のインターフェース経由で行う。pico-sdk への直接依存は禁止。ハードウェア操作を伴わない実行時ポリシー定数（`config.h`）とログマクロ（`debugger.h`）に限り `app` を include してよい（CMake 上も `synth` は `platform` をリンクするが、これは [design_csm_frame.md](design_csm_frame.md) の `CsmVoice` ISR 登録要件による）
 - `app` はハードウェアを直接操作しないが、`MidiControlType::Debug*`（TL Trim トグル等のデバッグ用 SysEx コマンド、`midi_engine_task.cpp`）に限り `drivers/fm` の static API を直接呼ぶ。また `app/ui` は UI ロジックである `extern/LcdMenu` を直接扱う
-- `extern/` 内ファイルは直接編集しない（upstream との乖離を防ぐ）
+- `extern/` の submodule の中身は直接編集しない（upstream との乖離を防ぐ）
 - GPIO ピン番号は `platform` レイヤ内に閉じ込め、上位レイヤでハードコードしない。共有ハードウェア資源のピン割り当ては、その資源を所有する `platform` 実装または公開が必要な `platform` ヘッダに集約する。例外: `drivers/storage/hw_config.c` は no-OS-FatFS が要求する静的コールバック構造体のため SPI/CS ピン番号を直書きする
 - `config.h` はアプリ層の実行時ポリシー定数に限定する。ドライバ/ミドル層の Build-time Switch は CMake `target_compile_definitions` で制御する。一覧は [7. Build-time Switch](#7-build-time-switch)
 
@@ -384,6 +396,39 @@ git submodule add <URL> extern/<ライブラリ名>
 ```
 
 `extern/CMakeLists.txt` に `add_subdirectory()` を追記する。ライブラリが pico-sdk 初期化後のインクルードを必要とする場合は root `CMakeLists.txt` に直接記述する。
+
+追加した submodule のパスとコミット ID を `extern/submodules.lock` に 1 行追記する。lock に載っていない submodule があると Configure が失敗する。
+
+```bash
+git -C extern/<ライブラリ名> rev-parse HEAD   # lock に書くコミット ID
+```
+
+### 外部ライブラリのバージョンを変える
+
+submodule 側で目的のバージョンを checkout し、`extern/submodules.lock` の該当行を同じコミットに書き換える。
+
+```bash
+git -C extern/<ライブラリ名> fetch --tags
+git -C extern/<ライブラリ名> checkout <タグまたはコミット>
+git -C extern/<ライブラリ名> submodule update --init --recursive
+git -C extern/<ライブラリ名> rev-parse HEAD   # lock に書くコミット ID
+```
+
+3 行目は FreeRTOS-Kernel のように中に submodule を持つライブラリで必要になる。FreeRTOS-Kernel の RP2350 用ポートはここで新しいバージョンに切り替わる。
+
+lock の 2 列目をコミット ID に、3 列目を新しいバージョンの表記に書き換える。3 列目は人が読むための目安で、照合には使われない。
+
+Configure とビルドが通ることを確認してから、submodule と lock を同じコミットに含める。片方だけをコミットすると、他の環境や CI で Configure が失敗する。
+
+```bash
+git add extern/<ライブラリ名> extern/submodules.lock
+```
+
+制約:
+
+- `git submodule update --remote` は使わない。上流ブランチの先頭に進み、狙ったバージョンにならない
+- FreeRTOS-Kernel は V11.2.0 以降にする。それより前のリリースは RP2350 用ポートを含まない
+- FreeRTOS-Kernel を変えたときは `PICO_BOARD=pico2` と `PICO_BOARD=pico` の両方でビルドを確認する
 
 ### MIDI チャンネルの動作をカスタマイズする
 

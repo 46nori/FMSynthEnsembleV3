@@ -41,7 +41,7 @@ MIDI メッセージのパース・ルーティング・構造化イベント定
 
 SRAMのうちFreeRTOSヒープは両ターゲットとも `configTOTAL_HEAP_SIZE`（64 KB、[src/platform/FreeRTOSConfig.h](../src/platform/FreeRTOSConfig.h)）で固定。実際のFlash/SRAM使用量はビルド構成（`BUILD_MIDI_PANEL`/`BUILD_SD_CARD`等）や追加機能によって変わるため、本ドキュメントでは総容量のみを記載し、残量は記載しない。
 
-- **FreeRTOS 配置**: 公式 `FreeRTOS-Kernel`（`pico-sdk`）を使用。配置ルールの詳細は [architecture.md](architecture.md) を参照
+- **FreeRTOS 配置**: 公式 `FreeRTOS-Kernel` を submodule（`extern/FreeRTOS-Kernel`）として使用。配置ルールの詳細は [architecture.md](architecture.md) を参照
 - **SMP**: 両ターゲットともSMP有効
 - **タスク固定**: `xTaskCreateAffinitySet()` で Core を固定し、スケジューラによる Core 間移動を禁止する
 

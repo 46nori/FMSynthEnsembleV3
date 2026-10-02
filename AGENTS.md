@@ -101,7 +101,7 @@ smf → なし
 - `synth/` から `midi/` への依存は純粋な MIDI イベント型・Controller Action 定義に限る。`midi/` から `synth/` への逆依存は禁止
 - `synth/`: FM アクセスは `drivers/fm` 経由。ハードウェア操作は行わないが、実行時ポリシー定数（`config.h`）とログマクロ（`debugger.h`）に限り `app/` を include してよい。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
 - `platform/`: ピン割り当て・PIO 所有・初期化順を集約。GPIO は上位でハードコードしない。例外: `drivers/storage/hw_config.c` は no-OS-FatFS が要求する静的コールバック構造体のため SPI/CS ピン番号を直書きする
-- `extern/`: 直接編集禁止。ラッパー（主に `platform`）経由で利用。例外: `app/ui/` からの LcdMenu
+- `extern/`: submodule の中身は直接編集禁止（`extern/` 直下の組み込み用ファイルは対象外）。ラッパー（主に `platform`）経由で利用。例外: `app/ui/` からの LcdMenu
 
 ## ビルド・検証
 
@@ -111,7 +111,7 @@ cmake --preset default
 ninja -C build
 ```
 
-FreeRTOS-Kernel は submodule ではない。配置は [doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) の CLI 手順を参照。`cmake --preset` には CMake 3.30+ が必要。
+FreeRTOS-Kernel は `extern/FreeRTOS-Kernel` の submodule で、RP2350 用ポートはその中の submodule にあるため `--recursive` が必須。pico-sdk は submodule ではない。配置は [doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) の CLI 手順を参照。`cmake --preset` には CMake 3.30+ が必要。
 
 - デフォルトターゲット: **RP2350A**（RP2040 は CMake オプションで切替）
 - 生成物: `build/FMSynthEnsembleV3.uf2`, `build/FMSynthEnsembleV3.elf`
@@ -122,5 +122,6 @@ FreeRTOS-Kernel は submodule ではない。配置は [doc/build.md](doc/build.
 - タスク優先度・スタック・Core Affinity は `src/app/task_config.h` が唯一の定義元
 - FM バス用 GPIO2–15 は `opn_piolib` 専用。別 PIO プログラムを同ピンに同時有効化しない
 - Build-time スイッチは CMake `target_compile_definitions`。`config.h` はアプリ層の実行時ポリシー定数に限定。一覧は [doc/architecture.md](doc/architecture.md)
+- submodule を追加・更新したら `extern/submodules.lock` も同じコミットに更新する（Configure 時に照合される）。詳細は [doc/architecture.md](doc/architecture.md)
 - 変更は最小スコープで。既存の命名・抽象化・コメント水準に合わせる
 - コミットはユーザーが明示的に依頼したときのみ作成する

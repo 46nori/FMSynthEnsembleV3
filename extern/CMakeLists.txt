@@ -17,7 +17,7 @@ if(BUILD_I2C_DISPLAY)
     target_include_directories(lcdmenu PUBLIC LcdMenu/src)
     # Arduino互換シム(byte型・millis()等)はsrc/platform/arduino_compatに置く。
     # platformは「externの部品をこの基板向けに橋渡しする」役割のため、extern自体には
-    # 置かない(extern/ 内はsubmoduleのみ、直接編集しない原則)。
+    # 置かない(extern/ にはsubmoduleとその組み込み用ファイルだけを置く原則)。
     # LcdMenuの公開ヘッダ(MenuRenderer.h等)からもincludeされるため、lcdmenuを
     # リンクする側にも伝播するPUBLICにする
     target_include_directories(lcdmenu PUBLIC ${CMAKE_SOURCE_DIR}/src/platform/arduino_compat)
