@@ -20,6 +20,8 @@ The Raspberry Pi Pico extension provides pico-sdk, the toolchain, CMake, and Nin
 
    On Windows, run this in Git Bash from Git for Windows. On macOS and Linux, use the system terminal.
 
+   If you download a ZIP instead of using `git clone`, see [1.4 Starting from a ZIP archive](#14-starting-from-a-zip-archive).
+
 4. Open this folder in VS Code and run `Configure CMake` from the Raspberry Pi Pico view (Quick Access) in the sidebar
 
 ### 1.2 Build
@@ -47,6 +49,22 @@ On success, `build/FMSynthEnsembleV3.uf2` is generated.
 
 The device appears on your PC as a USB MIDI device. The default board is **Raspberry Pi Pico 2 (RP2350A)**. For Pico (RP2040), see [3. Switching boards](#3-switching-boards).
 
+### 1.4 Starting from a ZIP archive
+
+GitHub's "Download ZIP" and release source archives do not contain the submodule contents, so the extracted tree cannot be built as is. Run the following in the extracted folder to fetch the submodules. This needs git and a network connection.
+
+```bash
+cd <extracted-folder>
+git init
+bash scripts/restore-submodules.sh
+```
+
+`restore-submodules.sh` fetches the submodules at the commits recorded in `extern/submodules.lock`. On Windows, run it in Git Bash.
+
+Then continue from step 4 of [1.1 Setup (first time only)](#11-setup-first-time-only), or from [2.2 Build (regular)](#22-build-regular) for the CLI.
+
+A folder prepared this way has none of the original repository's history. Use `git clone` if you intend to send changes back.
+
 ## 2. Command line
 
 If you have pico-sdk 2.3.0, ARM GCC 15.2, CMake 3.30+ (required by `cmake --preset` / `CMakePresets.json` schema version 9), and Ninja, you can build without VS Code.
@@ -63,20 +81,13 @@ If you have pico-sdk 2.3.0, ARM GCC 15.2, CMake 3.30+ (required by `cmake --pres
 git submodule update --init --recursive
 ```
 
-FreeRTOS-Kernel is not a git submodule (neither is pico-sdk). CMake needs one of:
+FreeRTOS-Kernel is not part of pico-sdk or the Pico extension, so the repository carries it as the submodule `extern/FreeRTOS-Kernel`. The RP2350 ports live in a submodule inside it (Community-Supported-Ports), so `--recursive` is required.
 
-1. `FREERTOS_KERNEL_PATH` (environment or `-D`)
-2. `${PICO_SDK_PATH}/../FreeRTOS-Kernel`
-3. `${PICO_SDK_PATH}/../../FreeRTOS-Kernel`
+If you started from a ZIP, use the steps in [1.4 Starting from a ZIP archive](#14-starting-from-a-zip-archive) instead of this command.
 
-If you already use the Pico VS Code extension, it installs the SDK and FreeRTOS together. Point `PICO_SDK_PATH` at that SDK (e.g. `~/.pico-sdk/sdk/2.3.0`) and the adjacent `FreeRTOS-Kernel` is used — no extra clone.
+pico-sdk is not a submodule. Set `PICO_SDK_PATH` to its location (`~/.pico-sdk/sdk/2.3.0` for the SDK installed by the Pico extension).
 
-If you installed a standalone pico-sdk only:
-
-```bash
-git clone https://github.com/FreeRTOS/FreeRTOS-Kernel.git
-export FREERTOS_KERNEL_PATH=/path/to/FreeRTOS-Kernel
-```
+To use a FreeRTOS-Kernel from another location, set `FREERTOS_KERNEL_PATH` (environment or `-D`). Releases before V11.2.0 do not include the RP2350 ports.
 
 ### 2.2 Build (regular)
 
@@ -155,4 +166,4 @@ Baud rate: 115200.
 
 ## 6. CI / CD
 
-Push and pull requests to `main` run [`.github/workflows/build.yml`](../.github/workflows/build.yml). It checks out pico-sdk and FreeRTOS-Kernel separately (they are not git submodules), builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each.
+Push and pull requests to `main` run [`.github/workflows/build.yml`](../.github/workflows/build.yml). It checks out pico-sdk separately (it is not a git submodule; the version is `PICO_SDK_REF` in `build.yml`), while FreeRTOS-Kernel comes with the repository as a submodule. It builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each.

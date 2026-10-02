@@ -66,24 +66,26 @@ message(STATUS "TINYUSB_OPT_OS:      ${TINYUSB_OPT_OS}")
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# FreeRTOS (official Raspberry Pi layout only).
+# FreeRTOS (git submodule; the RP2350 ports live in its nested submodule).
 # Priority:
 #   1) User-specified FREERTOS_KERNEL_PATH (cache/env)
-#   2) ${PICO_SDK_PATH}/../FreeRTOS-Kernel
-#   3) ${PICO_SDK_PATH}/../../FreeRTOS-Kernel
-if(NOT FREERTOS_KERNEL_PATH)
-    set(_freertos_candidate_a "${PICO_SDK_PATH}/../FreeRTOS-Kernel")
-    set(_freertos_candidate_b "${PICO_SDK_PATH}/../../FreeRTOS-Kernel")
-    if(EXISTS "${_freertos_candidate_a}")
-        set(FREERTOS_KERNEL_PATH "${_freertos_candidate_a}" CACHE PATH "Path to the FreeRTOS Kernel")
-    elseif(EXISTS "${_freertos_candidate_b}")
-        set(FREERTOS_KERNEL_PATH "${_freertos_candidate_b}" CACHE PATH "Path to the FreeRTOS Kernel")
-    endif()
+#   2) extern/FreeRTOS-Kernel
+if(NOT FREERTOS_KERNEL_PATH AND DEFINED ENV{FREERTOS_KERNEL_PATH})
+    set(FREERTOS_KERNEL_PATH "$ENV{FREERTOS_KERNEL_PATH}")
 endif()
-if(NOT FREERTOS_KERNEL_PATH OR NOT EXISTS "${FREERTOS_KERNEL_PATH}")
+if(NOT FREERTOS_KERNEL_PATH)
+    set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_LIST_DIR}/extern/FreeRTOS-Kernel")
+endif()
+# Submodules must match extern/submodules.lock
+include(extern/check_submodules.cmake)
+if(NOT EXISTS "${FREERTOS_KERNEL_PATH}/include/FreeRTOS.h")
+    message(FATAL_ERROR "FreeRTOS-Kernel not found at '${FREERTOS_KERNEL_PATH}'.")
+endif()
+if(NOT PICO_PLATFORM STREQUAL "rp2040"
+        AND NOT EXISTS "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/Community-Supported-Ports/GCC")
     message(FATAL_ERROR
-        "Official FreeRTOS-Kernel not found. Set FREERTOS_KERNEL_PATH or place it at "
-        "'${PICO_SDK_PATH}/../FreeRTOS-Kernel' (or '../../FreeRTOS-Kernel').")
+        "The RP2350 ports are missing from '${FREERTOS_KERNEL_PATH}'. They live in a nested "
+        "submodule of FreeRTOS-Kernel: run 'git submodule update --init --recursive'.")
 endif()
 set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/src/platform CACHE PATH "FreeRTOS config file directory")
 include(FreeRTOS_Kernel_import.cmake)

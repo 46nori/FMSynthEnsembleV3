@@ -15,8 +15,6 @@ concurrency:
 
 env:
   PICO_SDK_REF: "2.3.0"
-  # Matches the FreeRTOS-Kernel revision used with the Pico VS Code layout locally.
-  FREERTOS_KERNEL_REF: "a8c9d351520d43bd94692361bd67b6d798985c98"
   ARM_GCC_RELEASE: "15.2.Rel1"
 
 jobs:
@@ -60,22 +58,6 @@ jobs:
           path: deps/pico-sdk
           submodules: recursive
 
-      - name: Cache FreeRTOS-Kernel
-        id: cache-freertos
-        uses: actions/cache@v5
-        with:
-          path: deps/FreeRTOS-Kernel
-          key: ${{ runner.os }}-freertos-${{ env.FREERTOS_KERNEL_REF }}
-
-      - name: Checkout FreeRTOS-Kernel
-        if: steps.cache-freertos.outputs.cache-hit != 'true'
-        uses: actions/checkout@v5
-        with:
-          repository: FreeRTOS/FreeRTOS-Kernel
-          ref: ${{ env.FREERTOS_KERNEL_REF }}
-          path: deps/FreeRTOS-Kernel
-          submodules: recursive
-
       # SDK 2.x needs picotool for ELF→UF2; cache a prebuilt install so firmware builds do not fetch it.
       - name: Cache picotool
         id: cache-picotool
@@ -99,7 +81,6 @@ jobs:
       - name: Configure
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/deps/pico-sdk
-          FREERTOS_KERNEL_PATH: ${{ github.workspace }}/deps/FreeRTOS-Kernel
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \

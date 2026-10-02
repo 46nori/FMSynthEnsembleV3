@@ -18,6 +18,8 @@ VS CodeにRaspberry Pi Pico 拡張をインストールすることで、ビル�
 
    Windows では Git for Windows 付属の Git Bash、macOS / Linux では各 OS 標準のターミナルで実行する。
 
+   `git clone` の代わりに ZIP をダウンロードして使う場合は [1.4 ZIP アーカイブから始める場合](#14-zip-アーカイブから始める場合) を参照。
+
 4. VS Code でこのフォルダを開き、サイドバーの Raspberry Pi Pico ビュー（Quick Access）から `Configure CMake` を実行する
 
 ### 1.2 ビルド
@@ -43,7 +45,23 @@ VS CodeにRaspberry Pi Pico 拡張をインストールすることで、ビル�
 
 3. コピー完了後に自動で再起動し、新しいファームウェアが起動する
 
-PC からは USB MIDI デバイスとして見える。ボードのデフォルトは **Raspberry Pi Pico 2 (RP2350A)**。Pico (RP2040) は [3. ボードの切替](#3-ボードの切替)。
+PC からは USB MIDI デバイスとして見える。ボードのデフォルトは **Raspberry Pi Pico 2 (RP2350A)**。Pico (RP2040) は [3. RaspberryPi Picoのボード切替方法](#3-raspberrypi-picoのボード切替方法)。
+
+### 1.4 ZIP アーカイブから始める場合
+
+GitHub の「Download ZIP」やリリースのソースアーカイブにはサブモジュールの中身が含まれず、展開しただけではビルドできない。展開したフォルダで次を実行してサブモジュールを取得する。git とネットワーク接続が必要。
+
+```bash
+cd <展開したフォルダ>
+git init
+bash scripts/restore-submodules.sh
+```
+
+`restore-submodules.sh` は `extern/submodules.lock` に記録されたコミットでサブモジュールを取得する。Windows では Git Bash で実行する。
+
+このあとは [1.1 準備（初回のみ）](#11-準備初回のみ) の手順 4 へ進む。CLI の場合は [2.2 ビルド（通常）](#22-ビルド通常) へ進む。
+
+この方法で用意したフォルダは元のリポジトリの履歴を持たない。変更を送り返す場合は `git clone` を使う。
 
 ## 2. コマンドライン(CLI)による方法
 
@@ -61,20 +79,13 @@ pico-sdk 2.3.0、ARM GCC 15.2、CMake 3.30+（`cmake --preset` / `CMakePresets.j
 git submodule update --init --recursive
 ```
 
-FreeRTOS-Kernel は git submodule ではない（pico-sdk も同様）。CMake は次のいずれかがあればよい。
+FreeRTOS-Kernel は pico-sdk にも Pico 拡張にも含まれないため、サブモジュール `extern/FreeRTOS-Kernel` として持っている。RP2350 用ポートはその中のサブモジュール（Community-Supported-Ports）にあるので `--recursive` が必要。
 
-1. `FREERTOS_KERNEL_PATH`（環境変数または `-D`）
-2. `${PICO_SDK_PATH}/../FreeRTOS-Kernel`
-3. `${PICO_SDK_PATH}/../../FreeRTOS-Kernel`
+ZIP から始めた場合は、このコマンドの代わりに [1.4 ZIP アーカイブから始める場合](#14-zip-アーカイブから始める場合) の手順を使う。
 
-Pico 拡張を既に使っている場合は、拡張が SDK と FreeRTOS をセットで置いている。`PICO_SDK_PATH` をその SDK（例: `~/.pico-sdk/sdk/2.3.0`）に向ければ、隣の `FreeRTOS-Kernel` が使われ、追加 clone は不要。
+pico-sdk はサブモジュールではない。`PICO_SDK_PATH` で場所を指定する（Pico 拡張が置いた SDK なら `~/.pico-sdk/sdk/2.3.0`）。
 
-素の pico-sdk だけを入れた場合の例:
-
-```bash
-git clone https://github.com/FreeRTOS/FreeRTOS-Kernel.git
-export FREERTOS_KERNEL_PATH=/path/to/FreeRTOS-Kernel
-```
+別の場所にある FreeRTOS-Kernel を使う場合は、環境変数または `-D` で `FREERTOS_KERNEL_PATH` を指定する。V11.2.0 より前のリリースは RP2350 用ポートを含まない。
 
 ### 2.2 ビルド（通常）
 
@@ -154,5 +165,5 @@ CMake と `config.h` の使い分け、および `ENABLE_DEBUG_PRINT` / `ENABLE_
 ## 6. CI / CD
 
 `main`ブランチ への push / pull request で [`.github/workflows/build.yml`](../.github/workflows/build.yml) が走る。
-pico-sdk と FreeRTOS-Kernel は submodule ではないため CI が別途 checkout する。
+pico-sdk はサブモジュールではないため CI が別途 checkout する（バージョンは `build.yml` の `PICO_SDK_REF`）。FreeRTOS-Kernel はサブモジュールなのでリポジトリと一緒に取得される。
 `PICO_BOARD=pico2` と `PICO_BOARD=pico` をデフォルトの CMake オプションでビルドし、それぞれ Artifact として保存する。

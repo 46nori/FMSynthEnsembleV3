@@ -1,0 +1,10 @@
+# extern/ の submodule が指すコミットの記録。
+# git が持つ submodule のコミット ID は履歴の中にしかなく、git init し直すと失われるため、
+# 同じ情報をここに置く。CMake が Configure 時に照合し、scripts/restore-submodules.sh が復元に使う。
+# submodule のバージョンを変えたら、該当行も同じコミットに更新する。
+#
+# <path> <commit> <バージョンの目安>
+extern/FreeRTOS-Kernel 3a22924e0a9ddbbc8b0758881c33b3422a5cc20d V11.3.1
+extern/LcdMenu 86243aad4f072a218b80db0fa4b7464fd1fc34db 5.13.0
+extern/NJU72343-library a5e12243dc2cb480aaf8c9f263042ba7fcb32a94 main@2026-04-29
+extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico d5e453404cdbfaa55ab30d285b6ab0b730e84a05 v3.6.2-16-gd5e4534

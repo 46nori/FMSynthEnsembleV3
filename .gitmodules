@@ -7,3 +7,6 @@
 [submodule "extern/LcdMenu"]
 	path = extern/LcdMenu
 	url = https://github.com/forntoh/LcdMenu.git
+[submodule "extern/FreeRTOS-Kernel"]
+	path = extern/FreeRTOS-Kernel
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
