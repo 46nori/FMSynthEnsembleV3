@@ -53,7 +53,8 @@ FMSynthEnsembleV3 における MIDI メッセージ処理（パース・ルー�
 | SysEx 標準リセット | GM_SYSTEM_ON / XG_RESET / GS_RESET | `MidiControlEvent::Reset` に変換 | `gMidiControlQueue` |
 | SysEx 独自拡張 | `F0 7D 46 4D <cmd>…F7` | `Debugger::HandleSysEx` | Reset / dump / stats 等は `gMidiControlQueue` |
 | SysEx その他 | 上記以外 | Drop | なし |
-| System Realtime | 0xF8, 0xFA–0xFC, 0xFE | Drop | なし |
+| System Reset | 0xFF | `MidiControlEvent::Reset` に変換 | `gMidiControlQueue` |
+| System Realtime | 0xF8–0xFE | Drop | なし |
 | System Common | Song Position 等 | Drop | なし |
 | 不正フォーマット | — | Drop | なし |
 
@@ -185,7 +186,8 @@ UsbMidiTask（`src/app/usb_midi_task.cpp`）は `tud_midi_n_stream_read` で最�
 
 | バイト種別 | 処理 |
 |---|---|
-| Realtime (0xF8–0xFF, SysEx/EOX 除く) | 即 Drop（Running Status に影響しない） |
+| System Reset (0xFF) | Running Status と SysEx 受信状態を破棄し `sink.OnProfileReset()` を呼ぶ（SysEx 受信中でも同様） |
+| Realtime (0xF8–0xFE) | 即 Drop（Running Status に影響しない） |
 | SysEx 開始 (0xF0) | SysEx 蓄積モードに入り Running Status をクリア |
 | SysEx 終了 (0xF7) | SysEx 蓄積完了 → `handle_complete_sysex()` 呼び出し |
 | **SysEx 受信中** の非リアルタイムステータス (0x80–0xF6) | SysEx を暗黙終了（バッファ破棄）し、受信バイトを新規メッセージの先頭として処理（MIDI 1.0 仕様準拠） |
@@ -206,6 +208,8 @@ flowchart TD
     I -- ProfileReset --> J["sink.OnProfileReset →<br>MidiControlEvent::Reset →<br>gMidiControlQueue"]
     I -- VendorDebug --> L["sink.OnVendorSysEx →<br>Debugger::HandleSysEx"]
     I -- Drop --> G
+
+    R["System Reset (0xFF)"] --> J
 ```
 
 `sink` は `MidiStreamAssembler` が受け取る `IMidiStreamSink&`。タイムスタンプ付与と
@@ -291,8 +295,8 @@ F0 7D 46 4D <cmd> <payload...> F7
 本設計が保証する不変条件。
 
 - Core1 は SysEx 生バイト列を処理しない
-- GM_SYSTEM_ON / XG_RESET / GS_RESET を受信したとき、Core1 側で `MidiProcessor::Reset()` が実行される
-- Realtime メッセージが `gMidiQueue` / `gMidiControlQueue` へ投入されない
+- GM_SYSTEM_ON / XG_RESET / GS_RESET または System Reset (0xFF) を受信したとき、Core1 側で `MidiProcessor::Reset()` が実行される
+- System Reset (0xFF) 以外の Realtime メッセージが `gMidiQueue` / `gMidiControlQueue` へ投入されない
 - 未対応 CC / Channel Mode / Aftertouch は Core0 で Drop される
 - Queue Full 時はイベント種別を問わず Drop + `MidiIpcStats` カウンタ更新
 - 独自拡張 SysEx の生バイト列は Core0 の `Debugger::HandleSysEx()` で処理される。Reset / dump / stats 等は `gMidiControlQueue` 経由で Core1 が実行する

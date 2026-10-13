@@ -22,7 +22,7 @@ public:
     /** @brief Core1 へ転送すべき対応済み MidiEvent が確定した */
     virtual void OnMidiEvent(const MidiEvent& event) = 0;
 
-    /** @brief GM/XG/GS プロファイルリセット SysEx を受信した */
+    /** @brief GM/XG/GS プロファイルリセット SysEx または System Reset (0xFF) を受信した */
     virtual void OnProfileReset() = 0;
 
     /** @brief ベンダー拡張 SysEx (F0 7D 46 4D ... F7) を受信した */

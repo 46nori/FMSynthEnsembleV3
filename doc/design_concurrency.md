@@ -146,7 +146,7 @@ flowchart TD
 2. `tud_midi_n_available()` を確認し、データがあれば `tud_midi_n_stream_read` で最大 32 バイトのチャンクを読み出し、1 バイトずつ `MidiStreamAssembler::PushByte()`（`src/midi/`、pico-sdk/FreeRTOS非依存）へ渡す
 3. `MidiStreamAssembler` 内部で `MidiParser` パース、`MidiController` の対応判定、`MidiSysEx` の分類を行い、確定したイベント/SysExを `IMidiStreamSink`（実装は `UsbMidiTask` 内の `UsbMidiStreamSink`）へ通知する。詳細は [design_midi_message.md](design_midi_message.md#5-core0-処理フロー) を参照
 4. `UsbMidiStreamSink::OnMidiEvent`: 対応する演奏イベントに `timestamp_us` を付与し、`gMidiQueue` へ投入（ノンブロッキング）
-5. `UsbMidiStreamSink::OnProfileReset`: 標準リセット SysEx を受けて `gMidiControlQueue` へ `MidiControlEvent::Reset` を投入
+5. `UsbMidiStreamSink::OnProfileReset`: 標準リセット SysEx または System Reset (0xFF) を受けて `gMidiControlQueue` へ `MidiControlEvent::Reset` を投入
 6. `UsbMidiStreamSink::OnVendorSysEx`: `Debugger::HandleSysEx` へ渡す（Reset / dump / stats 等は `gMidiControlQueue` へ投入）
 7. Realtime / 不明メッセージは Drop
 8. データが空の場合: ポーリングモード（`USB_MIDI_IRQ_DRIVEN=OFF`）では `vTaskDelay(1ms)`。イベント待機モードでは `tud_task_ext` が待機済みのため追加待機なし

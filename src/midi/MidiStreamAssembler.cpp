@@ -91,6 +91,17 @@ void MidiStreamAssembler::HandleStatusByte(uint8_t status) {
 }
 
 void MidiStreamAssembler::PushByte(uint8_t value) {
+    // System Reset (0xFF) はGM/XG/GSリセットSysExと同じくシンセ全体をリセットする。
+    // 受信側も電源投入直後の状態に戻すため、Running StatusとSysEx受信状態を破棄する。
+    if (value == 0xff) {
+        ResetSysEx();
+        runningStatus_ = 0;
+        msgLength_ = 0;
+        expectedLength_ = 0;
+        sink_.OnProfileReset();
+        return;
+    }
+
     // Realtime messageはSysEx中でも独立に挿入され得るため、
     // SysExバッファには積まずここで破棄する。
     if ((value & 0x80) && MidiParser::IsRealtimeStatus(value)) {
