@@ -44,7 +44,7 @@
 	- LCDメニューの音量調整画面から利用するため、個別チャンネルAPIを公開する。
 
 ## 5. API設計方針
-- 外部向けの基本APIは「FM/SSG系ミュート」「LINE_IN系ミュート」「FM/SSG系全音量設定」を優先する。起動時の全入力ミュートは`InitializeEarlyMute()`がFM/SSG系とLINE_IN系のミュートを組み合わせて行う。
+- 外部向けの基本APIは「FM/SSG系ミュート」「LINE_IN系ミュート」「FM/SSG系全音量設定」を優先する。起動時の全入力ミュートは`InitializeEarlyMute()`がFM/SSG系とLINE_IN系のミュートを組み合わせて行い、起動完了時のミュート解除は`ApplyStartupVolumes()`が既定音量を適用して行う（[7節](#7-初期化と状態保持)）。
 - 呼び出し側は通常dockを意識しない。dockごとの接続状態・モジュール種別は `VolumeController` が保持する。
 - dockごとの接続状態・モジュール種別は、起動時検出結果を `SetDockModuleTypes()` で4 dock分まとめて登録する。
 - FM/SSG系全音量設定は `SetFmSsgVolumeDb(float db)`、LineMix は `SetLineMixVolumeDb(float db)`、LineSample は `SetLineSampleVolumeDb(float db)` とする。どちらも指定値を0.5dB単位へ丸める。`MuteLineIn()` は LineMix + LineSample の合成ミュート。
@@ -81,4 +81,14 @@ CHIP_ADR1: A=0.0 B=Mute C=Mute D=0.0 E=0.0 F=Mute G=Mute H=Mute (dB)
 	- YM2203接続
 	- YM2608接続
 	- YMF288接続
-- `main.cpp` のマスターボリューム復帰では、登録済みのdock状態に基づき、`SetFmSsgVolumeDb(0)` で接続されているFM/SSG系入力だけを0dBに設定し、未接続入力はミュートする。
+- 起動時のミュート解除は `ApplyStartupVolumes()` で行う。各入力の既定音量は `VolumeController` 側で定義し、呼び出し側は値を持たない。
+
+| 対象 | 既定値 |
+|------|--------|
+| FM/SSG系（接続されている入力のみ） | 0dB |
+| FM/SSG系（未接続dock、YMF288のSSG） | Mute |
+| LineMix (G) L/R | 0dB |
+| LineSample (H) L/R | Mute |
+
+- FM/SSG系は `SetFmSsgVolumeDb()` を使うため、登録済みのdock状態に基づき未接続入力はミュートのまま維持される。
+- 呼び出しタイミングは `main.cpp` が決める。FMモジュール初期化・MIDIチャンネル生成・IPC初期化がすべて終わった後、FreeRTOSタスク生成の直前に1回呼ぶ。`Platform::SetupFmModules()` 内で呼ばないのは、その後の初期化処理がミュート解除後に走るのを避けるため。

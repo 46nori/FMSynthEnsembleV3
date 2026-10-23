@@ -19,6 +19,10 @@ constexpr int16_t kMaxDbX2      = static_cast<int16_t>(VolumeController::kMaxDb 
 constexpr uint8_t kControlZeroCrossOff = 0x00;  // A1/B1/G1/H1 select, ZC off
 constexpr uint8_t kControlZeroCrossOn  = 0x01;  // A1/B1/G1/H1 select, ZC on
 
+// Startup volume levels applied by ApplyStartupVolumes(). LineSample stays muted.
+constexpr float kStartupFmSsgDb   = 0.0f;
+constexpr float kStartupLineMixDb = 0.0f;
+
 constexpr uint8_t kChipAddresses[] = {
     NJU72343::CHIP_ADR0,
     NJU72343::CHIP_ADR1,
@@ -205,6 +209,12 @@ void VolumeController::SetLineSampleVolumeDb(float db) {
     ForSignal(SignalType::LineSample, [this, db](const SignalConnection& connection) {
         SetChannelVolumeDb(connection.chip_addr, connection.channel, db);
     });
+}
+
+void VolumeController::ApplyStartupVolumes() {
+    SetFmSsgVolumeDb(kStartupFmSsgDb);
+    SetLineMixVolumeDb(kStartupLineMixDb);
+    MuteLineSample();
 }
 
 void VolumeController::SetVolumeRaw(uint8_t chip_addr, uint8_t channel, uint8_t value) {
