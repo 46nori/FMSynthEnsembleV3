@@ -105,8 +105,8 @@ int main()
     factory->GetCsmVoice()->SetEventSink(&gCsmEventSink);
 #endif
 
-    // 接続されているFM/SSG系入力を0dBに設定
-    Platform::VolumeController::GetInstance().SetFmSsgVolumeDb(0);
+    // 全初期化完了後にミュートを解除する（各入力の既定音量はVolumeController側で定義）
+    Platform::VolumeController::GetInstance().ApplyStartupVolumes();
 
     // FreeRTOSタスクの生成
     bool ok = true;

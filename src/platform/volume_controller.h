@@ -116,6 +116,14 @@ public:
     void SetLineSampleVolumeDb(float db);
 
     /**
+     * @brief Apply the startup volume levels.
+     * @details Call once after all FM modules are initialized, right before the tasks start.
+     *          Connected FM/SSG inputs and LineMix are set to 0dB. LineSample stays muted.
+     *          Unavailable dock inputs remain muted (see SetFmSsgVolumeDb()).
+     */
+    void ApplyStartupVolumes();
+
+    /**
      * @brief Set one NJU72343 channel in dB.
      * @details Used both internally (group operations) and directly by callers that need
      *          per-channel control (e.g. the LCD Volume screen). Values are rounded to the
