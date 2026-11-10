@@ -76,6 +76,7 @@ FMSynthEnsembleV3/
 │   ├── NJU72343-library/
 │   ├── no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/
 │   └── LcdMenu/
+├── cmake/                 ビルド用 CMake 関数
 └── doc/                   ドキュメント
 ```
 
@@ -387,6 +388,14 @@ FreeRTOS SMP ポート（RP2350_ARM_NTZ）でデュアルコアタスクを管�
 2. `drivers/CMakeLists.txt` に `add_subdirectory(<カテゴリ>)` を追加する
 3. 必要に応じて `platform/init.cpp` に初期化処理を追記し、`Platform::Initialize()` から呼ぶ
 4. 上位レイヤへの公開 API は `Platform` 名前空間のヘッダに追加する。初期化全体に関わるものは `platform/init.h`、個別の共有ハードウェア資源は専用ヘッダ（例: `platform/volume_controller.h`）に分ける
+
+### 静的ライブラリと SDK のリンク
+
+各レイヤの静的ライブラリは、pico-sdk・FreeRTOS・TinyUSB・FatFs を通常どおり `target_link_libraries()` でリンクしてよい。これらは INTERFACE ライブラリで、リンク元にソースを追加する作りのため、そのままでは静的ライブラリごとに SDK 一式が重複コンパイルされる（フルビルド時間が約 3 倍になっていた）。
+
+root `CMakeLists.txt` の末尾で呼ぶ `fmse_compile_only_interface_deps()`（`cmake/compile_only_interface_deps.cmake`）が、実行ファイルからたどれる静的ライブラリ（submodule の `nju72343` 等を含む）の INTERFACE ライブラリへのリンクを外す。外したライブラリからは、インクルードパス・コンパイル定義・コンパイルオプションだけを受け取る。外した INTERFACE ライブラリは実行ファイルにリンクし直すので、SDK 等のソースは実行ファイルのターゲットで 1 回だけコンパイルされる。生成される機械語は変わらない。
+
+新しい静的ライブラリは、実行ファイルからリンクでたどれるようにしておけば自動的に対象になる。
 
 ### 外部ライブラリを追加する
 

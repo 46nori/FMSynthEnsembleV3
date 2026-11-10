@@ -199,3 +199,7 @@ endif()
 
 pico_add_extra_outputs(FMSynthEnsembleV3)
 
+# 静的ライブラリごとに SDK 等のソースが重複コンパイルされるのを防ぐ（全ターゲット定義後に呼ぶ）
+include(cmake/compile_only_interface_deps.cmake)
+fmse_compile_only_interface_deps(FMSynthEnsembleV3)
+
