@@ -105,3 +105,10 @@ jobs:
             build/FMSynthEnsembleV3.uf2
           if-no-files-found: error
           retention-days: 3
+
+      # sbom/<board>.cdx.json と THIRD_PARTY_NOTICES.md がコミット済みの内容と一致するか確かめる。
+      # 各 CMake オプションを反転した configure を追加で行う（ビルドはしない）
+      - name: Check SBOM
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/deps/pico-sdk
+        run: scripts/sbom/update.sh --check --build-dir build

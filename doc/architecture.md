@@ -412,6 +412,8 @@ git submodule add <URL> extern/<ライブラリ名>
 git -C extern/<ライブラリ名> rev-parse HEAD   # lock に書くコミット ID
 ```
 
+`scripts/sbom/catalog.py` にもコンポーネントとして登録し、`scripts/sbom/update.sh` で SBOM とライセンス表記を再生成する（[design_sbom.md](design_sbom.md)）。catalog に未登録の submodule があると SBOM の生成が失敗する。
+
 ### 外部ライブラリのバージョンを変える
 
 submodule 側で目的のバージョンを checkout し、`extern/submodules.lock` の該当行を同じコミットに書き換える。
@@ -427,10 +429,11 @@ git -C extern/<ライブラリ名> rev-parse HEAD   # lock に書くコミット
 
 lock の 2 列目をコミット ID に、3 列目を新しいバージョンの表記に書き換える。3 列目は人が読むための目安で、照合には使われない。
 
-Configure とビルドが通ることを確認してから、submodule と lock を同じコミットに含める。片方だけをコミットすると、他の環境や CI で Configure が失敗する。
+Configure とビルドが通ることを確認してから、`scripts/sbom/update.sh` で SBOM とライセンス表記を再生成する（[design_sbom.md](design_sbom.md)）。submodule・lock・`sbom/`・`THIRD_PARTY_NOTICES.md` を同じコミットに含める。submodule と lock の片方だけをコミットすると、他の環境や CI で Configure が失敗する。SBOM を更新し忘れると CI の SBOM 検査が失敗する。
 
 ```bash
-git add extern/<ライブラリ名> extern/submodules.lock
+scripts/sbom/update.sh
+git add extern/<ライブラリ名> extern/submodules.lock sbom THIRD_PARTY_NOTICES.md
 ```
 
 制約:

@@ -38,6 +38,7 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 | ドメイン図・クラス図 | [doc/domain/README.md](doc/domain/README.md) |
 | FM バス PIO ライブラリ | [src/drivers/fm/opn_piolib/doc/piolib_spec.md](src/drivers/fm/opn_piolib/doc/piolib_spec.md) |
 | ビルド・CMake 構成 | [doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) |
+| SBOM・ライセンス表記・依存更新の影響判定 | [doc/design_sbom.md](doc/design_sbom.md) |
 
 仕様と実装が食い違う場合は、doc を正とするか実装を正とするかを判断し、必要なら doc 更新を提案する。
 実装を正としてドキュメントを合わせる作業では、推測で仕様を書き足さない。不明点は `src/` を読んで確認する。

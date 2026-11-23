@@ -166,4 +166,4 @@ Baud rate: 115200.
 
 ## 6. CI / CD
 
-Push and pull requests to `main` run [`.github/workflows/build.yml`](../.github/workflows/build.yml). It checks out pico-sdk separately (it is not a git submodule; the version is `PICO_SDK_REF` in `build.yml`), while FreeRTOS-Kernel comes with the repository as a submodule. It builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each.
+Push and pull requests to `main` run [`.github/workflows/build.yml`](../.github/workflows/build.yml). It checks out pico-sdk separately (it is not a git submodule; the version is `PICO_SDK_REF` in `build.yml`), while FreeRTOS-Kernel comes with the repository as a submodule. It builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each. It then checks that the committed SBOM (`sbom/`) and license notices (`THIRD_PARTY_NOTICES.md`) match the build. After updating a dependency, regenerate them with `scripts/sbom/update.sh` and commit the result (see [design_sbom.md](design_sbom.md), Japanese).
