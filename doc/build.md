@@ -67,7 +67,7 @@ A folder prepared this way has none of the original repository's history. Use `g
 
 ## 2. Command line
 
-If you have pico-sdk 2.3.0, ARM GCC 15.2, CMake 3.30+ (required by `cmake --preset` / `CMakePresets.json` schema version 9), and Ninja, you can build without VS Code.
+If you have pico-sdk 2.3.1, ARM GCC 15.2, CMake 3.30+ (required by `cmake --preset` / `CMakePresets.json` schema version 9), and Ninja, you can build without VS Code.
 
 | OS | Notes |
 |---|---|
@@ -85,7 +85,7 @@ FreeRTOS-Kernel is not part of pico-sdk or the Pico extension, so the repository
 
 If you started from a ZIP, use the steps in [1.4 Starting from a ZIP archive](#14-starting-from-a-zip-archive) instead of this command.
 
-pico-sdk is not a submodule. Set `PICO_SDK_PATH` to its location (`~/.pico-sdk/sdk/2.3.0` for the SDK installed by the Pico extension).
+pico-sdk is not a submodule. Set `PICO_SDK_PATH` to its location (`~/.pico-sdk/sdk/2.3.1` for the SDK installed by the Pico extension).
 
 To use a FreeRTOS-Kernel from another location, set `FREERTOS_KERNEL_PATH` (environment or `-D`). Releases before V11.2.0 do not include the RP2350 ports.
 

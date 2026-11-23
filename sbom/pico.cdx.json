@@ -71,7 +71,7 @@
         "name": "Raspberry Pi Ltd"
       },
       "name": "pico-sdk",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "scope": "required",
       "licenses": [
         {
@@ -81,7 +81,7 @@
           }
         }
       ],
-      "purl": "pkg:github/raspberrypi/pico-sdk@98a542c1a62fb549ffb5d66a3e5892b06276b670",
+      "purl": "pkg:github/raspberrypi/pico-sdk@079c6f39023649b154152db30f1d781e884879bc",
       "externalReferences": [
         {
           "type": "vcs",
@@ -95,7 +95,7 @@
         },
         {
           "name": "fmsynth:commit",
-          "value": "98a542c1a62fb549ffb5d66a3e5892b06276b670"
+          "value": "079c6f39023649b154152db30f1d781e884879bc"
         },
         {
           "name": "fmsynth:condition",
@@ -1112,7 +1112,7 @@
               }
             }
           ],
-          "purl": "pkg:github/bluekitchen/btstack@075a0780f0fad7ff67d58ac19f46e8953656a752",
+          "purl": "pkg:github/bluekitchen/btstack@eb0bb8b5ea6d234ccb940313b47f7a5c3b4e20ec",
           "externalReferences": [
             {
               "type": "vcs",
@@ -1126,7 +1126,7 @@
             },
             {
               "name": "fmsynth:commit",
-              "value": "075a0780f0fad7ff67d58ac19f46e8953656a752"
+              "value": "eb0bb8b5ea6d234ccb940313b47f7a5c3b4e20ec"
             }
           ]
         },

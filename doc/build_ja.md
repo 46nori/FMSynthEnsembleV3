@@ -65,7 +65,7 @@ bash scripts/restore-submodules.sh
 
 ## 2. コマンドライン(CLI)による方法
 
-pico-sdk 2.3.0、ARM GCC 15.2、CMake 3.30+（`cmake --preset` / `CMakePresets.json` schema version 9 に必要）、Ninja があれば VS Code なしでもビルドできる。
+pico-sdk 2.3.1、ARM GCC 15.2、CMake 3.30+（`cmake --preset` / `CMakePresets.json` schema version 9 に必要）、Ninja があれば VS Code なしでもビルドできる。
 
 | OS | 補足 |
 |---|---|
@@ -83,7 +83,7 @@ FreeRTOS-Kernel は pico-sdk にも Pico 拡張にも含まれないため、サ
 
 ZIP から始めた場合は、このコマンドの代わりに [1.4 ZIP アーカイブから始める場合](#14-zip-アーカイブから始める場合) の手順を使う。
 
-pico-sdk はサブモジュールではない。`PICO_SDK_PATH` で場所を指定する（Pico 拡張が置いた SDK なら `~/.pico-sdk/sdk/2.3.0`）。
+pico-sdk はサブモジュールではない。`PICO_SDK_PATH` で場所を指定する（Pico 拡張が置いた SDK なら `~/.pico-sdk/sdk/2.3.1`）。
 
 別の場所にある FreeRTOS-Kernel を使う場合は、環境変数または `-D` で `FREERTOS_KERNEL_PATH` を指定する。V11.2.0 より前のリリースは RP2350 用ポートを含まない。
 
