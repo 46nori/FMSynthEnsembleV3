@@ -6,6 +6,7 @@
 |---|---|
 | [build_ja.md](build_ja.md) | ビルド・書き込み・CMake 構成（日本語） |
 | [build.md](build.md) | Build, flashing, CMake options (English) |
+| [design_sbom.md](design_sbom.md) | SBOM（CycloneDX）とサードパーティライセンス表記の生成・検査・依存更新の影響判定 |
 
 ## ソフトウェア仕様
 

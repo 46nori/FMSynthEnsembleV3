@@ -1,0 +1,2046 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "scripts/sbom/gen_sbom.py"
+        }
+      ]
+    },
+    "component": {
+      "type": "firmware",
+      "bom-ref": "firmware",
+      "supplier": {
+        "name": "46nori"
+      },
+      "name": "FMSynthEnsembleV3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "fmsynth:board",
+        "value": "pico"
+      },
+      {
+        "name": "fmsynth:platform",
+        "value": "rp2040"
+      },
+      {
+        "name": "fmsynth:option:BUILD_I2C_DISPLAY",
+        "value": "ON"
+      },
+      {
+        "name": "fmsynth:option:BUILD_MIDI_PANEL",
+        "value": "ON"
+      },
+      {
+        "name": "fmsynth:option:BUILD_SD_CARD",
+        "value": "ON"
+      },
+      {
+        "name": "fmsynth:option:ENABLE_MIDI_TIMING_STATS",
+        "value": "OFF"
+      },
+      {
+        "name": "fmsynth:option:USB_MIDI_IRQ_DRIVEN",
+        "value": "ON"
+      },
+      {
+        "name": "fmsynth:variants-analyzed",
+        "value": "BUILD_I2C_DISPLAY, BUILD_MIDI_PANEL, BUILD_SD_CARD, ENABLE_MIDI_TIMING_STATS, USB_MIDI_IRQ_DRIVEN"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "component:pico-sdk",
+      "supplier": {
+        "name": "Raspberry Pi Ltd"
+      },
+      "name": "pico-sdk",
+      "version": "2.3.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:github/raspberrypi/pico-sdk@98a542c1a62fb549ffb5d66a3e5892b06276b670",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/raspberrypi/pico-sdk"
+        }
+      ],
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "sdk"
+        },
+        {
+          "name": "fmsynth:commit",
+          "value": "98a542c1a62fb549ffb5d66a3e5892b06276b670"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "always"
+        },
+        {
+          "name": "fmsynth:source-licenses",
+          "value": "BSD-3-Clause: 69, none: 51"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/boards/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/boot_picobin_headers/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/boot_picoboot_headers/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/hardware_claim/claim.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/hardware_claim/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_base_headers/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_binary_info/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_bit_ops_headers/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_divider_headers/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_stdlib_headers/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_sync/critical_section.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_sync/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_sync/lock_core.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_sync/mutex.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_sync/sem.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_time/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_time/time.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_time/timeout_helper.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_util/datetime.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_util/fixed_bitset.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_util/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/common/pico_util/pheap.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/common/pico_util/queue.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2040/boot_stage2/asminclude",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2040/boot_stage2/boot_stage2.ld",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2040/boot_stage2/compile_time_choice.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2040/boot_stage2/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2040/hardware_regs/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2040/hardware_structs/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2040/pico_platform/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2040/pico_platform/memmap_default.ld",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2040/pico_platform/platform.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2040/pico_platform/script_include/default_locations.ld",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2040/pico_platform/script_include/section_platform_end.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/boot_bootrom_headers/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_base/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_boot_lock/boot_lock.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_boot_lock/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_clocks/clocks.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_clocks/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_divider/divider.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_divider/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_dma/dma.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/rp2_common/hardware_dma/include",
+            "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/rp2_common/hardware_exception/exception.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_exception/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_flash/flash.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_flash/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_gpio/gpio.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_gpio/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_i2c/i2c.c",
+            "additionalContext": "source; only when BUILD_I2C_DISPLAY=ON"
+          },
+          {
+            "location": "src/rp2_common/hardware_i2c/include",
+            "additionalContext": "include-dir; only when BUILD_I2C_DISPLAY=ON"
+          },
+          {
+            "location": "src/rp2_common/hardware_irq/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_irq/irq.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_irq/irq_handler_chain.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_pio/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_pio/pio.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_pll/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_pll/pll.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_resets/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_rtc/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_rtc/rtc.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_spi/include",
+            "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/rp2_common/hardware_spi/spi.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/rp2_common/hardware_sync/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_sync/sync.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_sync_spin_lock/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_sync_spin_lock/sync_spin_lock.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_ticks/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_ticks/ticks.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_timer/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_timer/timer.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_uart/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_uart/uart.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_vreg/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_vreg/vreg.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_watchdog/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_watchdog/watchdog.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_xip_cache/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_xip_cache/xip_cache.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/hardware_xosc/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/hardware_xosc/xosc.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_aon_timer/aon_timer.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/rp2_common/pico_aon_timer/include",
+            "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/rp2_common/pico_atomic/atomic.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_atomic/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_bit_ops/bit_ops_aeabi.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_bootrom/bootrom.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_bootrom/bootrom_lock.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_bootrom/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_clib_interface/cxa_guard.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_clib_interface/newlib_interface.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_crt0/crt0.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_cxx_options/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_cxx_options/new_delete.cpp",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_divider/divider_hardware.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_double/double_aeabi_rp2040.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_double/double_init_rom_rp2040.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_double/double_math.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_double/double_v1_rom_shim_rp2040.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_double/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_fix/rp2040_usb_device_enumeration/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_fix/rp2040_usb_device_enumeration/rp2040_usb_device_enumeration.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_flash/flash.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_flash/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_float/float_aeabi_rp2040.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_float/float_init_rom_rp2040.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_float/float_math.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_float/float_v1_rom_shim_rp2040.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_float/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_int64_ops/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_int64_ops/pico_int64_ops_aeabi.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_malloc/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_malloc/malloc.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_mem_ops/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_mem_ops/mem_ops_aeabi.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_multicore/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_multicore/multicore.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_platform_common/common.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_platform_common/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_platform_compiler/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_platform_panic/custom_panic_function.S",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_platform_panic/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_platform_panic/panic.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_platform_sections/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_runtime/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_runtime/runtime.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_runtime_init/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_runtime_init/runtime_init.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_runtime_init/runtime_init_clocks.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_runtime_init/runtime_init_stack_guard.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_binary_info/standard_binary_info.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/default_rodata_excludes.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/default_text_excludes.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memmap_default.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_aliases_flash.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_extra.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_flash.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_generated.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_psram.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_ram.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_scratch.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/memory_xip_ram.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_binary_info.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_boot2.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_default_data.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_default_rodata.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_default_text.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_end.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_extra_post_data.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_extra_post_end.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_extra_post_platform_end.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_extra_post_scratch.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_extra_post_text.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_flash_begin.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_flash_end.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_generated_post_data.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_generated_post_end.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_generated_post_platform_end.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_generated_post_scratch.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_generated_post_text.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_heap.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_persistent_data.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_ram_vector_table.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_tls.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_uninitialized_data.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/section_xip_ram.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/sections_arm_ex.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/sections_default.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/sections_default_data.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/sections_default_text.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/sections_psram.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/sections_scratch.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/sections_stack.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_standard_link/script_include/set_memory_locations.incl",
+            "additionalContext": "linker-script"
+          },
+          {
+            "location": "src/rp2_common/pico_stdio/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_stdio/stdio.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_stdio_uart/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_stdio_uart/stdio_uart.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_stdlib/stdlib.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_thread_local/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_thread_local/thread_local.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/pico_time_adapter/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_unique_id/include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "src/rp2_common/pico_unique_id/unique_id.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "src/rp2_common/tinyusb/include",
+            "additionalContext": "include-dir"
+          }
+        ]
+      },
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "component:tinyusb",
+          "supplier": {
+            "name": "hathach"
+          },
+          "name": "TinyUSB",
+          "version": "0.18.0",
+          "scope": "required",
+          "licenses": [
+            {
+              "license": {
+                "id": "MIT",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/hathach/tinyusb@86ad6e56c1700e85f1c5678607a762cfe3aa2f47",
+          "externalReferences": [
+            {
+              "type": "vcs",
+              "url": "https://github.com/hathach/tinyusb"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "sdk:lib/tinyusb"
+            },
+            {
+              "name": "fmsynth:commit",
+              "value": "86ad6e56c1700e85f1c5678607a762cfe3aa2f47"
+            },
+            {
+              "name": "fmsynth:condition",
+              "value": "always"
+            },
+            {
+              "name": "fmsynth:source-licenses",
+              "value": "MIT (text): 19"
+            }
+          ],
+          "evidence": {
+            "occurrences": [
+              {
+                "location": "hw",
+                "additionalContext": "include-dir"
+              },
+              {
+                "location": "hw/bsp/rp2040/family.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src",
+                "additionalContext": "include-dir"
+              },
+              {
+                "location": "src/class/audio/audio_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/cdc/cdc_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/dfu/dfu_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/dfu/dfu_rt_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/hid/hid_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/midi/midi_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/msc/msc_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/net/ecm_rndis_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/net/ncm_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/usbtmc/usbtmc_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/vendor/vendor_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/class/video/video_device.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/common/tusb_fifo.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/device/usbd.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/device/usbd_control.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/portable/raspberrypi/rp2040/dcd_rp2040.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/portable/raspberrypi/rp2040/rp2040_usb.c",
+                "additionalContext": "source"
+              },
+              {
+                "location": "src/tusb.c",
+                "additionalContext": "source"
+              }
+            ]
+          }
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:cmsis",
+          "supplier": {
+            "name": "Arm Limited"
+          },
+          "name": "CMSIS",
+          "version": "6.1",
+          "scope": "required",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/ARM-software/CMSIS_6",
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "sdk:src/rp2_common/cmsis/stub/CMSIS"
+            },
+            {
+              "name": "fmsynth:git-component",
+              "value": "pico-sdk"
+            },
+            {
+              "name": "fmsynth:git-path",
+              "value": "src/rp2_common/cmsis/stub/CMSIS"
+            },
+            {
+              "name": "fmsynth:condition",
+              "value": "BUILD_SD_CARD=ON"
+            },
+            {
+              "name": "fmsynth:source-licenses",
+              "value": "Apache-2.0: 1"
+            }
+          ],
+          "evidence": {
+            "occurrences": [
+              {
+                "location": "Core/Include",
+                "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "Device/RP2040/Include",
+                "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "Device/RP2040/Source/system_RP2040.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              }
+            ]
+          }
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:pico-printf",
+          "supplier": {
+            "name": "Marco Paland"
+          },
+          "name": "printf (Marco Paland)",
+          "scope": "required",
+          "licenses": [
+            {
+              "license": {
+                "id": "MIT",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/mpaland/printf",
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "sdk:src/rp2_common/pico_printf"
+            },
+            {
+              "name": "fmsynth:git-component",
+              "value": "pico-sdk"
+            },
+            {
+              "name": "fmsynth:git-path",
+              "value": "src/rp2_common/pico_printf"
+            },
+            {
+              "name": "fmsynth:condition",
+              "value": "always"
+            },
+            {
+              "name": "fmsynth:source-licenses",
+              "value": "MIT (text): 1"
+            }
+          ],
+          "evidence": {
+            "occurrences": [
+              {
+                "location": "include",
+                "additionalContext": "include-dir"
+              },
+              {
+                "location": "printf.c",
+                "additionalContext": "source"
+              }
+            ]
+          }
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:btstack",
+          "supplier": {
+            "name": "BlueKitchen GmbH"
+          },
+          "name": "BTstack",
+          "version": "1.8.2",
+          "scope": "excluded",
+          "licenses": [
+            {
+              "license": {
+                "name": "BTstack License (Raspberry Pi exception, see LICENSE)",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/bluekitchen/btstack@075a0780f0fad7ff67d58ac19f46e8953656a752",
+          "externalReferences": [
+            {
+              "type": "vcs",
+              "url": "https://github.com/bluekitchen/btstack"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "sdk:lib/btstack"
+            },
+            {
+              "name": "fmsynth:commit",
+              "value": "075a0780f0fad7ff67d58ac19f46e8953656a752"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:cyw43-driver",
+          "supplier": {
+            "name": "George Robotics"
+          },
+          "name": "cyw43-driver",
+          "version": "1.1.0",
+          "scope": "excluded",
+          "licenses": [
+            {
+              "license": {
+                "name": "cyw43-driver License (Raspberry Pi exception, see LICENSE.RP)",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/georgerobotics/cyw43-driver@055d64274b014dd7b1c2fc94d26e8a18face7124",
+          "externalReferences": [
+            {
+              "type": "vcs",
+              "url": "https://github.com/georgerobotics/cyw43-driver"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "sdk:lib/cyw43-driver"
+            },
+            {
+              "name": "fmsynth:commit",
+              "value": "055d64274b014dd7b1c2fc94d26e8a18face7124"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:lwip",
+          "supplier": {
+            "name": "lwIP developers"
+          },
+          "name": "lwIP",
+          "version": "2.2.1",
+          "scope": "excluded",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-3-Clause",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/lwip-tcpip/lwip@77dcd25a72509eb83f72b033d219b1d40cd8eb95",
+          "externalReferences": [
+            {
+              "type": "vcs",
+              "url": "https://github.com/lwip-tcpip/lwip"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "sdk:lib/lwip"
+            },
+            {
+              "name": "fmsynth:commit",
+              "value": "77dcd25a72509eb83f72b033d219b1d40cd8eb95"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:mbedtls",
+          "supplier": {
+            "name": "Mbed TLS contributors"
+          },
+          "name": "Mbed TLS",
+          "version": "3.6.6",
+          "scope": "excluded",
+          "licenses": [
+            {
+              "expression": "Apache-2.0 OR GPL-2.0-or-later",
+              "acknowledgement": "declared"
+            }
+          ],
+          "purl": "pkg:github/Mbed-TLS/mbedtls@0bebf8b8c7f07abe3571ded48a11aa907a1ffb20",
+          "externalReferences": [
+            {
+              "type": "vcs",
+              "url": "https://github.com/Mbed-TLS/mbedtls"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "sdk:lib/mbedtls"
+            },
+            {
+              "name": "fmsynth:commit",
+              "value": "0bebf8b8c7f07abe3571ded48a11aa907a1ffb20"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "component:freertos-kernel",
+      "supplier": {
+        "name": "Amazon.com, Inc."
+      },
+      "name": "FreeRTOS-Kernel",
+      "version": "V11.3.1",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:github/FreeRTOS/FreeRTOS-Kernel@3a22924e0a9ddbbc8b0758881c33b3422a5cc20d",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/FreeRTOS/FreeRTOS-Kernel"
+        }
+      ],
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "repo:extern/FreeRTOS-Kernel"
+        },
+        {
+          "name": "fmsynth:commit",
+          "value": "3a22924e0a9ddbbc8b0758881c33b3422a5cc20d"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "always"
+        },
+        {
+          "name": "fmsynth:source-licenses",
+          "value": "MIT: 8"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "croutine.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "event_groups.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "include",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "list.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "portable/MemMang/heap_4.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "queue.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "stream_buffer.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "tasks.c",
+            "additionalContext": "source"
+          },
+          {
+            "location": "timers.c",
+            "additionalContext": "source"
+          }
+        ]
+      },
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "component:freertos-port-rp2040",
+          "supplier": {
+            "name": "Raspberry Pi Ltd"
+          },
+          "name": "FreeRTOS-Kernel RP2040 port",
+          "scope": "required",
+          "licenses": [
+            {
+              "expression": "MIT AND BSD-3-Clause",
+              "acknowledgement": "declared"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "repo:extern/FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040"
+            },
+            {
+              "name": "fmsynth:git-component",
+              "value": "freertos-kernel"
+            },
+            {
+              "name": "fmsynth:git-path",
+              "value": "portable/ThirdParty/GCC/RP2040"
+            },
+            {
+              "name": "fmsynth:condition",
+              "value": "always"
+            },
+            {
+              "name": "fmsynth:source-licenses",
+              "value": "MIT AND BSD-3-Clause: 1"
+            }
+          ],
+          "evidence": {
+            "occurrences": [
+              {
+                "location": "include",
+                "additionalContext": "include-dir"
+              },
+              {
+                "location": "port.c",
+                "additionalContext": "source"
+              }
+            ]
+          }
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:freertos-community-ports",
+          "supplier": {
+            "name": "FreeRTOS community"
+          },
+          "name": "FreeRTOS-Kernel-Community-Supported-Ports",
+          "scope": "excluded",
+          "licenses": [
+            {
+              "license": {
+                "name": "Per-directory licenses (see LICENSE in each directory)",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/FreeRTOS/FreeRTOS-Kernel-Community-Supported-Ports@bae4c7aa19009825ba48071a8fe25dcb8be84880",
+          "externalReferences": [
+            {
+              "type": "vcs",
+              "url": "https://github.com/FreeRTOS/FreeRTOS-Kernel-Community-Supported-Ports"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "repo:extern/FreeRTOS-Kernel/portable/ThirdParty/Community-Supported-Ports"
+            },
+            {
+              "name": "fmsynth:commit",
+              "value": "bae4c7aa19009825ba48071a8fe25dcb8be84880"
+            }
+          ],
+          "components": [
+            {
+              "type": "library",
+              "bom-ref": "component:freertos-port-rp2350",
+              "supplier": {
+                "name": "Raspberry Pi Ltd"
+              },
+              "name": "FreeRTOS-Kernel RP2350_ARM_NTZ port",
+              "scope": "excluded",
+              "licenses": [
+                {
+                  "expression": "MIT AND BSD-3-Clause",
+                  "acknowledgement": "declared"
+                }
+              ],
+              "properties": [
+                {
+                  "name": "fmsynth:root",
+                  "value": "repo:extern/FreeRTOS-Kernel/portable/ThirdParty/Community-Supported-Ports/GCC/RP2350_ARM_NTZ"
+                },
+                {
+                  "name": "fmsynth:git-component",
+                  "value": "freertos-community-ports"
+                },
+                {
+                  "name": "fmsynth:git-path",
+                  "value": "GCC/RP2350_ARM_NTZ"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:freertos-partner-ports",
+          "supplier": {
+            "name": "FreeRTOS partners"
+          },
+          "name": "FreeRTOS-Kernel-Partner-Supported-Ports",
+          "scope": "excluded",
+          "licenses": [
+            {
+              "license": {
+                "name": "Per-directory licenses (see LICENSE in each directory)",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:github/FreeRTOS/FreeRTOS-Kernel-Partner-Supported-Ports@abc22103e1e6634b33457d4127bff1ab62f27f90",
+          "externalReferences": [
+            {
+              "type": "vcs",
+              "url": "https://github.com/FreeRTOS/FreeRTOS-Kernel-Partner-Supported-Ports"
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "repo:extern/FreeRTOS-Kernel/portable/ThirdParty/Partner-Supported-Ports"
+            },
+            {
+              "name": "fmsynth:commit",
+              "value": "abc22103e1e6634b33457d4127bff1ab62f27f90"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "component:no-os-fatfs",
+      "supplier": {
+        "name": "Carl John Kugler III"
+      },
+      "name": "no-OS-FatFS-SD-SDIO-SPI-RPi-Pico",
+      "version": "v3.6.2-16-gd5e4534",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:github/carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico@d5e453404cdbfaa55ab30d285b6ab0b730e84a05",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico"
+        }
+      ],
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "repo:extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico"
+        },
+        {
+          "name": "fmsynth:commit",
+          "value": "d5e453404cdbfaa55ab30d285b6ab0b730e84a05"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "BUILD_SD_CARD=ON"
+        },
+        {
+          "name": "fmsynth:source-licenses",
+          "value": "none: 12"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/include",
+            "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/sd_driver",
+            "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/sd_driver/dma_interrupts.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/sd_driver/sd_card.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/sd_driver/sd_timeouts.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/crash.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/crc.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/f_util.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/ff_stdio.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/file_stream.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/glue.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/my_debug.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/my_rtc.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          },
+          {
+            "location": "src/src/util.c",
+            "additionalContext": "source; only when BUILD_SD_CARD=ON"
+          }
+        ]
+      },
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "component:fatfs",
+          "supplier": {
+            "name": "ChaN"
+          },
+          "name": "FatFs",
+          "version": "R0.15",
+          "scope": "required",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-1-Clause",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "purl": "pkg:generic/fatfs@R0.15",
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "repo:extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/ff15"
+            },
+            {
+              "name": "fmsynth:git-component",
+              "value": "no-os-fatfs"
+            },
+            {
+              "name": "fmsynth:git-path",
+              "value": "src/ff15"
+            },
+            {
+              "name": "fmsynth:condition",
+              "value": "BUILD_SD_CARD=ON"
+            },
+            {
+              "name": "fmsynth:source-licenses",
+              "value": "none: 3"
+            }
+          ],
+          "evidence": {
+            "occurrences": [
+              {
+                "location": "source",
+                "additionalContext": "include-dir; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "source/ff.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "source/ffsystem.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "source/ffunicode.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              }
+            ]
+          }
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:no-os-fatfs-sdio",
+          "supplier": {
+            "name": "Carl John Kugler III"
+          },
+          "name": "no-OS-FatFS SDIO driver",
+          "scope": "required",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "repo:extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/sd_driver/SDIO"
+            },
+            {
+              "name": "fmsynth:git-component",
+              "value": "no-os-fatfs"
+            },
+            {
+              "name": "fmsynth:git-path",
+              "value": "src/sd_driver/SDIO"
+            },
+            {
+              "name": "fmsynth:condition",
+              "value": "BUILD_SD_CARD=ON"
+            },
+            {
+              "name": "fmsynth:license-review",
+              "value": "Derived from ZuluSCSI-firmware (GPL-3.0-or-later) according to the upstream README, while the upstream repository declares Apache-2.0. License compatibility needs review."
+            },
+            {
+              "name": "fmsynth:source-licenses",
+              "value": "none: 3"
+            }
+          ],
+          "evidence": {
+            "occurrences": [
+              {
+                "location": "rp2040_sdio.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "rp2040_sdio.pio",
+                "additionalContext": "pio; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "sd_card_sdio.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              }
+            ]
+          },
+          "pedigree": {
+            "ancestors": [
+              {
+                "type": "library",
+                "bom-ref": "ancestor:no-os-fatfs-sdio:ZuluSCSI-firmware",
+                "supplier": {
+                  "name": "Rabbit Hole Computing"
+                },
+                "name": "ZuluSCSI-firmware",
+                "purl": "pkg:github/ZuluSCSI/ZuluSCSI-firmware",
+                "licenses": [
+                  {
+                    "license": {
+                      "id": "GPL-3.0-or-later",
+                      "acknowledgement": "declared"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "library",
+          "bom-ref": "component:no-os-fatfs-spi",
+          "supplier": {
+            "name": "Carl John Kugler III"
+          },
+          "name": "no-OS-FatFS SPI driver",
+          "scope": "required",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0",
+                "acknowledgement": "declared"
+              }
+            }
+          ],
+          "properties": [
+            {
+              "name": "fmsynth:root",
+              "value": "repo:extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/sd_driver/SPI"
+            },
+            {
+              "name": "fmsynth:git-component",
+              "value": "no-os-fatfs"
+            },
+            {
+              "name": "fmsynth:git-path",
+              "value": "src/sd_driver/SPI"
+            },
+            {
+              "name": "fmsynth:condition",
+              "value": "BUILD_SD_CARD=ON"
+            },
+            {
+              "name": "fmsynth:source-licenses",
+              "value": "none: 3"
+            }
+          ],
+          "evidence": {
+            "occurrences": [
+              {
+                "location": "my_spi.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "sd_card_spi.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              },
+              {
+                "location": "sd_spi.c",
+                "additionalContext": "source; only when BUILD_SD_CARD=ON"
+              }
+            ]
+          },
+          "pedigree": {
+            "ancestors": [
+              {
+                "type": "library",
+                "bom-ref": "ancestor:no-os-fatfs-spi:Mbed OS SDBlockDevice",
+                "supplier": {
+                  "name": "Arm Limited"
+                },
+                "name": "Mbed OS SDBlockDevice",
+                "purl": "pkg:github/ARMmbed/mbed-os",
+                "licenses": [
+                  {
+                    "license": {
+                      "id": "Apache-2.0",
+                      "acknowledgement": "declared"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "component:lcdmenu",
+      "supplier": {
+        "name": "Forntoh Thomas"
+      },
+      "name": "LcdMenu",
+      "version": "5.13.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:github/forntoh/LcdMenu@86243aad4f072a218b80db0fa4b7464fd1fc34db",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/forntoh/LcdMenu"
+        }
+      ],
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "repo:extern/LcdMenu"
+        },
+        {
+          "name": "fmsynth:commit",
+          "value": "86243aad4f072a218b80db0fa4b7464fd1fc34db"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "BUILD_I2C_DISPLAY=ON"
+        },
+        {
+          "name": "fmsynth:source-licenses",
+          "value": "none: 5"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src",
+            "additionalContext": "include-dir; only when BUILD_I2C_DISPLAY=ON"
+          },
+          {
+            "location": "src/LcdMenu.cpp",
+            "additionalContext": "source; only when BUILD_I2C_DISPLAY=ON"
+          },
+          {
+            "location": "src/MenuItem.cpp",
+            "additionalContext": "source; only when BUILD_I2C_DISPLAY=ON"
+          },
+          {
+            "location": "src/MenuScreen.cpp",
+            "additionalContext": "source; only when BUILD_I2C_DISPLAY=ON"
+          },
+          {
+            "location": "src/renderer/CharacterDisplayRenderer.cpp",
+            "additionalContext": "source; only when BUILD_I2C_DISPLAY=ON"
+          },
+          {
+            "location": "src/renderer/MenuRenderer.cpp",
+            "additionalContext": "source; only when BUILD_I2C_DISPLAY=ON"
+          }
+        ]
+      }
+    },
+    {
+      "type": "library",
+      "bom-ref": "component:nju72343",
+      "supplier": {
+        "name": "46nori"
+      },
+      "name": "NJU72343-library",
+      "version": "main@2026-04-29",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:github/46nori/NJU72343-library@a5e12243dc2cb480aaf8c9f263042ba7fcb32a94",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/46nori/NJU72343-library"
+        }
+      ],
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "repo:extern/NJU72343-library"
+        },
+        {
+          "name": "fmsynth:commit",
+          "value": "a5e12243dc2cb480aaf8c9f263042ba7fcb32a94"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "always"
+        },
+        {
+          "name": "fmsynth:source-licenses",
+          "value": "none: 2"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": ".",
+            "additionalContext": "include-dir"
+          },
+          {
+            "location": "nju72343.cpp",
+            "additionalContext": "source"
+          },
+          {
+            "location": "nju72343.pio",
+            "additionalContext": "pio"
+          }
+        ]
+      }
+    },
+    {
+      "type": "library",
+      "bom-ref": "component:newlib",
+      "supplier": {
+        "name": "Red Hat, Inc. and contributors"
+      },
+      "name": "newlib",
+      "version": "4.5.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "name": "newlib licenses (COPYING.NEWLIB)",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:generic/newlib@4.5.0",
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "toolchain"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "linked in the default configuration"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "libg.a",
+            "additionalContext": "archive"
+          }
+        ]
+      }
+    },
+    {
+      "type": "library",
+      "bom-ref": "component:libgcc",
+      "supplier": {
+        "name": "Free Software Foundation"
+      },
+      "name": "libgcc",
+      "version": "15.2.1",
+      "scope": "required",
+      "licenses": [
+        {
+          "expression": "GPL-3.0-or-later WITH GCC-exception-3.1",
+          "acknowledgement": "declared"
+        }
+      ],
+      "purl": "pkg:generic/gcc@15.2.1",
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "toolchain"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "linked in the default configuration"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "libgcc.a",
+            "additionalContext": "archive"
+          }
+        ]
+      }
+    },
+    {
+      "type": "library",
+      "bom-ref": "component:libstdcxx",
+      "supplier": {
+        "name": "Free Software Foundation"
+      },
+      "name": "libstdc++",
+      "version": "15.2.1",
+      "scope": "required",
+      "licenses": [
+        {
+          "expression": "GPL-3.0-or-later WITH GCC-exception-3.1",
+          "acknowledgement": "declared"
+        }
+      ],
+      "purl": "pkg:generic/gcc@15.2.1",
+      "properties": [
+        {
+          "name": "fmsynth:root",
+          "value": "toolchain"
+        },
+        {
+          "name": "fmsynth:condition",
+          "value": "linked in the default configuration"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "libstdc++.a",
+            "additionalContext": "archive"
+          }
+        ]
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "firmware",
+      "dependsOn": [
+        "component:pico-sdk",
+        "component:freertos-kernel",
+        "component:no-os-fatfs",
+        "component:lcdmenu",
+        "component:nju72343",
+        "component:newlib",
+        "component:libgcc",
+        "component:libstdcxx"
+      ]
+    }
+  ]
+}

@@ -167,3 +167,4 @@ CMake と `config.h` の使い分け、および `ENABLE_DEBUG_PRINT` / `ENABLE_
 `main`ブランチ への push / pull request で [`.github/workflows/build.yml`](../.github/workflows/build.yml) が走る。
 pico-sdk はサブモジュールではないため CI が別途 checkout する（バージョンは `build.yml` の `PICO_SDK_REF`）。FreeRTOS-Kernel はサブモジュールなのでリポジトリと一緒に取得される。
 `PICO_BOARD=pico2` と `PICO_BOARD=pico` をデフォルトの CMake オプションでビルドし、それぞれ Artifact として保存する。
+続けて、コミット済みの SBOM（`sbom/`）とライセンス表記（`THIRD_PARTY_NOTICES.md`）がビルド結果と一致するかを検査する。依存を更新したときは `scripts/sbom/update.sh` で再生成してコミットする（[design_sbom.md](design_sbom.md)）。
