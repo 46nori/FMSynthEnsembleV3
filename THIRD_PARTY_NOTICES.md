@@ -5,7 +5,7 @@ FMSynthEnsembleV3 のファームウェアに含まれるサードパーティ�
 
 | コンポーネント | バージョン | ライセンス | 対象ボード | 備考 |
 |---|---|---|---|---|
-| pico-sdk | 2.3.0 | BSD-3-Clause | pico, pico2 |  |
+| pico-sdk | 2.3.1 | BSD-3-Clause | pico, pico2 |  |
 | TinyUSB | 0.18.0 | MIT | pico, pico2 |  |
 | CMSIS | 6.1 | Apache-2.0 | pico, pico2 |  |
 | printf (Marco Paland) | - | MIT | pico, pico2 |  |
