@@ -17,6 +17,7 @@
 #include "LcdMenu.h"
 #include "renderer/CharacterDisplayRenderer.h"
 
+#include "config.h"
 #include "display.h"
 #include "lcd_character_display_adapter.h"
 #include "midi_ipc.h"

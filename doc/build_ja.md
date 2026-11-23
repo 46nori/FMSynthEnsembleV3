@@ -114,29 +114,23 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
 
 ## 4. ビルドオプション
 
+ハードウェアや外部ライブラリに関わる機能は CMake のオプションで切り替える。既定値はルート `CMakeLists.txt` の `fmse_build_option()` だけで決まり、VS Code の `Configure CMake` でも `cmake --preset default` でも同じ値になる。
+
 | オプション | デフォルト | 説明 |
 |---|:---:|---|
 | `BUILD_MIDI_PANEL` | `ON` | MIDI パネルコントローラを有効にする |
 | `BUILD_SD_CARD` | `ON` | SD カードモジュールを有効にする |
-| `BUILD_I2C_DISPLAY` | `ON` | I2C 接続のキャラクタ LCD と LcdMenu を有効にする |
-| `ENABLE_MIDI_TIMING_STATS` | `OFF` | MIDI キュー滞留・イベント実行時間の詳細計測を有効にする |
+| `BUILD_I2C_DISPLAY` | `ON` | I2C 接続のキャラクタ LCD と LcdMenu を有効にする。メニューの操作にパネルのジョイスティックを使うので、`BUILD_MIDI_PANEL=ON` と組み合わせる |
 | `USB_MIDI_IRQ_DRIVEN` | `ON` | TinyUSB を FreeRTOS 統合モード（割り込み駆動）で動作させる。`OFF` で Pico 標準のポーリングモード |
 
-詳細計測を使う診断ビルド:
+CSM の有効化（`ENABLE_CSM`）や MIDI の詳細計測（`ENABLE_MIDI_TIMING_STATS`）などの一部の機能は、CMake ではなくソースの `src/config.h` で切り替える。変えるときは `config.h` を編集して再ビルドする。CMake と `config.h` のどちらに置くかの基準と、スイッチの一覧は [architecture.md](architecture/architecture.md#7-build-time-switch) を参照。
+
+既定と違う構成でビルドするときは `-D` で上書きする。オプションを変えたら Configure し直す。
 
 ```bash
-cmake --preset default -DENABLE_MIDI_TIMING_STATS=ON
+cmake --preset default -DBUILD_SD_CARD=OFF
 ninja -C build
 ```
-
-CMake と `config.h` の使い分け、および `ENABLE_DEBUG_PRINT` / `ENABLE_CSM` を含むスイッチ一覧は [architecture.md](architecture.md#7-build-time-switch) を参照。
-
-オプションの値は次の 2 か所で管理されており、**常に同じ値にそろえる**こと。
-
-| 場所 | Configure の契機 | 用途 |
-|---|---|---|
-| `CMakeLists.txt` の `option()` デフォルト値 | Quick Access の `Configure CMake` | VS Code からの通常ビルド |
-| `CMakePresets.json` の `cacheVariables` | Tasks `Configure: Default` / CLI `cmake --preset` | プリセット明示ビルド・構成仕様書 |
 
 ## 5. デバッガ
 
@@ -167,4 +161,4 @@ CMake と `config.h` の使い分け、および `ENABLE_DEBUG_PRINT` / `ENABLE_
 `main`ブランチ への push / pull request で [`.github/workflows/build.yml`](../.github/workflows/build.yml) が走る。
 pico-sdk はサブモジュールではないため CI が別途 checkout する（バージョンは `build.yml` の `PICO_SDK_REF`）。FreeRTOS-Kernel はサブモジュールなのでリポジトリと一緒に取得される。
 `PICO_BOARD=pico2` と `PICO_BOARD=pico` をデフォルトの CMake オプションでビルドし、それぞれ Artifact として保存する。
-続けて、コミット済みの SBOM（`sbom/`）とライセンス表記（`THIRD_PARTY_NOTICES.md`）がビルド結果と一致するかを検査する。依存を更新したときは `scripts/sbom/update.sh` で再生成してコミットする（[design_sbom.md](design_sbom.md)）。
+続けて、コミット済みの SBOM（`sbom/`）とライセンス表記（`THIRD_PARTY_NOTICES.md`）がビルド結果と一致するかを検査する。依存を更新したときは `scripts/sbom/update.sh` で再生成してコミットする（[sbom.md](process/sbom.md)）。

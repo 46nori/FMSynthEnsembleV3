@@ -1,6 +1,6 @@
 # SMF Track Counter (count_smf_tracks.py)
 
-大量のMIDIファイルから、フォーマット種別（0/1/2）とトラック数を再帰的に集計するコマンドラインツールです。SmfPlayerTaskがトラックごとに保持するFatFsハンドル数の上限（`FF_FS_LOCK`）を何件に設定すべきか、手持ちのMIDIファイル群から実測して検討するために作成しました（[doc/design_smf_player.md](../../doc/design_smf_player.md) 参照）。
+大量のMIDIファイルから、フォーマット種別（0/1/2）とトラック数を再帰的に集計するコマンドラインツールです。SmfPlayerTaskがトラックごとに保持するFatFsハンドル数の上限（`FF_FS_LOCK`）を何件に設定すべきか、手持ちのMIDIファイル群から実測して検討するために作成しました（[doc/smf/design_smf_player.md](../../doc/smf/design_smf_player.md) 参照）。
 
 ## 主な機能
 

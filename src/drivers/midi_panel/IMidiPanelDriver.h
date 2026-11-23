@@ -9,7 +9,7 @@
 #include <cstdint>
 
 /**
- * @brief ジョイスティックのレバー方向（spec_midi_panel.md 7.4節のデコード値に対応）
+ * @brief ジョイスティックのレバー方向（spec_midi_panel.md のデコード値に対応）
  * @details 単一レバー機構のため、方向は排他（同時に複数の方向にはならない）。
  *          PUSH（Center押下）は別途IsJoystickPushed()で扱う。
  */
@@ -74,7 +74,7 @@ public:
 
     /**
      * @brief ジョイスティックのレバー方向（デバウンス済み）
-     * @details spec_midi_panel.md 7章。パネル未接続時はNoneを返す。
+     * @details spec_midi_panel.md のジョイスティック仕様に対応。パネル未接続時はNoneを返す。
      */
     virtual JoystickDirection GetJoystickDirection() const = 0;
 

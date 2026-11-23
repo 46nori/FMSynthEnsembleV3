@@ -13,8 +13,8 @@ Raspberry Pi Pico 系マイコン（RP2040 / RP2350）の PIO を用いて、YM2
 
 ### 1.2 前提ドキュメント
 
-- [システム仕様](../../../../../doc/system_spec.md)
-- [FM 音源の仕様](../../../../../doc/spec_opn.md)
+- [システム仕様](../../../../../doc/hardware/spec_system.md)
+- [FM 音源の仕様](../../../../../doc/hardware/spec_opn.md)
 
 ### 1.3 公開 API 一覧
 
@@ -72,12 +72,12 @@ PIO がバスサイクルを最後まで実行するため、CPU がストロー
 
 ## 3. 対応デバイスと制約
 
-[システム仕様](../../../../../doc/system_spec.md) の GPIO 配線・CS デコード・マスタークロックと整合する。
+[システム仕様](../../../../../doc/hardware/spec_system.md) の GPIO 配線・CS デコード・マスタークロックと整合する。
 
 | 項目 | 制約 | システム仕様との対応 |
 | --- | --- | --- |
 | チップ | `FM_DEVICE_YM2203`, `FM_DEVICE_YM2608` | YM2203 @ 4 MHz、YM2608 @ 8 MHz |
-| `chip_id` | 0–3 | CS1/CS0 の 2bit → FM 音源 #0–#3（`system_spec.md` の CS 表） |
+| `chip_id` | 0–3 | CS1/CS0 の 2bit → FM 音源 #0–#3（`spec_system.md` の CS 表） |
 | GPIO | `FM_GPIO_D0`–`FM_GPIO_RD`（2–15） | FM 音源 LSI 接続表と同一 |
 | PIO 配置 | 呼び出し側が `pio` / `sm` を指定 | 本プロジェクトは `pio0`, SM0（`Platform::SetupFmModules`） |
 | `pio_hz` | 150 MHz 以下 | — |
@@ -376,7 +376,7 @@ Word 2 の `Tacc` は bits[31:12] に格納するが、`read_strobe` の `out x,
 
 ### 8.5 アドレス省略アクセスのデータサイクル読み出し（`data_read_entry`）
 
-**アドレス省略アクセス**という呼称は、YM2608 アプリケーションマニュアルが定義する「[2) データライトモード](../../../../../doc/spec_opn.md#2-データライトモード)」（[doc/spec_opn.md](../../../../../doc/spec_opn.md) に転記）の「同じアドレスへ連続アクセスする場合、2回目以降のアドレス指定を省略できる」という動作に対応する。ADPCM-DATA（`0x08`）/ PCM DATA（`0x0f`）へのストリーミングアクセス専用。
+**アドレス省略アクセス**という呼称は、YM2608 アプリケーションマニュアルが定義する「[2) データライトモード](../../../../../doc/hardware/spec_opn.md#2-データライトモード)」（[doc/hardware/spec_opn.md](../../../../../doc/hardware/spec_opn.md) に転記）の「同じアドレスへ連続アクセスする場合、2回目以降のアドレス指定を省略できる」という動作に対応する。ADPCM-DATA（`0x08`）/ PCM DATA（`0x0f`）へのストリーミングアクセス専用。
 
 **1 FIFO ワード**。アドレスサイクルを省略し、直前に別途ラッチ済みのレジスタアドレスに対してデータサイクルのみを読み出す `data_read_entry` 専用のエントリ。`status_entry` と同じ、書き込みワード下位 12 bit レイアウトを使う。対応する公開 API は `read_reg_data()`（`fm_read_reg_data_raw` 経由）。
 

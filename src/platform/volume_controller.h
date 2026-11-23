@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstddef>
 
+#include "module_info.h"
 #include "nju72343.h"
 
 namespace Platform {
@@ -20,13 +21,6 @@ namespace Platform {
  */
 class VolumeController {
 public:
-    enum class DockModuleType : uint8_t {
-        None = 0,
-        YM2203,
-        YM2608,
-        YMF288,
-    };
-
     struct VolumeValue {
         bool muted;
         int16_t db_x2;  // dB * 2. Example: -3.0dB => -6, +0.5dB => 1.
@@ -50,7 +44,8 @@ public:
     static constexpr std::array<uint8_t, kChipCount> kChipAddr = {NJU72343::CHIP_ADR0,
                                                                   NJU72343::CHIP_ADR1};
     using VolumeTable = std::array<std::array<VolumeValue, kChannelCount>, kChipCount>;
-    using DockModuleTypes = std::array<DockModuleType, kDockCount>;
+    static_assert(std::tuple_size<ModuleInfoTable>::value == kDockCount,
+                  "ModuleInfoTable must cover every dock");
 
     VolumeController(const VolumeController&)            = delete;
     VolumeController& operator=(const VolumeController&) = delete;
@@ -65,9 +60,10 @@ public:
     void InitializeEarlyMute();
 
     /**
-     * @brief Register all detected FM module types.
+     * @brief Register the detected FM module of every dock.
+     * @details Used to decide which inputs are available (e.g. YMF288 has no SSG output).
      */
-    void SetDockModuleTypes(const DockModuleTypes& types);
+    void SetModuleInfo(const ModuleInfoTable& modules);
 
     /**
      * @brief Mute FM/SSG channels while keeping unavailable inputs muted.
@@ -182,7 +178,7 @@ private:
 
     NJU72343 nju_;
     bool initialized_ = false;
-    DockModuleTypes dock_module_types_{};
+    ModuleInfoTable modules_{};
     VolumeTable volume_table_{};
 };
 

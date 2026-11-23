@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <memory>
 
+#include "build_config.h"
 #include "NullMidiPanelDriver.h"
 #include "OpnBase.h"
 

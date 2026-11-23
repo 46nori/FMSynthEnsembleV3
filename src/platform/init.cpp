@@ -17,6 +17,7 @@
 #include "YM2203.h"
 #include "YMF288.h"
 #include "volume_controller.h"
+#include "build_config.h"
 #if BUILD_SD_CARD
 #include "ff.h"
 #include "f_util.h"
@@ -294,7 +295,6 @@ std::unique_ptr<FmSystem> SetupFmModules(Error* out_error) {
     }
 
     auto fs = std::make_unique<FmSystem>();
-    VolumeController::DockModuleTypes dock_module_types{};
 
     // FMバスの初期化 (PIO0)
     if (fm_bus_init(&fs->bus, pio0, 0, kFmBusClock) != 0) {
@@ -314,7 +314,6 @@ std::unique_ptr<FmSystem> SetupFmModules(Error* out_error) {
         if (!HasRespondingSsg(&fs->devices[dock])) {
             // 未接続
             fs->modules[dock] = nullptr;
-            dock_module_types[dock] = VolumeController::DockModuleType::None;
             std::printf("Dock%d: None\n", dock);
             continue;
         }
@@ -323,25 +322,26 @@ std::unique_ptr<FmSystem> SetupFmModules(Error* out_error) {
             // タイミングは YM2608 と同等で安全。
             fm_device_init(&fs->devices[dock], &fs->bus, dock, FM_DEVICE_YM2608, kYmf288Clock);
             fs->module_ptr[dock] = std::make_unique<YMF288>(&fs->devices[dock], dock);
-            dock_module_types[dock] = VolumeController::DockModuleType::YMF288;
+            fs->module_info[dock].type = ModuleType::YMF288;
             std::printf("Dock%d: YMF288\n", dock);
         } else if (IsYm2608(&fs->devices[dock])) {
             // YM2608を検出: 本来のクロックで再初期化
             fm_device_init(&fs->devices[dock], &fs->bus, dock, FM_DEVICE_YM2608, kYm2608Clock);
             fs->module_ptr[dock] = std::make_unique<YM2608>(&fs->devices[dock], dock);
-            dock_module_types[dock] = VolumeController::DockModuleType::YM2608;
+            fs->module_info[dock].type = ModuleType::YM2608;
             std::printf("Dock%d: YM2608\n", dock);
         } else {
             // YM2203を検出: 正しいdevice typeで再初期化
             fm_device_init(&fs->devices[dock], &fs->bus, dock, FM_DEVICE_YM2203, kYm2203Clock);
             fs->module_ptr[dock] = std::make_unique<YM2203>(&fs->devices[dock], dock);
-            dock_module_types[dock] = VolumeController::DockModuleType::YM2203;
+            fs->module_info[dock].type = ModuleType::YM2203;
             std::printf("Dock%d: YM2203\n", dock);
         }
         fs->modules[dock] = fs->module_ptr[dock].get();
+        fs->module_info[dock].has_rhythm = (fs->modules[dock]->rhythm() != nullptr);
         has_any = true;
     }
-    VolumeController::GetInstance().SetDockModuleTypes(dock_module_types);
+    VolumeController::GetInstance().SetModuleInfo(fs->module_info);
     if (!has_any) {
         fm_bus_deinit(&fs->bus);  // PIOプログラムとスピンロックを解放してから返す
         if (out_error != nullptr) {

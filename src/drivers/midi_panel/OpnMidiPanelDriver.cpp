@@ -17,7 +17,7 @@ constexpr uint8_t kBlankPortA = 0x0F;
 // 列選択用のPortA値
 constexpr uint8_t kColumnPortA[4] = {0x0E, 0x0D, 0x0B, 0x07};
 
-// ジョイスティックPB上位4bitのデコード（spec_midi_panel.md 7.4節）。
+// ジョイスティックPB上位4bitのデコード（spec_midi_panel.md）。
 // decoded = (pb_raw >> 4) ^ 0x0F。bit2=DOWN(/B直結)、bit3=PUSH(/Center直結)、
 // bit0/bit1はUP・LEFT・RIGHTのAND合成（U1/U2出力）で、両方立つとLEFTになる。
 JoystickDirection DecodeJoystickDirection(uint8_t pb_raw) {
@@ -171,9 +171,11 @@ void OpnMidiPanelDriver::UpdateResetFlash(uint32_t now_ms) {
 // 方向は単一レバー機構のため排他だが、PUSHは方向と独立な接点なので別個に扱う。
 //
 // bit6(/B)・bit7(/Center)はANDゲートを介さない直結・高インピーダンスでノイズに弱く
-// (spec_midi_panel.md 7.5節)、PUSH操作中に方向ビットへ電気的な回り込みが生じて
-// 幽霊DOWN等が安定値になり、意図しないカーソル移動を招きうる。そのためPUSHの
-// 生ビットが立っている間は方向の生値サンプリング自体を止め、直前の安定値を保持する。
+// (spec_midi_panel.md の既知の制約)、PUSH操作中に方向ビットへ電気的な回り込みが生じて
+// レバーを倒していないのにDOWN等の方向が読み取られる（ゴースト入力）。これがデバウンスを
+// 通って確定すると、意図しないカーソル移動を招く。そのため、デバウンス前の
+// PUSHビットが立っている間は方向ビットを読み取らず（デバウンスの判定にも入れず）、
+// 直前に確定した方向を保持する。
 void OpnMidiPanelDriver::UpdateJoystickInput(uint8_t pb_raw, uint32_t now_ms) {
     const bool raw_push = DecodeJoystickPush(pb_raw);
 
@@ -225,7 +227,7 @@ void OpnMidiPanelDriver::Tick() {
     }
 
     // ジョイスティック(PB上位4bit)はマトリックススキャンと無関係に常時有効
-    // (spec_midi_panel.md 7.5節)なので、列に関わらず毎Tick()でデコードする。
+    // (spec_midi_panel.md)なので、列に関わらず毎Tick()でデコードする。
     UpdateJoystickInput(pb_raw, now_ms);
 
     RebuildSwitchBitmap();

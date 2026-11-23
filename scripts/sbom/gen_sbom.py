@@ -50,11 +50,11 @@ def read_cmake_cache(build_dir):
 
 
 def option_defaults():
-    """ルート CMakeLists.txt の option() 宣言から既定値を得る。"""
+    """ルート CMakeLists.txt の fmse_build_option()（または option()）宣言から既定値を得る。"""
     with open(os.path.join(REPO, "CMakeLists.txt"), encoding="utf-8") as f:
         text = f.read()
     opts = {}
-    for m in re.finditer(r'^\s*option\(\s*(\w+)\s+"[^"]*"\s+(ON|OFF)\s*\)', text, re.M):
+    for m in re.finditer(r'^\s*(?:fmse_build_)?option\(\s*(\w+)\s+"[^"]*"\s+(ON|OFF)\s*\)', text, re.M):
         opts[m.group(1)] = m.group(2)
     return opts
 

@@ -11,6 +11,8 @@
 #include <memory>
 
 #include "OpnBase.h"
+#include "build_config.h"
+#include "module_info.h"
 
 /**
  * @brief RaspberryPi Pico/Pico2 プラットフォーム初期化
@@ -33,6 +35,7 @@ struct FmSystem {
     std::array<fm_device_t, 4> devices{};
     std::array<std::unique_ptr<OpnBase>, 4> module_ptr{};
     std::array<OpnBase*, 4> modules{};
+    ModuleInfoTable module_info{};  ///< Dock ごとのモジュール情報（app からはこちらを参照する）
 };
 
 /**

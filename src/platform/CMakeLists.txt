@@ -31,16 +31,11 @@ target_link_libraries(platform PUBLIC
 target_link_libraries(platform PUBLIC
     tinyusb_device
     nju72343
+    fmse_config
 )
 if(BUILD_SD_CARD)
-    target_compile_definitions(platform PUBLIC BUILD_SD_CARD=1)
     target_link_libraries(platform PUBLIC fatfs smf)
-else()
-    target_compile_definitions(platform PUBLIC BUILD_SD_CARD=0)
 endif()
 if(BUILD_I2C_DISPLAY)
-    target_compile_definitions(platform PUBLIC BUILD_I2C_DISPLAY=1)
     target_link_libraries(platform PUBLIC hardware_i2c display lcdmenu)
-else()
-    target_compile_definitions(platform PUBLIC BUILD_I2C_DISPLAY=0)
 endif()

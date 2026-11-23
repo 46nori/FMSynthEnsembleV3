@@ -1,6 +1,6 @@
 # Generated Cmake Pico project file
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.18)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -27,14 +27,15 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 
 # ====================================================================================
 # Project Build Configuration
-#   These options control which features are compiled in.
-#   Keep in sync with CMakePresets.json cacheVariables.
+#   ファームウェアの構造（外部ライブラリ・SDK の構成・特定ハードウェアに依存するコンポーネントの
+#   有無）を決めるオプション。ここが唯一の定義元で、値は build_config.h としてソースに渡る。
+#   アプリケーションの調整値は src/config.h に置く。
 # ====================================================================================
-option(USB_MIDI_IRQ_DRIVEN  "Enable TinyUSB event-driven wait mode for USB MIDI" ON)
-option(BUILD_MIDI_PANEL     "Enable MIDI panel controller"                       ON)
-option(BUILD_SD_CARD        "Enable SD card stack"                               ON)
-option(BUILD_I2C_DISPLAY    "Enable I2C display support"                         ON)
-option(ENABLE_MIDI_TIMING_STATS "Enable detailed MIDI timing instrumentation"    OFF)
+include(cmake/build_config.cmake)
+fmse_build_option(USB_MIDI_IRQ_DRIVEN "Enable TinyUSB event-driven wait mode for USB MIDI" ON)
+fmse_build_option(BUILD_MIDI_PANEL    "Enable MIDI panel controller"                       ON)
+fmse_build_option(BUILD_SD_CARD       "Enable SD card stack"                               ON)
+fmse_build_option(BUILD_I2C_DISPLAY   "Enable I2C display support"                         ON)
 # ====================================================================================
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
@@ -56,12 +57,7 @@ else()
     set(TINYUSB_OPT_OS OPT_OS_PICO CACHE STRING "TinyUSB OSAL mode" FORCE)
 endif()
 
-message(STATUS "USB_MIDI_IRQ_DRIVEN: ${USB_MIDI_IRQ_DRIVEN}")
-message(STATUS "BUILD_MIDI_PANEL:    ${BUILD_MIDI_PANEL}")
-message(STATUS "BUILD_SD_CARD:       ${BUILD_SD_CARD}")
-message(STATUS "BUILD_I2C_DISPLAY:   ${BUILD_I2C_DISPLAY}")
-message(STATUS "MIDI_TIMING_STATS:   ${ENABLE_MIDI_TIMING_STATS}")
-message(STATUS "TINYUSB_OPT_OS:      ${TINYUSB_OPT_OS}")
+message(STATUS "TINYUSB_OPT_OS: ${TINYUSB_OPT_OS}")
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
@@ -93,16 +89,15 @@ include(FreeRTOS_Kernel_import.cmake)
 # External libraries (git submodules)
 add_subdirectory(extern)
 
-if(USB_MIDI_IRQ_DRIVEN)
-    add_compile_definitions(USB_MIDI_IRQ_DRIVEN=1)
-else()
-    add_compile_definitions(USB_MIDI_IRQ_DRIVEN=0)
-endif()
-if(ENABLE_MIDI_TIMING_STATS)
-    add_compile_definitions(ENABLE_MIDI_TIMING_STATS=1)
-else()
-    add_compile_definitions(ENABLE_MIDI_TIMING_STATS=0)
-endif()
+# 構造オプションを build_config.h に書き出し、src/config.h と合わせてソースから参照できるようにする。
+# fmse_config を link したターゲット（とその利用者）だけが src/ と生成ディレクトリを include パスに持つ。
+set(FMSE_GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
+fmse_generate_build_config(${FMSE_GENERATED_DIR})
+add_library(fmse_config INTERFACE)
+target_include_directories(fmse_config INTERFACE
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${FMSE_GENERATED_DIR}
+)
 
 # Device drivers
 add_subdirectory(src/smf)
@@ -168,6 +163,7 @@ target_link_libraries(FMSynthEnsembleV3
         platform
         usb
         synth
+        fmse_config
         FreeRTOS-Kernel
         FreeRTOS-Kernel-Heap4)
 if(BUILD_SD_CARD)

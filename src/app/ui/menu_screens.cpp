@@ -14,6 +14,7 @@
 #include "LcdMenu.h"
 #include "MenuScreen.h"
 
+#include "config.h"
 #include "info_screen_task.h"
 #include "menu_context.h"
 #include "screen_settings.h"
