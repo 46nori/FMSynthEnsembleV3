@@ -1,4 +1,4 @@
-add_library(fatfs STATIC hw_config.c)
+add_library(fatfs STATIC hw_config.c sdio_disabled.c)
 
 # Override extern/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico's ffconf.h without editing
 # extern/ (AGENTS.md). This include directory must be added before the

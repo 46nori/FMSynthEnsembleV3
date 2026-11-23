@@ -55,7 +55,7 @@ flowchart TD
 |---|---|---|
 | コンパイルされるソース | `compile_commands.json` | 取る |
 | インクルードディレクトリ | `compile_commands.json` の `-I` / `-isystem` / `-iquote` | 取る |
-| pio プログラム | `ninja -t inputs <elf>` の `*.pio` | 取る |
+| pio プログラム | `ninja -t inputs <elf>` の `*.pio`。基準構成の ELF に `.program` ごとのシンボル `<name>_program` がないもの（リンクされていない pio）は除く | 取る（除外は基準構成の判定を使う） |
 | リンカスクリプト | `ninja -t inputs <elf>` の `*.ld`、リンクコマンドの `-T` / `--script`、そこからの `INCLUDE` | 取る |
 | リンクされたツールチェーンのライブラリ | リンカ map の "Archive member included" 節 | 取らない（リンク結果が必要なため） |
 | pico-sdk・ツールチェーンの場所 | `CMakeCache.txt` | - |
@@ -187,5 +187,5 @@ scripts/sbom/impact.py tinyusb 0.21.0 --list-unused
 
 - ツールチェーンのライブラリ（newlib・libgcc・libstdc++）は、既定構成のリンク結果だけで判定している。構成による違いは記録しない。
 - newlib のライセンス本文は NOTICES に載せず、`COPYING.NEWLIB` への参照だけにしている。newlib はファイルごとに異なる BSD 系ライセンスの集合で、リンクされたメンバーごとの表記は扱っていない。
-- SDIO ドライバ（`src/sd_driver/SDIO`）は、上流 README によれば ZuluSCSI-firmware（GPL-3.0-or-later）由来である。一方、上流リポジトリ全体は Apache-2.0 と宣言されている。SBOM では `pedigree.ancestors` と `fmsynth:license-review` にこの事実を記録している。SD カードは SPI 接続だが、SDIO ドライバのコードもリンクされている。
+- no-OS-FatFS の SDIO ドライバ（`src/sd_driver/SDIO`）は、上流 README によれば ZuluSCSI-firmware（GPL-3.0-or-later）由来である。一方、上流リポジトリ全体は Apache-2.0 と宣言されている。SD カードは SPI でのみ接続するので、SDIO ドライバはビルドから外している（[architecture.md の drivers/storage/](architecture.md#driversstorage)）。SBOM では `scope: excluded` とし、由来を `pedigree.ancestors` と `fmsynth:license-review` に記録している。SDIO 用の pio プログラム（`rp2040_sdio.pio`）は上流の CMake がヘッダを生成するが、どこからも使われずリンクされないので、SBOM でも除外される。
 - SBOM が CycloneDX 1.6 のスキーマに適合するかは、自動では検証していない。

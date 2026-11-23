@@ -195,6 +195,8 @@ RW1063-0A 互換の I2C キャラクタ LCD（ACM2004D-FLW-FBW-IIC）を制御�
 
 `hw_config.c` に SD カードの SPI ピン設定を記述する。no-OS-FatFS ライブラリが提供するコールバック構造体を実装する形式。
 
+SD カードは SPI でのみ接続するので、no-OS-FatFS の SDIO ドライバ（`sd_driver/SDIO/*.c`）はビルドしない。SDIO ドライバは ZuluSCSI-firmware（GPL-3.0-or-later）由来で、使わないコードをファームに含めないためである。`extern/CMakeLists.txt` で上流ターゲットのソース一覧から外し、共通部（`sd_card.c`）が参照する `sd_sdio_ctor()` と `rp2040_sdio_get_sd_status()` は `sdio_disabled.c` で定義する。どちらも SPI 接続のカードでは呼ばれない。
+
 #### drivers/usb/
 
 | ファイル | 役割 |

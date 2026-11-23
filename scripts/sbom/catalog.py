@@ -216,7 +216,8 @@ COMPONENTS = [
             "license_texts": ["../../ZuluSCSI-firmware/LICENSE"],
         }],
         "review": "Derived from ZuluSCSI-firmware (GPL-3.0-or-later) according to the upstream README, "
-                  "while the upstream repository declares Apache-2.0. License compatibility needs review.",
+                  "while the upstream repository declares Apache-2.0. Not built: the SD card is connected "
+                  "via SPI only, and the SDIO sources are removed from the build in extern/CMakeLists.txt.",
     },
     {
         "key": "no-os-fatfs-spi",

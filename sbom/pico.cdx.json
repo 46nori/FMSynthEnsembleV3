@@ -1639,7 +1639,7 @@
             "name": "Carl John Kugler III"
           },
           "name": "no-OS-FatFS SDIO driver",
-          "scope": "required",
+          "scope": "excluded",
           "licenses": [
             {
               "license": {
@@ -1662,34 +1662,10 @@
               "value": "src/sd_driver/SDIO"
             },
             {
-              "name": "fmsynth:condition",
-              "value": "BUILD_SD_CARD=ON"
-            },
-            {
               "name": "fmsynth:license-review",
-              "value": "Derived from ZuluSCSI-firmware (GPL-3.0-or-later) according to the upstream README, while the upstream repository declares Apache-2.0. License compatibility needs review."
-            },
-            {
-              "name": "fmsynth:source-licenses",
-              "value": "none: 3"
+              "value": "Derived from ZuluSCSI-firmware (GPL-3.0-or-later) according to the upstream README, while the upstream repository declares Apache-2.0. Not built: the SD card is connected via SPI only, and the SDIO sources are removed from the build in extern/CMakeLists.txt."
             }
           ],
-          "evidence": {
-            "occurrences": [
-              {
-                "location": "rp2040_sdio.c",
-                "additionalContext": "source; only when BUILD_SD_CARD=ON"
-              },
-              {
-                "location": "rp2040_sdio.pio",
-                "additionalContext": "pio; only when BUILD_SD_CARD=ON"
-              },
-              {
-                "location": "sd_card_sdio.c",
-                "additionalContext": "source; only when BUILD_SD_CARD=ON"
-              }
-            ]
-          },
           "pedigree": {
             "ancestors": [
               {

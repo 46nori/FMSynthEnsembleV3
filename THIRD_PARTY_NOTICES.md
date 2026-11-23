@@ -15,7 +15,6 @@ FMSynthEnsembleV3 のファームウェアに含まれるサードパーティ�
 | FreeRTOS-Kernel RP2350_ARM_NTZ port | - | MIT AND BSD-3-Clause | pico2 |  |
 | no-OS-FatFS-SD-SDIO-SPI-RPi-Pico | v3.6.2-16-gd5e4534 | Apache-2.0 | pico, pico2 |  |
 | FatFs | R0.15 | BSD-1-Clause | pico, pico2 |  |
-| no-OS-FatFS SDIO driver | - | Apache-2.0 | pico, pico2 | 要確認: 下記参照 |
 | no-OS-FatFS SPI driver | - | Apache-2.0 | pico, pico2 |  |
 | LcdMenu | 5.13.0 | MIT | pico, pico2 |  |
 | NJU72343-library | main@2026-04-29 | MIT | pico, pico2 |  |
@@ -634,40 +633,6 @@ FatFs has being developped as a personal project of the author, ChaN. It is free
 /----------------------------------------------------------------------------*/
 
 Therefore FatFs license is one of the BSD-style licenses, but there is a significant feature. FatFs is mainly intended for embedded systems. In order to extend the usability for commercial products, the redistributions of FatFs in binary form, such as embedded code, binary library and any forms without source code, do not need to include about FatFs in the documentations. This is equivalent to the 1-clause BSD license. Of course FatFs is compatible with the most of open source software licenses include GNU GPL. When you redistribute the FatFs source code with changes or create a fork, the license can also be changed to GNU GPL, BSD-style license or any open source software license that not conflict with FatFs license.
-```
-
-## no-OS-FatFS SDIO driver
-
-> Derived from ZuluSCSI-firmware (GPL-3.0-or-later) according to the upstream README, while the upstream repository declares Apache-2.0. License compatibility needs review.
-
-Derived from ZuluSCSI-firmware:
-
-```text
-Software
------
-
-ZuluSCSI™ - Copyright (c) 2022 Rabbit Hole Computing™
-
-ZuluSCSI™ is based on both SCSI2SD V6 and BlueSCSI codebases,
-and licensed under the GPL version 3 or any later version.
-
-https://www.gnu.org/licenses/gpl-3.0.html
-----
-SCSI2SD code is Copyright (C) 2016-2022 Michael McMaster.
-BlueSCSI code is Copyright (C) 2021 Eric Helgeson.
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ```
 
 ## no-OS-FatFS SPI driver

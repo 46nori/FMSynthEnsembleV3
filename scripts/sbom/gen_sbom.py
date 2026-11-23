@@ -94,6 +94,27 @@ def ninja(build_dir, *args):
                           capture_output=True, text=True).stdout
 
 
+def linked_pio(build_dir, elf, pio_files):
+    """pio_files のうち、プログラムがファームにリンクされた .pio を返す。
+
+    pico_generate_pio_header() はヘッダを生成するだけなので、どこからも使われない pio
+    プログラムはファームに入らない（例: SDIO ドライバをビルドから外したあとの rp2040_sdio.pio）。
+    pioasm は .program <name> ごとに <name>_program を static const で生成するので、
+    そのシンボルが ELF にあるかで判定する（C++ から使うと _ZL<len> 付きの名前になる）。
+    """
+    nm = read_cmake_cache(build_dir).get("CMAKE_NM") or "nm"
+    out = subprocess.run([nm, os.path.join(build_dir, elf)], check=True,
+                         capture_output=True, text=True).stdout
+    symbols = {re.sub(r"^_ZL\d+", "", l.split()[-1]) for l in out.splitlines() if l.strip()}
+    result = set()
+    for path in pio_files:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            names = re.findall(r"^\s*\.program\s+(\w+)", f.read(), re.M)
+        if any(f"{n}_program" in symbols for n in names):
+            result.add(path)
+    return result
+
+
 def build_inputs(build_dir, elf, suffixes):
     """ファームウェアのビルドグラフに含まれる入力のうち、指定拡張子のものを返す（ビルド不要）。"""
     out = ninja(build_dir, "-t", "inputs", elf)
@@ -310,6 +331,12 @@ def build_sbom(args):
     elf = f"{cache.get('CMAKE_PROJECT_NAME', catalog.PROJECT['name'])}.elf"
     toolchain = env.roots["toolchain"]
     base_files = analyze_config(env.build_dir, elf)
+    # プログラムがリンクされていない pio は使われていない。リンク結果はビルド済みの
+    # 基準構成でしか分からないので、ここで判定して反転構成にも同じ除外を適用する
+    base_pio = {f for f, kind in base_files.items() if kind == "pio"}
+    unused_pio = base_pio - linked_pio(env.build_dir, elf, base_pio)
+    for f in unused_pio:
+        del base_files[f]
     # ツールチェーンのライブラリはリンク結果からしか分からないので、既定構成のビルドだけで判定する
     map_path = os.path.join(env.build_dir, f"{elf}.map")
     if not os.path.isfile(map_path):
@@ -326,7 +353,10 @@ def build_sbom(args):
         flipped = "OFF" if defaults[opt] == "ON" else "ON"
         if cache_bool(read_cmake_cache(d).get(opt, defaults[opt])) != flipped:
             sys.exit(f"error: {d}: {opt} is not {flipped}")
-        variants[opt] = (flipped, analyze_config(os.path.realpath(d), elf))
+        vfiles = analyze_config(os.path.realpath(d), elf)
+        for f in unused_pio:
+            vfiles.pop(f, None)
+        variants[opt] = (flipped, vfiles)
 
     comps = [dict(c) for c in catalog.COMPONENTS]
     by_key = {c["key"]: c for c in comps}

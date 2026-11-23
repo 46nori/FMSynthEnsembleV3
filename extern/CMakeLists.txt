@@ -2,6 +2,12 @@
 add_subdirectory(NJU72343-library)
 if(BUILD_SD_CARD)
     add_subdirectory(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src ${CMAKE_BINARY_DIR}/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico)
+    # SD カードは SPI でのみ接続する。SDIO ドライバは ZuluSCSI-firmware (GPL-3.0-or-later)
+    # 由来のため、ソースをビルドから外す。共通部 (sd_card.c) が参照する関数は
+    # src/drivers/storage/sdio_disabled.c で定義する
+    get_target_property(_fatfs_sources no-OS-FatFS-SD-SDIO-SPI-RPi-Pico INTERFACE_SOURCES)
+    list(FILTER _fatfs_sources EXCLUDE REGEX "/sd_driver/SDIO/[^/]+\\.c$")
+    set_target_properties(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico PROPERTIES INTERFACE_SOURCES "${_fatfs_sources}")
 endif()
 
 # LcdMenu (Arduinoライブラリ、CMakeLists.txtを持たないため自前でadd_libraryする)
