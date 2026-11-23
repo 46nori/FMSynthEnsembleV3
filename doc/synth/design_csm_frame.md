@@ -1,0 +1,214 @@
+# CSM フレーム処理設計仕様
+
+OPN の CSM（複合正弦波音声合成）におけるフレーム処理の設計仕様である。`MidiEngineTask` の Note On でトリガされるフレーム処理を、**専用タスクと FM `/IRQ` 割り込み**で並列実行するための設計をまとめる。CSM 対応チップと CH3 リザーブによる FM 発音数の減少は [spec_fm_chip.md](../hardware/spec_fm_chip.md)。
+
+## 目次
+
+1. [実装との対応](#1-実装との対応)
+2. [前提: NoteVoice との相違点](#2-前提-notevoice-との相違点)
+3. [並行性](#3-並行性)
+4. [コンポーネント構成](#4-コンポーネント構成)
+5. [データフロー](#5-データフロー)
+6. [同期プリミティブ](#6-同期プリミティブ)
+7. [ISR→CsmFrameTask レイテンシと音質](#7-isrcsmframetask-レイテンシと音質)
+8. [アンチパターン（明示的な非目標）](#8-アンチパターン明示的な非目標)
+9. [既知の制約](#9-既知の制約)
+
+---
+
+## 1. 実装との対応
+
+本書の論理構成は、現行コードの次にマッピングできる。
+
+| 論理 | 主な実装ファイル |
+|------|------------------|
+| CSM 用 IPC（キュー・シグナル API） | `src/app/csm_ipc.h`, `src/app/csm_ipc.cpp` |
+| フレーム専用タスク | `src/app/csm_frame_task.h`, `src/app/csm_frame_task.cpp` |
+| ボイス／ISR／`UpdateFrame` | `src/synth/voice/CsmVoice.h`, `CsmVoice.cpp` |
+| FM IRQ GPIO・ISR 登録 | `src/platform/isr.h`（`FM_IRQ`）、`CsmVoice::AttachIrq()` → `Platform::AttachIsrCallback`（CsmFrameTask 起動時 / Core1） |
+| Start/Stop 送信先インターフェース | `src/synth/voice/ICsmEventSink.h`（synth 側が定義）、`src/app/csm_ipc.h` の `CsmEventSink`（app 側が実装、`CsmSignalStart`/`CsmSignalStop` へ転送） |
+| タスク優先度・スタック・コア | `src/app/task_config.h`、`src/app/main.cpp` |
+
+MIDI コア間キュー（`gMidiQueue` / `gMidiControlQueue`）は `midi_ipc.h` で定義され、CSM フレームティックとは別系統である（[3 章](#3-並行性)）。
+
+---
+
+## 2. 前提: NoteVoice との相違点
+
+- **NoteOn まで**: `CsmVoice` は NoteOn がトリガになるまで、`NoteVoice` と同様の契約でよい（チャンネル／ボイス割当・パラメータ適用など）。ただし CSM モードのチャンネルにおける Note On 自体は [design_voice_allocation.md 7.1 節](design_voice_allocation.md#71-note-on) の同音再利用フロー（holdQueue/activeQueue の key 一致判定・Allocator 経由の調停）を通らず、チャンネルの activeQueue 先頭 CsmVoice への無条件 Retrigger で処理する専用経路を持つ。CsmVoice はチップあたり最大 1 個（`VoiceLimits::kMaxCsmVoices`）のため、この簡略化による音の欠落・二重発音は生じない
+- **NoteOn 以降**: 発音を FM 音源 LSI 任せにできる NoteVoice と異なり、CsmVoice ではフレーム制御が必要になる
+
+---
+
+## 3. 並行性
+
+- **MidiEngineTask**: USB／midi_ipc 経由の MIDI イベント、`MidiProcessor::Exec`、パネル連動など
+- **CSM フレーム処理**: FM 音源のタイマ周期にロックされた **リアルタイムストリーム**。「MidiEngineTask と別の並列処理」として扱う
+
+したがって、Timer B に同期したフレーム処理を MIDI イベントキューに投入して順番に処理する発想は **設計上の誤り** とする（キューは MIDI のドメインであり、CSM のフレームティックではない）。
+
+---
+
+## 4. コンポーネント構成
+
+### 4.1 CsmFrameTask（専用タスク）
+
+| 項目 | 設計 | 実装 |
+|------|------|------|
+| 役割 | CSM の **再生開始・フレーム処理・停止** を担当する。起動時に FM `/IRQ` を Core1 へ登録する | `AttachIrq()`、`Start()`、`UpdateFrame(true/false)`、`Stop()` を集約 |
+| アフィニティ | **Core1**（`MidiEngineTask` と同コアでよいが別タスク） | `main.cpp` で `AFFINITY_CORE1` |
+| 優先度 | **`MidiEngineTask` より高い**（フレーム処理を MIDI 処理に食わせない） | `TASK_PRIORITY_CSM` > `TASK_PRIORITY_MIDI_ENGINE`（`task_config.h`） |
+| 待機 | CSM 専用キューで複数イベントを順序付きで待つ（[6 章](#6-同期プリミティブ)） | `CsmIpcReceive(..., portMAX_DELAY)` |
+| 起床時の動作 | イベント種別に応じて `Start()`・`UpdateFrame(false)`・停止処理を実行 | [5.3 節](#53-起床後の分岐) |
+
+FreeRTOS 上のタスク名は `"CsmFrame"`（デバッグ用）。
+
+CSM イベントは `FrameTick` / `Start` / `Stop` の順序が意味を持つため、FreeRTOS の EventGroup は使わない。EventGroup はイベントの種類ごとに 1 ビットを立てるだけなので、同じ種類のイベントが続けて届くと 1 つにまとまり、どの順に届いたかも残らない。代わりにキューを使い、キュー長は実装側で固定する。
+
+`ENABLE_CSM_START_PREEMPT != 0` の場合、`Start` は新しい発音の境界として扱う。Start 投入時に世代を進め、Start 処理が完了するまで FM IRQ 由来の `FrameTick` は投入しない。すでにキューに残っていた古い世代の `FrameTick` / `Stop` / `Start` は `CsmFrameTask` 側で無視する。`ENABLE_CSM_START_PREEMPT == 0` の場合は通常の FIFO 順で処理する。
+
+### 4.2 MidiEngineTask（既存）
+
+| 項目 | 内容 |
+|------|------|
+| CSM NoteOn 時 | MIDI 経路でのチャンネル／ボイス処理のうち MidiEngineTask に残す部分を実行したうえで、ボイス側が `CsmSignalStart` により CsmFrameTask へ再生開始を依頼する。初回フレーム処理とタイマ開始は CsmFrameTask 側で行う |
+| しないこと | フレームティックを `gMidiQueue` に載せない。CSM 向けの開始／停止は `csm_ipc` で CsmFrameTask に渡す |
+
+### 4.3 FM `/IRQ` 割り込み（ISR）
+
+| 項目 | 内容 |
+|------|------|
+| トリガ | FM `/IRQ`（全 Dock の Wired-OR を GPIO26 に接続、`isr.h` の `FM_IRQ`） |
+| 登録 | Pico SDK の GPIO IRQ は登録コアで走る。`CsmVoice::Init()`（main / Core0）では登録せず、`CsmFrameTask` 起動時に `CsmVoice::AttachIrq()` → `Platform::AttachIsrCallback` で Core1 へ登録する。Core1 は SDK の per-core IRQ priority 初期化を通らないため、`IO_IRQ_BANK0` を `PICO_DEFAULT_IRQ_PRIORITY` にする（優先度 0 のまま `xQueueSendToBackFromISR` すると FreeRTOS が assert する） |
+| ISR でやること | フレーム処理は行わない。`CsmSignalFrameTick()` で `FrameTick` イベントを投入し CsmFrameTask を起床させるのみ。実装では `CsmVoice::IrqTickThunk` → `CsmSignalFrameTick()` |
+| ISR でやらないこと | 重い FM アクセス、長い処理、ミューテックス |
+
+---
+
+## 5. データフロー
+
+```mermaid
+sequenceDiagram
+    participant ENGINE as MidiEngineTask
+    participant VOICE as CsmVoice
+    participant ISR as FM /IRQ ISR
+    participant Q as gCsmEventQueue
+    participant TASK as CsmFrameTask
+
+    ENGINE->>VOICE: NoteOn
+    VOICE->>Q: CsmSignalStart()
+    Q->>TASK: Start
+    TASK->>VOICE: Start() / UpdateFrame(true)
+    loop Timer B 周期
+        ISR->>Q: CsmSignalFrameTick()
+        Q->>TASK: FrameTick
+        TASK->>VOICE: UpdateFrame(false)
+    end
+    ENGINE->>VOICE: NoteOff（通常）
+    Note over VOICE: ENABLE_CSM_STOP_IMMEDIATE 時のみ Stop
+    ENGINE->>VOICE: AllNoteOff / ForceOff / Reset
+    VOICE->>Q: CsmSignalStop()
+    Q->>TASK: Stop
+    TASK->>VOICE: Stop()
+```
+
+再生データの終端・停止条件を満たせば CsmFrameTask 側で自動的に発音を停止する（フレーム終端・`stop_playback_locked` 等）。このループが CSM 再生中は Timer B に同期して繰り返される。
+
+通常の NoteOff は `ENABLE_CSM_STOP_IMMEDIATE`（既定 0）に従う。無効時はフレーム終端まで再生を続ける。一方 CC#120 All Sound Off / CC#123 All Note Off / チャンネル無効化 / `ForceOff` / `Reset` / ボイス奪取は、同フラグに関わらず `SignalCsmStop()` を投入する。
+
+### 5.1 CSM 専用キューによる統合
+
+`CsmFrameTask` は単一のブロック点で `gCsmEventQueue` を待ち、次のイベントを投入順に処理する。
+
+| イベント | 公開 API | 発行元 | 意味 |
+|----------|---------|--------|--------------|
+| `FrameTick` | `CsmSignalFrameTick()` | ISR | Timer B 周期に相当する `UpdateFrame(false)` 用の 1 ステップ |
+| `Stop` | `CsmSignalStop()` | `CsmVoice::ForceOff` / `Reset`、および `ENABLE_CSM_STOP_IMMEDIATE` 時の `NoteOff` | 再生中断・ボイス停止を CsmFrameTask に依頼（`voice->Stop()`） |
+| `Start` | `CsmSignalStart()` | `CsmVoice::NoteOn` | 初回 `UpdateFrame(true)` を含む再生開始の起動 |
+
+待ち合わせには `CsmIpcReceive()` を使用する。FreeRTOS の `xQueueReceive()` でイベントを 1 件ずつ取り出し、1 タスクが一本の待機ループでティック・停止・開始をまとめて扱う。
+
+### 5.2 MidiEngineTask / CsmVoice から CsmFrameTask へ渡すもの
+
+`CsmVoice` は Start/Stop を `ICsmEventSink`（`src/synth/voice/ICsmEventSink.h`）越しに送る。実体は app 層の `CsmEventSink`（`src/app/csm_ipc.h`/`.cpp`）で、`main.cpp` が `CsmVoice::SetEventSink()` で注入する。`synth` は `csm_ipc.h` の関数を直接呼ばない（FrameTick を除く。[4.3 節](#43-fm-irq-割り込みisr)）。
+
+- All Sound Off・リセット・ボイス奪取等の強制停止は `ForceOff()` → `event_sink_->SignalCsmStop()` で順序付きイベントとして伝える。実際の停止処理は `CsmFrameTask` が行う
+- 通常 NoteOff は `ENABLE_CSM_STOP_IMMEDIATE != 0` のときだけ Stop を投入する。無効時はフレーム終端まで再生を続ける
+- CSM の NoteOn は `CsmVoice::NoteOn` が `event_sink_->SignalCsmStart()` で開始イベントを投入し、`Start()` / `UpdateFrame(true)` を CsmFrameTask に集約する。`CsmEventSink::SignalCsmStart()` が `CsmSignalStart()` へ転送する
+
+### 5.3 起床後の分岐
+
+`csm_frame_task.cpp` は `gCsmEventQueue` から `CsmEvent` を 1 件ずつ受け取り、投入順に処理する。
+
+1. `FrameTick` → `voice->UpdateFrame(false)`
+2. `Start` → `voice->Start(...)`
+3. `Stop` → `voice->Stop()`
+
+EventGroup ではなくキューで受け取るため、STOP→START、START→STOP、古い tick→START のような順序はキュー投入順のまま保持される。再生前または停止後に届いた `FrameTick` は `running == false` のため無視される。
+
+`ENABLE_CSM_START_PREEMPT != 0` で新しい `Start` が来た場合は、現在の発音と残りのフレーム処理を捨てる。`Start` はキュー先頭へ投入され、世代番号が一致しない古い `FrameTick` は処理しない。キュー満杯で `Start` を投入できない場合は、古いキュー内容を破棄して `Start` を再投入する。
+
+---
+
+## 6. 同期プリミティブ
+
+| 機構 | 順序保持 | 備考 |
+|------|----------|------|
+| FreeRTOS Queue | あり | `gCsmEventQueue`。ISR は `xQueueSendToBackFromISR`（`CsmSignalFrameTick`）。タスク側は `xQueueSendToBack`（`CsmSignalStop` / `CsmSignalStart`）。START/STOP/TICK の順序と回数を保持する |
+
+初期化は `CsmIpcInitialize()`（`main` で `MidiIpcInitialize()` の後に呼ぶ）。
+
+`ENABLE_CSM_START_PREEMPT != 0` の `Start` については通常 FIFO ではなく `xQueueSendToFront` を使う。音素片の再トリガを発音境界として扱い、古いフレーム更新より新しい発音開始を優先するためである。
+
+---
+
+## 7. ISR→CsmFrameTask レイテンシと音質
+
+### 7.1 なぜレイテンシがクリティカルか
+
+フレーム境界は FM音源LSI のタイマにロックされている。FM `/IRQ` ISR で通知してから `UpdateFrame(false)` が実際に走り始めるまでの時間（スケジューラ遅延＋コンテキストスイッチ）が揺れると、チップへのパラメータ書き込みタイミングがフレーム周期からずれ、**ジッタ／タイミング誤差として音質に直結する**。したがってこの経路は極小レイテンシ・極小ジッタを設計目標とする。評価指標としては、CSM 有効時のフレーム間隔ジッタ（IRQ エッジ発生から `UpdateFrame` 先頭までの分布）を用いる。
+
+### 7.2 レイテンシの構成要素
+
+おおまかに次の区間の和として捉える。
+
+1. **ISR 内処理時間**: イベント投入（およびカーネルへの起床通知）のみとし、できるだけ短く固定長に近づける
+2. **IRQ 終了から CsmFrameTask が実行可能になるまで**: 同一コア上のより高優先タスク・クリティカルセクションの有無
+3. **CsmFrameTask へのコンテキストスイッチ**: 優先度・レディキュー実装・マルチコア時のコア間の関係
+
+### 7.3 優先度・スケジューリング
+
+- **CsmFrameTask は `MidiEngineTask` より必ず高優先度**とする。これにより、Core1 上で MIDI の長い処理列が `UpdateFrame` の開始を後ろへ押し出すことを避ける
+- CSM 再生中に CsmFrameTask と同優先度のタスクを増やさない。同一コア上で同優先度が並ぶと時間分割になり、フレームごとの開始時刻がブレる
+- ISR と CsmFrameTask は同一コア（Core1）に寄せる。クロスコアでのタスク割り当てはスケジューリングとキャッシュの観点で追加のばらつき要因になる。そのため FM `/IRQ` の登録は `CsmFrameTask` 起動時（`CsmVoice::AttachIrq()`）に行う
+
+具体的な優先度値とスタックサイズは `task_config.h` を唯一の定義元とする。本書では「CsmFrameTask を MidiEngineTask より高優先度に置く」という相対方針だけを固定する。
+
+### 7.4 ISR と通知プリミティブの実装方針
+
+- ISR では CSM イベント投入＋起床に必要な最小のカーネル API のみを使う（`xQueueSendToBackFromISR` と適切な yield 処理）。長い割り込み禁止区間を増やさない
+- `xQueueSendToBackFromISR` を呼ぶ GPIO IRQ は、NVIC 優先度の数値が `configMAX_SYSCALL_INTERRUPT_PRIORITY` 以上であること（Cortex-M では数値が大きいほど優先度が低い）。Core1 登録時は `irq_set_priority(IO_IRQ_BANK0, PICO_DEFAULT_IRQ_PRIORITY)` で明示する
+- FreeRTOS Queue は START/STOP/TICK の順序を保持するために使う
+- ISR から複数タスクを無関係に起こさない（通知対象は CsmFrameTask に限定）
+
+### 7.5 クリティカルセクション・ブロック要因の排除
+
+- Core1／FM IRQ と共有するデータへの `portENTER_CRITICAL` の範囲と時間を監視する。長いクリティカルセクションは IRQ マスク時間を伸ばし、ISR→タスクのレイテンシ尾部を肥大化させる
+- `MidiEngineTask` 側で FM バスを長時間ロックしない（NoteOn 時の設定バーストはタスク側だが、CSM 再生中のフレーム処理との競合がないよう責務を分離する）
+
+---
+
+## 8. アンチパターン（明示的な非目標）
+
+- Timer B／FM IRQ のティックを `gMidiQueue` に詰め、`MidiEngineTask` が `UpdateFrame` を実行する設計
+- ISR 内で `UpdateFrame` を直接呼ぶ設計（処理時間・再入・ロックの観点で分割する）
+- レイテンシ要件を計測せずに起床プリミティブや優先度だけを決める設計
+- 停止／開始を CsmFrameTask に伝えず、共有状態のみを変えてフレーム処理と競合させる設計
+
+---
+
+## 9. 既知の制約
+
+- レイテンシ・ジッタの数値的な合格基準は定めていない（計測環境依存）
+- `ENABLE_CSM == 0`（`src/config.h`）では `main` は `CsmIpcInitialize` と `CsmFrameTask` を生成しない。ON/OFF と CH3 リザーブは [spec_fm_chip.md](../hardware/spec_fm_chip.md)
+- CSM キュー満杯時は投入失敗を破棄する（`Start` のみ古いキュー内容を破棄して再投入）

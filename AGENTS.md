@@ -12,33 +12,22 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 
 実装・修正・レビュー・調査の**前に**、関連する `doc/` の仕様を読み、設計意図と制約を把握すること。推測でアーキテクチャやハード仕様を書き換えない。
 
-索引は [doc/README.md](doc/README.md)。主な参照先:
+`doc/` はサブシステムごとのフォルダに分かれている。どのフォルダを読むかは下表で決め、個々のファイルは索引 [doc/README.md](doc/README.md) で探す。
 
-| 作業内容 | 参照ドキュメント |
-|---------|----------------|
-| 全体構成・レイヤ・依存関係・Build-time Switch | [doc/architecture.md](doc/architecture.md) |
-| GPIO・PIO・ハード接続 | [doc/system_spec.md](doc/system_spec.md) |
-| 並列実行・タスク・Core 間通信 | [doc/design_concurrency.md](doc/design_concurrency.md) |
-| MIDI パース・ルーティング | [doc/design_midi_message.md](doc/design_midi_message.md) |
-| 演奏イベント IPC（単一 FIFO） | [doc/design_midi_ipc.md](doc/design_midi_ipc.md) |
+| 作業の対象 | フォルダ |
+|---|---|
+| 全体構成・レイヤ・依存関係・Build-time Switch、タスク・Core 間通信、MIDI パース・ルーティング、クラス図 | [doc/architecture/](doc/architecture/) |
+| ボイス割り当て・リズム・CSM・LFO・ビブラート・トレモロ（`src/synth/`） | [doc/synth/](doc/synth/) |
+| SMF 再生（`src/smf/`、`SmfPlayerTask`） | [doc/smf/](doc/smf/) |
+| MIDI パネル | [doc/midi_panel/](doc/midi_panel/) |
+| LCD とメニュー（`app/ui/`） | [doc/display/](doc/display/) |
+| 電子ボリューム（NJU72343） | [doc/volume/](doc/volume/) |
+| GPIO・PIO・ハード接続、FM 音源 LSI のレジスタと混在制約、回路図、データシート | [doc/hardware/](doc/hardware/) |
+| 過去の設計判断とその理由（ADR） | [doc/ADR/](doc/ADR/) |
+| SBOM・ライセンス表記・依存更新の影響判定 | [doc/process/](doc/process/) |
 | MIDI 実装状況（CC/RPN 等） | [doc/midi_implementation_chart.md](doc/midi_implementation_chart.md) |
-| ボイスアロケーション | [doc/design_voice_allocation.md](doc/design_voice_allocation.md) |
-| ビブラート / LFO | [doc/design_pitch_effect.md](doc/design_pitch_effect.md)（ピッチ合成）、[doc/design_lfo.md](doc/design_lfo.md)（LFO 生成部分） |
-| トレモロ（CC#92） | [doc/design_tremolo.md](doc/design_tremolo.md)（振幅合成、design_lfo.md の LFO を共有） |
-| リズム（ch10） | [doc/design_rhythm.md](doc/design_rhythm.md) |
-| CSM フレーム | [doc/design_csm_frame.md](doc/design_csm_frame.md) |
-| 電子ボリューム | [doc/design_volume_controller.md](doc/design_volume_controller.md)（ハード仕様: [doc/spec_volume_controller.md](doc/spec_volume_controller.md)） |
-| MIDI パネル | [doc/design_midi_panel.md](doc/design_midi_panel.md)（ハード仕様: [doc/spec_midi_panel.md](doc/spec_midi_panel.md)） |
-| I2C接続ディスプレイ（ハード仕様） | [doc/spec_display_i2c.md](doc/spec_display_i2c.md) |
-| LcdMenuによるジョイスティック操作メニュー | [doc/design_display_menu.md](doc/design_display_menu.md) |
-| SMF Player（SDカード再生） | [doc/design_smf_player.md](doc/design_smf_player.md) |
-| SMF再生制御（Stop/Pause・プレイリスト・リピート・シャッフル） | [doc/design_smf_playback.md](doc/design_smf_playback.md) |
-| FM LSI 機能差分・混在制約 | [doc/spec_fm_chip.md](doc/spec_fm_chip.md) |
-| FM LSI レジスタ | [doc/spec_opn.md](doc/spec_opn.md) |
-| ドメイン図・クラス図 | [doc/domain/README.md](doc/domain/README.md) |
-| FM バス PIO ライブラリ | [src/drivers/fm/opn_piolib/doc/piolib_spec.md](src/drivers/fm/opn_piolib/doc/piolib_spec.md) |
 | ビルド・CMake 構成 | [doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) |
-| SBOM・ライセンス表記・依存更新の影響判定 | [doc/design_sbom.md](doc/design_sbom.md) |
+| FM バス PIO ライブラリ | [src/drivers/fm/opn_piolib/doc/piolib_spec.md](src/drivers/fm/opn_piolib/doc/piolib_spec.md) |
 
 仕様と実装が食い違う場合は、doc を正とするか実装を正とするかを判断し、必要なら doc 更新を提案する。
 実装を正としてドキュメントを合わせる作業では、推測で仕様を書き足さない。不明点は `src/` を読んで確認する。
@@ -47,15 +36,20 @@ FreeRTOS SMP で Core0 = I/O、Core1 = 音源エンジン。
 
 `doc/` を追加・改稿するときの恒常ルール。ルート README（[README.md](README.md) / [README_ja.md](README_ja.md)）は概要・クイックスタート入口・ギャラリー（人向け）、[doc/build.md](doc/build.md) / [doc/build_ja.md](doc/build_ja.md) はビルド・書き込み・CMake 構成、その他の `doc/` は設計・制約・ハード仕様（開発者向け）。重複は削り、相互にリンクする。
 
-### 命名
+### 配置と命名
+
+`doc/` 直下には利用者向けの文書（`build.md` / `build_ja.md`、`midi_implementation_chart.md`）と索引 `README.md` だけを置く。それ以外はサブシステムごとのフォルダに置き、同じサブシステムの設計（design）とハード仕様（spec）は同じフォルダに並べる。
 
 ```
-design_<topic>.md   # 設計判断・振る舞い
-spec_<topic>.md     # レジスタ・配線・機械仕様（既存の system_spec.md も同趣旨）
-build.md / build_ja.md  # ビルド・書き込み・CMake 構成（人向け）
+design_<topic>.md   # 設計・振る舞い（現在どうなっているか）
+spec_<topic>.md     # レジスタ・配線・機械仕様
+ADR/NNNN-<要約>.md  # 設計判断の記録（ADR）。書き方は doc/ADR/README.md
 ```
 
-リネームや新規追加時は、`doc/README.md`・本ファイルの参照表・文書間リンクを更新する。
+- 設計書には現在の設計を書く。なぜそう決めたかの経緯や、比較した選択肢・計測結果は ADR に書き、設計書からは要点を一文で示してリンクする
+- 同じ事実を複数の文書に書かない。定義元を 1 つ決め、他からはリンクする（例: タスク構成は `design_concurrency.md`）
+- テスト件数のように開発のたびに変わる数値は書かない。設定値を書くときは定義元の定数名を併記する
+- 新規追加・移動・リネーム時は、`doc/README.md` と文書間リンクを更新する。新しいフォルダを作ったときは本ファイルのフォルダ表も更新する
 
 ### 章立て・見出し
 
@@ -82,25 +76,27 @@ build.md / build_ja.md  # ビルド・書き込み・CMake 構成（人向け）
 
 ### ソースと doc の参照方向
 
-- ソースコメントから `*.md` の見出し番号や特定アンカーへ依存しない。コメントはコードだけで意味が通る説明にする
-- 新規にソースから `doc/` の特定見出しへのリンクを追加しない
+- ソース・テストのコメントから文書を参照するときは、ファイル名だけを書く（例: `design_smf_player.md 参照`）。`doc/` からのパス、見出し番号、アンカーは書かない。文書の移動や章の振り直しでソースを直さずに済むようにするため
+- `doc/` 内のファイル名は（`README.md` を除き）重複させない。ファイル名だけで文書が一意に決まることを前提にしている
+- 文書のファイル名を変えたときは、ソース・テストのコメント内の参照も合わせて直す
+- コメントはコードだけで意味が通る説明にし、文書への参照は補足にとどめる
 - ドキュメント同士の相互リンクはファイル名 + 見出しアンカーでよい
 
 ## レイヤと依存制約
 
 ```
-app → midi, synth, platform, drivers/usb, smf（BUILD_SD_CARD=ON時）, extern/LcdMenu（app/ui のみ、BUILD_I2C_DISPLAY=ON時）
+app → midi, synth, platform, drivers/usb, smf（BUILD_SD_CARD=ON時）, extern/LcdMenu（app/ui のみ、BUILD_I2C_DISPLAY=ON時）, pico-sdk（時刻・stdio のみ）
 synth → midi（純粋なイベント型・Controller Action のみ）, drivers/fm, drivers/midi_panel（インターフェース経由）
 platform → drivers, extern, pico-sdk, smf（BUILD_SD_CARD=ON時）
 drivers → extern, pico-sdk（platform には依存しない）
 smf → なし
 ```
 
-- `app/`: ハード直接操作禁止。`Platform::*` と `synth` API のみ。例外: `MidiControlType::Debug*`（TL Trim トグル等のデバッグ用 SysEx コマンド）に限り `drivers/fm` の static API を直接呼ぶ。`app/ui/` は UI ロジックである LcdMenu（`extern/LcdMenu`）を直接扱う（[doc/design_display_menu.md](doc/design_display_menu.md)）
+- `app/`: ハード直接操作禁止。`Platform::*` と `synth` API のみ。FM モジュールの構成は `Platform::ModuleInfo` で参照し、`OpnBase` に依存しない。例外: デバッグ用（`MidiControlType::Debug*` の TL Trim トグルとデバッガコンソール）に限り `drivers/fm` の static API を直接呼ぶ。`main.cpp` は全体の組み立てとして `drivers/midi_panel` の `CreateMidiPanelDriver()` を呼ぶ。pico-sdk は時刻と stdio に限る。`app/ui/` は UI ロジックである LcdMenu（`extern/LcdMenu`）を直接扱う（[doc/display/design_display_menu.md](doc/display/design_display_menu.md)）
 - `midi/`: pico-sdk・FreeRTOS・ドライバに依存しない。Single Parse Rule（Core0 のみパース）
-- `smf/`: pico-sdk・FreeRTOS・ドライバに依存しない（`midi/`と同じ制約）。SMFファイルフォーマット（チャンク・VLQ・ランニングステータス・メタイベント）の解釈と、連続再生の順序決定（`PlaybackSequence`。純粋ロジック）のみ行い、実I/O（SDカードアクセス）は `platform/` 側の実装（`SmfSdByteSource`）に委ねる。詳細は [doc/design_smf_player.md](doc/design_smf_player.md) 参照
+- `smf/`: pico-sdk・FreeRTOS・ドライバに依存しない（`midi/`と同じ制約）。SMFファイルフォーマット（チャンク・VLQ・ランニングステータス・メタイベント）の解釈と、連続再生の順序決定（`PlaybackSequence`。純粋ロジック）のみ行い、実I/O（SDカードアクセス）は `platform/` 側の実装（`SmfSdByteSource`）に委ねる。詳細は [doc/smf/design_smf_player.md](doc/smf/design_smf_player.md) 参照
 - `synth/` から `midi/` への依存は純粋な MIDI イベント型・Controller Action 定義に限る。`midi/` から `synth/` への逆依存は禁止
-- `synth/`: FM アクセスは `drivers/fm` 経由。ハードウェア操作は行わないが、実行時ポリシー定数（`config.h`）とログマクロ（`debugger.h`）に限り `app/` を include してよい。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
+- `synth/`: FM アクセスは `drivers/fm` 経由。ハードウェア操作は行わないが、ログマクロ（`debugger.h`）に限り `app/` を include してよい。例外: `CsmVoice` は FM `/IRQ` の ISR 登録に限り `platform`/`app` に直接依存する（レイテンシ要件による）
 - `platform/`: ピン割り当て・PIO 所有・初期化順を集約。GPIO は上位でハードコードしない。例外: `drivers/storage/hw_config.c` は no-OS-FatFS が要求する静的コールバック構造体のため SPI/CS ピン番号を直書きする
 - `extern/`: submodule の中身は直接編集禁止（`extern/` 直下の組み込み用ファイルは対象外）。ラッパー（主に `platform`）経由で利用。例外: `app/ui/` からの LcdMenu
 
@@ -122,7 +118,7 @@ FreeRTOS-Kernel は `extern/FreeRTOS-Kernel` の submodule で、RP2350 用ポ�
 
 - タスク優先度・スタック・Core Affinity は `src/app/task_config.h` が唯一の定義元
 - FM バス用 GPIO2–15 は `opn_piolib` 専用。別 PIO プログラムを同ピンに同時有効化しない
-- Build-time スイッチは CMake `target_compile_definitions`。`config.h` はアプリ層の実行時ポリシー定数に限定。一覧は [doc/architecture.md](doc/architecture.md)
-- submodule を追加・更新したら `extern/submodules.lock` も同じコミットに更新する（Configure 時に照合される）。詳細は [doc/architecture.md](doc/architecture.md)
+- ビルド時の設定は 2 か所に分ける。外部ライブラリ・SDK の構成・特定ハードウェアに依存するコンポーネントの有無（構造）はルート `CMakeLists.txt` の `fmse_build_option()`、独自に設計した部分の有無と調整値は `src/config.h`。`src/config.h` はどのレイヤから include してもよい。構造オプションは生成される `build_config.h` で 0 / 1 に定義されるので、`-D` のコンパイル定義や `CMakePresets.json` に値を書かない。基準と一覧は [doc/architecture/architecture.md](doc/architecture/architecture.md) の「Build-time Switch」
+- submodule を追加・更新したら `extern/submodules.lock` も同じコミットに更新する（Configure 時に照合される）。詳細は [doc/architecture/architecture.md](doc/architecture/architecture.md)
 - 変更は最小スコープで。既存の命名・抽象化・コメント水準に合わせる
 - コミットはユーザーが明示的に依頼したときのみ作成する

@@ -51,7 +51,7 @@ private:
         uint16_t settle_us;            ///< 列切替後のPB電位の安定待ち [µs]
         uint16_t joystick_debounce_ms; ///< ジョイスティックのチャタリング除去時間 [ms]
                                        ///< （bit6/bit7は直結でノイズに弱いためdebounce_msより長め。
-                                       ///<  spec_midi_panel.md 7.5節）
+                                       ///<  spec_midi_panel.md の既知の制約）
     };
 
     /** @brief 1CH分の押下・デバウンス・トグル状態 */

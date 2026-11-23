@@ -13,7 +13,7 @@
  * @details CsmVoice はこのインターフェース越しにのみ CsmFrameTask への
  *          Start/Stop 通知を行う。実体（csm_ipc 経由の実装）は app 層が持つ。
  *          FrameTick は FM /IRQ ISR からの低レイテンシ経路のため対象外
- *          （design_csm_frame.md 7章、CsmVoice::IrqTickThunk 参照）。
+ *          （design_csm_frame.md、CsmVoice::IrqTickThunk 参照）。
  */
 class ICsmEventSink {
 public:

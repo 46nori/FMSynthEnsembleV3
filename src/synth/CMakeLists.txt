@@ -17,9 +17,9 @@ target_include_directories(synth PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/voice
 )
 
-# config.h と debugger.h は app/ にある
+# debugger.h（DPRINTF）は app/ にある。config.h は fmse_config 経由で src/ から参照する
 target_include_directories(synth PRIVATE
     ${CMAKE_SOURCE_DIR}/src/app
 )
 
-target_link_libraries(synth PUBLIC fm midi midi_panel platform usb pico_stdlib pico_multicore)
+target_link_libraries(synth PUBLIC fm midi midi_panel platform fmse_config)

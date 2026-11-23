@@ -15,7 +15,6 @@
 
 #include "MidiMessage.h"
 #include "MidiPanelController.h"
-#include "OpnBase.h"
 #include "info_screen_task.h"
 #include "menu_context.h"
 #include "midi_ipc.h"
@@ -54,9 +53,9 @@ void OnRhythmLevelChanged(const int16_t& value) {
     (void)MidiIpcSendMidiControl(ctl);
 }
 
-bool HasRhythmModule(const std::array<OpnBase*, 4>& modules) {
-    for (const OpnBase* module : modules) {
-        if (module != nullptr && module->rhythm() != nullptr) {
+bool HasRhythmModule(const Platform::ModuleInfoTable& modules) {
+    for (const Platform::ModuleInfo& module : modules) {
+        if (module.has_rhythm) {
             return true;
         }
     }

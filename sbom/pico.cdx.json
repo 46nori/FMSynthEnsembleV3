@@ -50,16 +50,12 @@
         "value": "ON"
       },
       {
-        "name": "fmsynth:option:ENABLE_MIDI_TIMING_STATS",
-        "value": "OFF"
-      },
-      {
         "name": "fmsynth:option:USB_MIDI_IRQ_DRIVEN",
         "value": "ON"
       },
       {
         "name": "fmsynth:variants-analyzed",
-        "value": "BUILD_I2C_DISPLAY, BUILD_MIDI_PANEL, BUILD_SD_CARD, ENABLE_MIDI_TIMING_STATS, USB_MIDI_IRQ_DRIVEN"
+        "value": "BUILD_I2C_DISPLAY, BUILD_MIDI_PANEL, BUILD_SD_CARD, USB_MIDI_IRQ_DRIVEN"
       }
     ]
   },

@@ -18,7 +18,6 @@
 
 #include "MidiFactory.h"
 #include "MidiPanelController.h"
-#include "OpnBase.h"
 #include "display.h"
 #include "info_screen_task.h"
 #include "menu_context.h"
@@ -35,13 +34,12 @@ ItemLabel* g_voiceLabel = nullptr;
 char g_voiceLine[Platform::kDisplayColumns + 1] = {};
 uint32_t g_lastRefreshMs = 0;
 
-const char* ModuleName(const OpnBase* module) {
-    if (module != nullptr) {
-        switch (module->chip_kind()) {
-        case ChipKind::YM2203: return "YM2203";
-        case ChipKind::YM2608: return "YM2608";
-        case ChipKind::YMF288: return "YMF288";
-        }
+const char* ModuleName(Platform::ModuleType type) {
+    switch (type) {
+    case Platform::ModuleType::YM2203: return "YM2203";
+    case Platform::ModuleType::YM2608: return "YM2608";
+    case Platform::ModuleType::YMF288: return "YMF288";
+    case Platform::ModuleType::None:   break;
     }
     return "";
 }
@@ -72,7 +70,7 @@ MenuScreen*& BuildSystemInfoScreen(const InfoScreenTaskContext& ctx) {
         const bool panelConnected = (dock == ctx.midiPanelDock) && ctx.panel->IsConnected();
         char field[10];
         std::snprintf(field, sizeof(field), "%d:%-6s%c",
-                      dock, ModuleName((*ctx.modules)[dock]), panelConnected ? '*' : ' ');
+                      dock, ModuleName((*ctx.modules)[dock].type), panelConnected ? '*' : ' ');
         char* line = (dock < 2) ? dockLine1 : dockLine2;
         const int column = (dock % 2 == 0) ? 0 : 9;
         std::memcpy(&line[column], field, std::strlen(field));

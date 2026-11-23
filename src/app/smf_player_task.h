@@ -12,7 +12,7 @@
 
 /**
  * @brief SDカード上のSMF（Standard MIDI File）を読み込み、gMidiQueue経由で再生する
- * @details doc/design_smf_player.md、doc/design_smf_playback.md 参照。Core0固定。
+ * @details design_smf_player.md、design_smf_playback.md 参照。Core0固定。
  */
 void SmfPlayerTask(void* param);
 

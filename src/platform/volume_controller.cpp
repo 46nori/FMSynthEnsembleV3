@@ -90,14 +90,14 @@ bool IsLineSignal(SignalType signal) {
 // 駆動しており、該当dockのSSG入力にはGNDレベルの信号が供給される（オープンではない）。
 // YM2203はデフォルト設定でFM-RにFM-Lと同一信号を出力する（モジュール上でGNDレベルへ切替可能。
 // design_volume_controller.md参照）。
-bool IsAvailable(const SignalConnection& connection, const VolumeController::DockModuleTypes& types) {
+bool IsAvailable(const SignalConnection& connection, const ModuleInfoTable& modules) {
     if (IsLineSignal(connection.signal)) {
         return true;
     }
-    const auto module_type = types[connection.dock];
-    return (module_type == VolumeController::DockModuleType::YM2608) ||
-           (module_type == VolumeController::DockModuleType::YM2203) ||
-           (module_type == VolumeController::DockModuleType::YMF288 &&
+    const ModuleType module_type = modules[connection.dock].type;
+    return (module_type == ModuleType::YM2608) ||
+           (module_type == ModuleType::YM2203) ||
+           (module_type == ModuleType::YMF288 &&
             connection.signal != SignalType::Ssg);
 }
 
@@ -151,8 +151,8 @@ void VolumeController::InitializeEarlyMute() {
     MuteLineIn();
 }
 
-void VolumeController::SetDockModuleTypes(const DockModuleTypes& types) {
-    dock_module_types_ = types;
+void VolumeController::SetModuleInfo(const ModuleInfoTable& modules) {
+    modules_ = modules;
 }
 
 void VolumeController::MuteFmSsg() {
@@ -189,7 +189,7 @@ void VolumeController::SetFmSsgVolumeDb(float db) {
         if (IsLineSignal(connection.signal)) {
             continue;
         }
-        if (IsAvailable(connection, dock_module_types_)) {
+        if (IsAvailable(connection, modules_)) {
             SetChannelVolumeDb(connection.chip_addr, connection.channel, db);
         } else {
             SetChannelMute(connection.chip_addr, connection.channel);
@@ -277,7 +277,7 @@ VolumeController::VolumeValue VolumeController::GetChannelVolume(uint8_t chip_ad
 bool VolumeController::IsChannelAvailable(uint8_t chip_addr, uint8_t channel) const {
     for (const auto& connection : kSignalConnections) {
         if (connection.chip_addr == chip_addr && connection.channel == channel) {
-            return IsAvailable(connection, dock_module_types_);
+            return IsAvailable(connection, modules_);
         }
     }
     return false;

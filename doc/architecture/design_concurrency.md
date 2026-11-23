@@ -1,0 +1,321 @@
+# 並列性設計仕様
+
+FMSynthEnsembleV3 における RP2350 デュアルコアと FreeRTOS SMP を使った並列実行アーキテクチャを定義する。
+
+MIDI メッセージのパース・ルーティング・構造化イベント定義の詳細は [design_midi_pipeline.md](design_midi_pipeline.md) を参照。システム全体のレイヤ構成・依存ルールは [architecture.md](architecture.md) を参照。演奏イベント IPC を単一 FIFO とした判断経緯は [ADR 0001](../ADR/0001-single-midi-event-fifo.md) に記録する。
+
+---
+
+## 目次
+
+1. [設計目標と制約](#1-設計目標と制約)
+2. [Core 割り当ての基本方針](#2-core-割り当ての基本方針)
+3. [タスク構成](#3-タスク構成)
+4. [Core 間通信（IPC）](#4-core-間通信ipc)
+5. [Single Writer Rule](#5-single-writer-rule)
+6. [FreeRTOS 設定](#6-freertos-設定)
+7. [トラブルシューティング指針](#7-トラブルシューティング指針)
+
+---
+
+## 1. 設計目標と制約
+
+### 1.1 設計目標
+
+| 目標 | 内容 |
+|---|---|
+| 低遅延音源応答 | USB MIDI 受信から OPN レジスタ書き込みまでのレイテンシを最小化する |
+| I/O との干渉排除 | USB・Panel・Debugger が音源処理を妨げない |
+| 実装の保守性 | Core 間の責務境界を明確にし、デッドロック・競合の原因を作らない |
+
+### 1.2 プラットフォーム制約
+
+デフォルトターゲットはRP2350A（`pico2`）。RP2040はCMakeオプションで切替可能で、両方とも本ドキュメントの並列実行アーキテクチャの対象とする（[build.md](../build.md) / [build_ja.md](../build_ja.md)）。
+
+| 項目 | RP2350A（既定） | RP2040 |
+|---|---|---|
+| CPU | Cortex-M33 デュアルコア | Cortex-M0+ デュアルコア |
+| CPUクロック | 150 MHz | 125 MHz |
+| SRAM | 520 KB | 264 KB |
+| FreeRTOS ポート | `RP2350_ARM_NTZ`（Community-Supported-Ports） | `GCC/RP2040`（公式ポート） |
+
+SRAMのうちFreeRTOSヒープは両ターゲットとも `configTOTAL_HEAP_SIZE`（64 KB、[src/platform/FreeRTOSConfig.h](../../src/platform/FreeRTOSConfig.h)）で固定。実際のFlash/SRAM使用量はビルド構成（`BUILD_MIDI_PANEL`/`BUILD_SD_CARD`等）や追加機能によって変わるため、本ドキュメントでは総容量のみを記載し、残量は記載しない。
+
+- **FreeRTOS 配置**: 公式 `FreeRTOS-Kernel` を submodule（`extern/FreeRTOS-Kernel`）として使用。配置ルールの詳細は [architecture.md](architecture.md) を参照
+- **SMP**: 両ターゲットともSMP有効
+- **タスク固定**: `xTaskCreateAffinitySet()` で Core を固定し、スケジューラによる Core 間移動を禁止する
+
+---
+
+## 2. Core 割り当ての基本方針
+
+```mermaid
+flowchart LR
+    subgraph Core0["Core0 (I/O)"]
+        USB["UsbMidiTask<br>USB MIDI 受信・パース・ルーティング"]
+        SMF["SmfPlayerTask<br>SDカードSMF再生<br>（BUILD_SD_CARD=ON時）"]
+        PANEL["MidiPanelTask<br>Panel 周期スキャン"]
+        DEBUG["DebugTask<br>デバッガコンソール（最低優先度）"]
+    end
+    subgraph Core1["Core1 (Audio)"]
+        ENGINE["MidiEngineTask<br>MidiProcessor + OPN 書き込み + TickVibrato"]
+        CSM["CsmFrameTask<br>CSM フレーム処理"]
+    end
+    USB -- "gMidiQueue (192)" --> ENGINE
+    SMF -- "gMidiQueue (192)" --> ENGINE
+    USB -- "gMidiControlQueue (8)" --> ENGINE
+    PANEL -- "gPanelChannelBitmap" --> ENGINE
+    ENGINE -- "gLastNoteOnBitmap" --> PANEL
+    ENGINE -- "gResetPulseSeq" --> PANEL
+```
+
+`SmfPlayerTask` の詳細設計（責務・Debugger制御・SMFパーサー）は [design_smf_player.md](../smf/design_smf_player.md) を参照。
+
+### 2.1 Core0 の責務
+
+- TinyUSB の `tud_task()` / `tud_task_ext()` 呼び出し（USB スタック維持）
+- USB MIDI ストリームのパース・フィルタリング・キュー投入
+- MIDI Panel のハードウェアスキャン（OPN PortA/B 経由）
+- Panel 状態変化の検出と共有変数への書き込み
+- Debugger コンソール入出力
+
+**非責務**: OPN レジスタへの直接書き込み、Voice Allocator 操作、MidiProcessor 実行
+
+### 2.2 Core1 の責務
+
+- `gMidiQueue` / `gMidiControlQueue` からのイベント受信
+- `MidiProcessor` による Channel Voice / Mode / Reset 処理
+- **OPN レジスタ書き込み（FM バス操作）**
+- NoteOn 状態 bitmap の共有変数への書き込み
+
+**非責務**: TinyUSB 操作、Panel ハードウェア制御、Debugger I/O、SysEx バイト列の解釈
+
+---
+
+## 3. タスク構成
+
+### 3.1 タスク構成方針
+
+タスクの優先度・スタックサイズ・Core Affinity の実際の値は `src/app/task_config.h` で定義される。
+本ドキュメントでは、値そのものではなく、守るべき相対関係と配置方針を定義する。
+
+| タスク | Core 方針 | 優先度方針 | 周期/起床 |
+|---|---|---|---|
+| `CsmFrameTask` | Core1 | CSM 有効時は `MidiEngineTask` より高くする | FM IRQ/CSM イベント駆動 |
+| `MidiEngineTask` | Core1 | 通常の MIDI 音源処理で最優先に近い位置に置く | MIDI イベント駆動 + `VIBRATO_PERIOD_MS` 周期で `TickVibrato` |
+| `UsbMidiTask` | Core0 | MIDI 入力を取りこぼさない範囲で、音源処理より下に置く | USB イベント待機/ポーリング |
+| `SmfPlayerTask`（`BUILD_SD_CARD=ON`時） | Core0 | `UsbMidiTask` より下、SDカードのブロッキングI/Oが `MidiPanelTask` の周期スキャンより優先される位置に置く | Debuggerコマンド通知 + 再生中は次のSMFイベントまでの待機（[design_smf_player.md 2.1](../smf/design_smf_player.md#21-優先度)） |
+| `MidiPanelTask` | Core0 | USB（および有効時はSmfPlayerTask）より下でも周期を維持できる位置に置く | 固定周期（`MIDI_PANEL_PERIOD_MS`） |
+| `InfoScreenTask`（`BUILD_I2C_DISPLAY=ON`時） | Core0 | `DebugTask` より上、I/O 系タスクを阻害しない低優先度に置く | 固定周期（`INFO_SCREEN_POLL_PERIOD_MS`、ジョイスティックのポーリング）+ 他タスクからの通知で即時起床（[design_display_menu.md](../display/design_display_menu.md#71-演奏状態の表示)） |
+| `DebugTask` | Core0 | デバッグ用の最低優先度タスクとする | イベント駆動 |
+| TimerTask | Core0 | FreeRTOS 内部処理として、USB/Panel を阻害しない位置に置く | FreeRTOS 内部 |
+
+数値設定を変更する場合は、上記の相対方針を満たしたうえで、`uxTaskGetStackHighWaterMark()` とレイテンシ計測により余裕を確認する。
+
+### 3.2 MidiEngineTask（Core1 固定）
+
+**役割**: 音源処理の専有タスク。Core1 上では `CsmFrameTask` 以外に割り込まれない。
+
+メインループの処理順序（`src/app/midi_engine_task.cpp`）:
+
+```mermaid
+flowchart TD
+    A["gPanelChannelBitmap 変化検出 → SetChannelEnable"] --> B["gMidiQueue を到着順にドレイン<br>（MIDI_EVENT_BATCH_MAX 件）"]
+    B --> C["gPendingReset 確認 → Reset<br>なければ gMidiControlQueue を 1 件処理"]
+    C --> D["ServiceVibratoIfDue<br>（VIBRATO_PERIOD_MS 周期で TickVibrato）"]
+    D --> E{"gMidiQueue に残イベント?"}
+    E -- あり --> A
+    E -- なし --> F["gMidiQueue を最大 1 ms<br>（または次の vibrato まで）待機"]
+    F --> G{"イベント受信?"}
+    G -- あり --> H["受信 1 件 + 残りを<br>バッチ上限までドレイン"]
+    H --> A
+    G -- なし --> A
+```
+
+タスク起動直後（ループ前）には `gPanelChannelBitmap` を読み取り、`SetChannelEnable()` で初期状態を反映する。
+
+本設計では演奏中のレイテンシを優先し、Reset / DebugDump / DebugStats などの制御イベントは MIDI イベントのバッチ処理後に扱う。Reset は多少の遅延を許容するが、連続受信中は各ループで最大 `MIDI_EVENT_BATCH_MAX` 件のあと制御を 1 件確認する。アイドル待機からバースト復帰したときは、待機中に受け取った分をバッチ上限まで処理してからループ先頭に戻り、続けて通常のドレイン → 制御へ進む。演奏イベント内では Note / Effect を分類せず、受信順を維持する。
+
+### 3.3 UsbMidiTask（Core0 固定）
+
+**役割**: TinyUSB スタック維持と MIDI メッセージの前処理。
+
+処理フロー:
+
+1. `USB_MIDI_IRQ_DRIVEN` に応じて `tud_task_ext(1, false)`（イベント待機）または `tud_task()`（ポーリング）を実行
+2. `tud_midi_n_available()` を確認し、データがあれば `tud_midi_n_stream_read` で最大 32 バイトのチャンクを読み出し、1 バイトずつ `MidiStreamAssembler::PushByte()`（`src/midi/`、pico-sdk/FreeRTOS非依存）へ渡す
+3. `MidiStreamAssembler` 内部で `MidiParser` パース、`MidiController` の対応判定、`MidiSysEx` の分類を行い、確定したイベント/SysExを `IMidiStreamSink`（実装は `UsbMidiTask` 内の `UsbMidiStreamSink`）へ通知する。詳細は [design_midi_pipeline.md](design_midi_pipeline.md#5-core0-処理フロー) を参照
+4. `UsbMidiStreamSink::OnMidiEvent`: 対応する演奏イベントに `timestamp_us` を付与し、`gMidiQueue` へ投入（ノンブロッキング）
+5. `UsbMidiStreamSink::OnProfileReset`: 標準リセット SysEx または System Reset (0xFF) を受けて `gMidiControlQueue` へ `MidiControlEvent::Reset` を投入
+6. `UsbMidiStreamSink::OnVendorSysEx`: `Debugger::HandleSysEx` へ渡す（Reset / dump / stats 等は `gMidiControlQueue` へ投入）
+7. Realtime / 不明メッセージは Drop
+8. データが空の場合: ポーリングモード（`USB_MIDI_IRQ_DRIVEN=OFF`）では `vTaskDelay(1ms)`。イベント待機モードでは `tud_task_ext` が待機済みのため追加待機なし
+
+#### 3.3.1 USB スケジューリングモード
+
+CMake オプション `USB_MIDI_IRQ_DRIVEN` で TinyUSB の OSAL モードを切り替える。既定は **ON**（ルート `CMakeLists.txt` の `fmse_build_option()`）。
+
+| 値 | OSAL | 動作 |
+|---|---|---|
+| `ON`（既定） | `OPT_OS_FREERTOS` | `tud_task_ext(1, false)` で USB イベントを最大 1 ms 待機 |
+| `OFF` | `OPT_OS_PICO` | `tud_task()` ポーリング + RXFIFO 空時 `vTaskDelay(1ms)` |
+
+補足:
+
+- USB Full Speed の受信タイミングはホストの 1 ms フレーム境界に制約される。USB 受信自体はハードウェア割り込みで FIFO に到達し、`tud_task()` は FIFO 取り出しとクラス処理を進める役割であるため、モードを切り替えても受信タイミングの下限（1 ms フレーム境界）は変わらない。
+- ポーリングモードで RXFIFO が空のとき `taskYIELD()` ではなく `vTaskDelay()` を使う。`taskYIELD()` は同優先度以上にしか CPU を譲らず、より低優先度の `MidiPanelTask` がタスクスタベーションするためである。
+
+### 3.4 MidiPanelTask（Core0 固定）
+
+**役割**: Panel ハードウェアの固定周期スキャンと状態共有。詳細は [design_midi_panel.md](../midi_panel/design_midi_panel.md) の「アプリケーション統合」。
+
+処理フロー:
+
+1. `vTaskDelayUntil()` で `MIDI_PANEL_PERIOD_MS` 周期を維持
+2. デバッガコマンドで Panel Mode が無効化されている、または未接続ならスキップ
+3. `gResetPulseSeq` の変化を検出したら `MidiPanelController::FlashAllLeds()`（Reset 通知の全 LED 点滅。[design_midi_panel.md](../midi_panel/design_midi_panel.md#11-led-表示モード) 参照）
+4. `MidiPanelController::Tick(gLastNoteOnBitmap)` — 内部で `SetLedBitmap` → `driver->Tick()`（1列分の処理）
+5. `gPanelChannelBitmap` ← `GetChannelEnableBitmap()`
+6. `IsMidiReset()` の立ち上がりエッジで `MidiControlType::Reset` を IPC 送信
+
+### 3.5 DebugTask（Core0 固定）
+
+**役割**: Debugger コンソールコマンドの受付・実行。最低優先度で音源処理を妨げない。
+
+---
+
+## 4. Core 間通信（IPC）
+
+### 4.0 用語（キュー・スケジューリング）
+
+| 用語 | 意味 |
+|---|---|
+| **滞留** | キュー上でイベントが処理待ちのまま残ること |
+| **MIDI キュー滞留** | `gMidiQueue` に演奏イベントが溜まり、後続イベントの処理が遅れること |
+| **制御イベント滞留** | Reset / Debug 等が MIDI イベント処理に押され、`gMidiControlQueue` で処理待ちが続くこと |
+| **タスクスタベーション** | タスクが CPU 時間を割り当てられず実行できないこと |
+
+### 4.1 全体構成
+
+```mermaid
+flowchart LR
+    subgraph Core0
+        USB["UsbMidiTask"]
+        SMF["SmfPlayerTask<br>（BUILD_SD_CARD=ON時）"]
+        PANEL["MidiPanelTask"]
+        DBG["DebugTask"]
+    end
+    subgraph Core1
+        ENGINE["MidiEngineTask"]
+    end
+    USB -- "対応する演奏イベント<br>（到着順）" --> MQ["gMidiQueue"] --> ENGINE
+    SMF -- "対応する演奏イベント<br>（到着順）" --> MQ
+    USB -- "Reset / Debug" --> CQ["gMidiControlQueue"] --> ENGINE
+    PANEL -- "Reset(長押し)" --> CQ
+    DBG -- "Reset / dump / stats" --> CQ
+    USB & PANEL -. "gPendingReset (atomic)" .-> ENGINE
+    PANEL -. "gPanelChannelBitmap (volatile)" .-> ENGINE
+    ENGINE -. "gLastNoteOnBitmap (volatile)" .-> PANEL
+    ENGINE -. "gResetPulseSeq (volatile)" .-> PANEL
+```
+
+### 4.2 gMidiQueue
+
+| 項目 | 値 |
+|---|---|
+| 型 | `MidiEvent`（固定長） |
+| 長さ | 192 要素（`kMidiQueueLength`） |
+| Producer | UsbMidiTask (Core0)、SmfPlayerTask (Core0、`BUILD_SD_CARD=ON`時。[design_smf_player.md](../smf/design_smf_player.md#5-gmidiqueue-への合流)) |
+| Consumer | MidiEngineTask (Core1) |
+| 送信 | `xQueueSendToBack`。Note / CC / PC / PitchBend 等を到着順に格納 |
+| 送信失敗時 | Drop + `midi_queue_drop_count` 更新 |
+
+Note / Effect の優先度付けや間引きは行わず、Core0 が転送対象と判定したイベントの順序を維持する。旧 Note/Event キューの合計容量を引き継ぎ、単一 FIFO 化以外の容量条件を変えない。
+
+### 4.3 gMidiControlQueue
+
+| 項目 | 値 |
+|---|---|
+| 型 | `MidiControlEvent`（固定長） |
+| 長さ | 8 要素（`kMidiControlQueueLength`） |
+| Producer | UsbMidiTask（SysEx 標準リセット、ベンダー SysEx 経由のデバッグコマンド）、MidiPanelTask（CH10 長押し）、DebugTask（コンソールコマンド） |
+| Consumer | MidiEngineTask (Core1) |
+| 処理優先度 | MIDI イベント処理後に最大 1 件処理 |
+
+演奏中の MIDI イベントレイテンシを優先するため、`gMidiControlQueue` は `gMidiQueue` のバッチ処理後に確認する。Reset は多少の遅延を許容する一方、各ループで `gPendingReset` と `gMidiControlQueue` を確認することで、Queue Full 時の Reset 消失と制御イベント滞留を避ける。
+
+Queue Full への耐性: Producer は `xQueueSend*(..., 0)` を使い、ブロックしない。過負荷時は Drop が発生するが、音源処理は継続する。
+
+### 4.4 共有変数（volatile / atomic）
+
+| 変数 | 書き手 | 読み手 | 型 |
+|---|---|---|---|
+| `gPanelChannelBitmap` | MidiPanelTask (Core0) | MidiEngineTask (Core1) | `volatile uint16_t` |
+| `gLastNoteOnBitmap` | MidiEngineTask (Core1) | MidiPanelTask (Core0) | `volatile uint16_t` |
+| `gResetPulseSeq` | MidiEngineTask (Core1) | MidiPanelTask (Core0)、InfoScreenTask (Core0、`BUILD_I2C_DISPLAY=ON`時) | `volatile uint32_t` |
+| `gPendingReset` | `MidiIpcSendMidiControl` (Core0) / `MidiEngineTask` (Core1) | MidiEngineTask (Core1) | `std::atomic<bool>` |
+
+`gPanelChannelBitmap` / `gLastNoteOnBitmap` は 16-bit アライン済みの単純値であり、Cortex-M33 では 1 命令でアトミックに読み書きされる。複合操作を行う場合はクリティカルセクションを設けること。`gResetPulseSeq` は MidiEngineTask が MIDI Reset を実適用するたびに単調増加させる 32-bit カウンタで、同様に単一命令でアトミックに読み書きされる。MidiPanelTask は前回値との比較（`!=`）でエッジを検出し、パネル LED の Reset 通知点滅（[design_midi_panel.md](../midi_panel/design_midi_panel.md#11-led-表示モード)）をトリガーする。InfoScreenTask も同様にエッジを検出し、LCD のステータス行に Reset を表示する（[design_display_menu.md](../display/design_display_menu.md#71-演奏状態の表示)）。
+
+`gPendingReset` は `gMidiControlQueue` が満杯で Reset イベントを投入できなかった場合のフォールバックフラグである。Core0 の `MidiIpcSendMidiControl()` が `store(true, release)` し、Core1 の `MidiEngineTask` が MIDI イベント処理後に `exchange(false, acq_rel)` で取得とクリアを同時に行う。`load` のあと別操作で `store(false)` すると、その間に Core0 が再度 `store(true)` した後発 Reset を消すため、取得とクリアはアトミックにする。両コアから書き込まれるため、コンパイラ最適化の抑制だけでなく CPU 間メモリ可視性の保証も必要であり、`volatile bool` ではなく `std::atomic<bool>` を使用する。
+
+---
+
+## 5. Single Writer Rule
+
+データ競合を防ぐための書き込み専有ルール。
+
+| リソース | 書き込み専有タスク | 読み出し許可 |
+|---|---|---|
+| OPN レジスタ（FM バス） | Core1 の `MidiEngineTask` / `CsmFrameTask`（`fm_set_*` 経由）、Core0 の `MidiPanelTask`（PortA/B 経由） | なし（`opn_piolib` の spinlock でシリアライズ） |
+| Panel ハードウェア (OPN PortA/B) | `MidiPanelTask`（Core0）のみ | なし |
+| `gPanelChannelBitmap` | `MidiPanelTask` のみ（デバッグ専用の例外: `DebugTask` の `cs` コマンドも書き込み可。Panel 接続中は次回スキャンで上書きされる） | `MidiEngineTask` |
+| `gLastNoteOnBitmap` | `MidiEngineTask` のみ | `MidiPanelTask` |
+| `gResetPulseSeq` | `MidiEngineTask` のみ | `MidiPanelTask`、`InfoScreenTask` |
+| Panel のジョイスティック状態・LED モード（`MidiPanelController` 経由） | ジョイスティック状態は `MidiPanelTask`（`Tick()`）、LED モードは `InfoScreenTask`（`SetLedMode()`） | ジョイスティック状態は `InfoScreenTask`、LED モードは `MidiPanelTask`（[design_midi_panel.md](../midi_panel/design_midi_panel.md#8-並行性所有権)） |
+| `gMidiQueue` への書き込み | `UsbMidiTask`、`SmfPlayerTask`（`BUILD_SD_CARD=ON` 時。[design_smf_player.md](../smf/design_smf_player.md#5-gmidiqueue-への合流) 参照。`gMidiControlQueue` 同様、複数 Producer を許容） | `MidiEngineTask`（`xQueueReceive`） |
+| `gMidiControlQueue` への書き込み | `UsbMidiTask`、`MidiPanelTask`、`DebugTask`（いずれも `MidiIpcSendMidiControl`。FreeRTOS Queue は複数 Producer を許容する） | `MidiEngineTask`（`xQueueReceive`） |
+| NJU72343（`VolumeController`経由のPIO 2-wire serial書き込み・シャドウ状態） | 起動時（スケジューラ開始前）は`Platform::Initialize()`と`main.cpp`、実行時は`InfoScreenTask`（`Settings > Volume`画面）。デバッグ専用の例外として`DebugTask`の`vraw`/`volzc`も書き込み可 | `InfoScreenTask`（`GetChannelVolume()`）、`DebugTask`の`vol` |
+
+`VolumeController`が使う`extern/NJU72343-library`には、FM バスの`opn_piolib`のようなロック機構が無い。`InfoScreenTask`（優先度2）と`DebugTask`（優先度1）は同じCore0上で動作し、優先度の高い`InfoScreenTask`は`DebugTask`をプリエンプトできる。Volume画面の操作中にデバッガの音量コマンドを実行すると、PIO 2-wire serial送信とシャドウ状態更新の間に割り込まれる可能性がある。実チップの値とシャドウ値が一時的に不一致になり得る既知の制約とし、ロックによる保護は行わない。デバッグ用コマンドとVolume画面は同時に操作しない。
+
+Core1 上の複数タスクから FM バスへ書き込むが、`opn_piolib` の **PIO バス spinlock** でレジスタトランザクションはシリアライズされる。同一 Voice への連続 `fm_set_pitch` は「最後の完全再計算が反映される」前提でよい（[design_pitch_effect.md](../synth/design_pitch_effect.md#3-アーキテクチャ) 参照）。
+
+`opn_piolib` のスピンロックは Pico SDK の `spin_lock_blocking()` を使うため、保持中は**取得側コアの割り込みが禁止**される。ロック保持タスクは同一コアの他タスクに横取りされず、保持時間は 1 レジスタトランザクション分（数 µs〜数十 µs）に確定的に収まる。ロック待ちする側も、スピン中は自コアの割り込みが禁止される。したがって低優先度タスク（`MidiPanelTask`）がロックを保持している間、高優先度タスク（`MidiEngineTask`/`CsmFrameTask`）の FM バスアクセスはその保持時間だけ待たされる。
+
+この待機中は Core1 自身の割り込みも禁止されるため、FM `/IRQ`（CSM フレームティック用、[design_csm_frame.md](../synth/design_csm_frame.md#7-isrcsmframetask-レイテンシと音質) 参照）が重なるとその処理はスピン終了まで遅延する（ロストはしない）。
+
+`gPendingReset` は Core0 / Core1 双方から書き込まれるため Single Writer Rule の適用外であり、`std::atomic<bool>` のアトミック操作によって安全性を保証する（[4.4 共有変数](#44-共有変数volatile--atomic)）。
+
+---
+
+## 6. FreeRTOS 設定
+
+設定ファイル: [src/platform/FreeRTOSConfig.h](../../src/platform/FreeRTOSConfig.h)
+
+| 設定 | 値 | 説明 |
+|---|---|---|
+| `configUSE_PREEMPTION` | 1 | プリエンプティブスケジューリング有効 |
+| `configTICK_RATE_HZ` | 1000 | 1 ms Tick |
+| `configMAX_PRIORITIES` | 32 | 優先度 0–31 |
+| `configTOTAL_HEAP_SIZE` | 64 KB | Heap4 アロケータ |
+| `configNUMBER_OF_CORES` | 2 | SMP デュアルコア |
+| `configUSE_CORE_AFFINITY` | 1 | Core 固定有効 |
+| `configTICK_CORE` | 0 | Tick は Core0 で発生 |
+| `configRUN_MULTIPLE_PRIORITIES` | 1 | 両コアで異なる優先度タスクを同時実行 |
+| `configCHECK_FOR_STACK_OVERFLOW` | 2 | スタックオーバーフロー全域チェック |
+| `configUSE_MALLOC_FAILED_HOOK` | 1 | ヒープ枯渇フック有効 |
+| `configENABLE_FPU` | 1 | Cortex-M33 FPU 有効 |
+
+---
+
+## 7. トラブルシューティング指針
+
+| 症状 | 原因の可能性 | 対策 |
+|---|---|---|
+| MidiEngineTask が CPU 100% | Queue 満杯によるスピン | `MidiIpcGetStats()` の `midi_queue_drop_count` 確認、Queue 長拡張を検討 |
+| Panel LED ちらつき | MidiPanelTask の周期オーバーラン | `uxTaskGetStackHighWaterMark` で確認、処理軽量化 |
+| MIDI 音が出ない | OPN への書き込みが Core0 から行われている | Single Writer Rule 違反の確認 |
+| Reset が効かない | MidiEngineTask が完全ブロック中 | Queue Full 時は `gPendingReset` フォールバック（`std::atomic<bool>`）で保護済み。症状が続く場合は MidiEngineTask のスタックオーバーフロー・デッドロックを確認 |
+| Stack Overflow ハング | タスクスタック不足 | `vApplicationStackOverflowHook` でタスク名を記録し、スタックサイズを拡張 |
+| ビルドで FreeRTOS.h not found | platform ライブラリは FreeRTOS をリンクしない | FreeRTOS ヘッダが必要なファイルを FreeRTOS-Kernel をリンクするターゲット（app 等）に置く |

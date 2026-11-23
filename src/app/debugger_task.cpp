@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "config.h"
 #include "debugger.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -291,7 +292,7 @@ int c_midi_panel_mode(token_list* t) {
  * MIDI channel status
  *********************************************************/
 // デバッグ専用の Single Writer Rule 例外: gPanelChannelBitmap の書き手は本来
-// MidiPanelTask のみ（doc/design_concurrency.md 4.5）。Panel 接続中はこのコマンドの
+// MidiPanelTask のみ（design_concurrency.md の Single Writer Rule）。Panel 接続中はこのコマンドの
 // 効果が次回スキャン（MIDI_PANEL_PERIOD_MS 周期）で上書きされる。
  int c_midi_channel_status(token_list* t) {
     unsigned int status = 0;
@@ -546,7 +547,7 @@ int c_midi_stats(token_list* t) {
 
 #if BUILD_SD_CARD
 /*********************************************************
- * SMF Player（doc/design_smf_player.md）
+ * SMF Player（design_smf_player.md）
  * すべてfire-and-forget: SmfPlayerTaskへ通知するだけで、応答は待たない。
  * 実行結果はSmfPlayerTask自身が標準出力へ表示する。
  *********************************************************/

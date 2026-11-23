@@ -10,14 +10,14 @@
 
 #include "MidiFactory.h"
 #include "MidiPanelController.h"
-#include "OpnBase.h"
+#include "init.h"
 
 /** @brief InfoScreenTask に渡すコンテキスト */
 struct InfoScreenTaskContext {
-    const std::array<OpnBase*, 4>* modules;  ///< Dockごとの検出済みFMモジュール（非所有）
-    MidiPanelController* panel;              ///< MIDIパネルコントローラ（非所有）
-    int midiPanelDock;                       ///< MIDIパネルが接続されるDock番号
-    MidiFactory* factory;                    ///< Voice構成の参照元（非所有）
+    const Platform::ModuleInfoTable* modules;  ///< Dockごとの検出済みモジュール情報（非所有）
+    MidiPanelController* panel;                ///< MIDIパネルコントローラ（非所有）
+    int midiPanelDock;                         ///< MIDIパネルが接続されるDock番号
+    MidiFactory* factory;                      ///< Voice構成の参照元（非所有）
 };
 
 /**

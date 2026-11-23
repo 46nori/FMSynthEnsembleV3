@@ -1,0 +1,148 @@
+# app ドメイン
+
+アプリケーションレイヤ（`src/app/`）。エントリポイント、FreeRTOS タスク、Core 間 IPC、デバッガを持つ。ハードウェアは直接操作せず、`Platform::*` と `synth` の API のみ使用する。
+
+関連設計書: [design_concurrency.md](../design_concurrency.md)、[design_midi_pipeline.md](../design_midi_pipeline.md)、[design_csm_frame.md](../../synth/design_csm_frame.md)
+
+## タスクと IPC
+
+app ドメインの中心はクラスではなく、タスク関数と IPC モジュールである。
+
+```mermaid
+classDiagram
+    class main {
+        <<entry point>>
+        +main() int
+        Platform init / Module detect
+        MidiFactory / MidiProcessor setup
+        MidiIpcInitialize / CsmIpcInitialize
+        xTaskCreateAffinitySet（有効な機能のタスクを生成）
+        vTaskStartScheduler
+    }
+
+    class midi_ipc {
+        <<module>>
+        +gMidiQueue : QueueHandle_t
+        +gMidiControlQueue : QueueHandle_t
+        +gPanelChannelBitmap : volatile uint16_t
+        +gLastNoteOnBitmap : volatile uint16_t
+        +gPendingReset : atomic~bool~
+        +MidiIpcInitialize() bool
+        +MidiIpcSendMidiEvent(event) bool
+        +MidiIpcSendMidiControl(event) bool
+        +MidiIpcGetStats() MidiIpcStats
+    }
+
+    class csm_ipc {
+        <<module>>
+        +gCsmEventQueue : QueueHandle_t
+        +CsmIpcInitialize()
+        +CsmIpcReceive(event, ticks) bool
+        +CsmSignalFrameTick()  ISR only
+        +CsmSignalStart() / CsmSignalStop()
+    }
+
+    class CsmEventSink {
+        <<implements ICsmEventSink>>
+        +SignalCsmStart(note, program, volume, lr)
+        +SignalCsmStop()
+    }
+
+    class UsbMidiTask {
+        <<task Core0>>
+        TinyUSB keep-alive
+        MidiStreamAssembler::PushByte
+    }
+
+    class UsbMidiStreamSink {
+        <<implements IMidiStreamSink（midi層）>>
+        OnMidiEvent → Enqueue
+        OnProfileReset / OnVendorSysEx
+    }
+
+    class MidiEngineTask {
+        <<task Core1>>
+        Drain gMidiQueue in arrival order
+        MidiProcessor::Exec
+        Periodic TickVibrato
+    }
+
+    class MidiPanelTask {
+        <<task Core0>>
+        MIDI_PANEL_PERIOD_MS period
+        MidiPanelController::Tick
+        Update gPanelChannelBitmap
+    }
+
+    class CsmFrameTask {
+        <<task Core1>>
+        AttachIrq on start
+        Wait on gCsmEventQueue
+        CsmVoice Start/UpdateFrame/Stop
+    }
+
+    class DebugTask {
+        <<task Core0>>
+        Debugger console
+    }
+
+    class SmfPlayerTask {
+        <<task Core0 / BUILD_SD_CARD>>
+        SMF 再生 → gMidiQueue
+        InfoScreen へ Play/Stop/Error 通知
+    }
+
+    class InfoScreenTask {
+        <<task Core0 / BUILD_I2C_DISPLAY>>
+        INFO_SCREEN_POLL_PERIOD_MS period
+        LcdMenu（app/ui）とジョイスティック入力
+        行0のステータス行
+    }
+
+    class Debugger {
+        <<module>>
+        +HandleSysEx(data, len)
+        Console cmds (stats / dump / rmix / trim ...)
+    }
+
+    class task_config_h {
+        <<constants>>
+        TASK_PRIORITY_* / TASK_STACK_* constants
+        AFFINITY_CORE0 / AFFINITY_CORE1
+        MIDI_PANEL_PERIOD_MS
+    }
+
+    main ..> UsbMidiTask : creates
+    main ..> MidiEngineTask : creates
+    main ..> MidiPanelTask : creates
+    main ..> CsmFrameTask : creates
+    main ..> DebugTask : creates
+    main ..> SmfPlayerTask : creates
+    main ..> InfoScreenTask : creates
+    UsbMidiTask --> UsbMidiStreamSink : owns
+    UsbMidiTask --> MidiStreamAssembler : PushByte（midi層、詳細はdomain_midi.md）
+    UsbMidiStreamSink --> midi_ipc : enqueue
+    MidiEngineTask --> midi_ipc : drain
+    MidiPanelTask --> midi_ipc : bitmap / Reset
+    InfoScreenTask --> midi_ipc : Reset 通知
+    SmfPlayerTask --> midi_ipc : enqueue
+    SmfPlayerTask ..> InfoScreenTask : Notify*
+    CsmFrameTask --> csm_ipc : wait
+    CsmEventSink --> csm_ipc : forwards
+    main ..> CsmEventSink : CsmVoiceへ注入
+    UsbMidiStreamSink --> Debugger : SysEx
+    DebugTask --> Debugger
+```
+
+| 要素 | ファイル | 責務 |
+|---|---|---|
+| `main` | `main.cpp` | 初期化・マスターボリューム復帰・タスク生成・スケジューラ起動 |
+| `midi_ipc` | `midi_ipc.h/cpp` | MIDI 用 Core 間キュー、単一 FIFO、統計 |
+| `csm_ipc` | `csm_ipc.h/cpp` | CSM フレームイベントキューとシグナル API |
+| `CsmEventSink` | `csm_ipc.h/cpp` | `synth` の `ICsmEventSink` を実装し `CsmSignalStart`/`CsmSignalStop` へ転送（[design_csm_frame.md](../../synth/design_csm_frame.md)） |
+| `UsbMidiStreamSink` | `usb_midi_task.cpp` | `midi` の `IMidiStreamSink` を実装し、確定したイベント/SysExをIPCキュー送信・`Debugger::HandleSysEx`へ転送（バイトストリーム組立自体は`MidiStreamAssembler`、[domain_midi.md](domain_midi.md)参照） |
+| 各タスク | `*_task.h/cpp` | [design_concurrency.md](../design_concurrency.md) のタスク構成を実装 |
+| `InfoScreenTask` | `info_screen_task.h/cpp` | LCD のステータス行と、LcdMenu によるジョイスティック操作メニューの駆動 |
+| `app/ui` | `ui/` | LcdMenu の画面定義（`menu_screens` と画面ごとの `screen_*`）とジョイスティック入力アダプタ（`JoystickInputAdapter`）。`extern/LcdMenu` を直接扱う（[design_display_menu.md](../../display/design_display_menu.md)） |
+| `Debugger` | `debugger.h/cpp` | 対話型デバッガ・独自 SysEx 処理 |
+| `task_config.h` | — | タスクの優先度・スタック・Core Affinity の唯一の定義元。ビルド時設定の `src/config.h` は app ドメインに属さない（[architecture.md](../architecture.md#7-build-time-switch)） |

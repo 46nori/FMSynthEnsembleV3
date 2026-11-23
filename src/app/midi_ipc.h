@@ -7,6 +7,7 @@
 #pragma once
 
 #include <atomic>
+#include "config.h"
 #if ENABLE_MIDI_TIMING_STATS
 #include <cstddef>
 #endif

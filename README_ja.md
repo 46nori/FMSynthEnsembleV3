@@ -4,7 +4,7 @@
 
 **[English version is here](README.md)**
 
-![](./doc/image/FMSynthEnsembleV3.jpeg)
+![](doc/hardware/image/FMSynthEnsembleV3.jpeg)
 
 ## 特徴
 
@@ -12,7 +12,7 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
 
 - **FM音源LSI**
   - YAMAHA **YM2608（OPNA） / YM2203(OPN) / YMF288(OPN3-L)**
-    - [最大4基（混在可・自動識別）](doc/spec_fm_chip.md)
+    - [最大4基（混在可・自動識別）](doc/hardware/spec_fm_chip.md)
   - CSM音声合成対応（YM2608 / YM2203）
 - **MIDI**
   - [MIDIインプリメンテーションチャート](./doc/midi_implementation_chart.md)
@@ -39,7 +39,17 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
 
 - [ドキュメント一覧](./doc/README.md)
 - [ファームウェアのビルドと書き込み方法](doc/build_ja.md)
-- [回路図](./doc/schematics/README.md)
+- [回路図](doc/hardware/schematics/README.md)
+
+## クイックスタート
+
+VS Codeと Raspberry Pi Pico 拡張機能を推奨（macOS / Windows / Linux）。詳細な手順は[ファームウェアのビルドと書き込み方法](doc/build_ja.md)を参照。
+
+1. リポジトリをcloneし、`git submodule update --init --recursive` を実行する
+2. VS Codeで開き、Pico ビューの `Configure CMake` → `Compile Project` を実行する
+3. Pico を `BOOTSEL` モードで接続し、`build/FMSynthEnsembleV3.uf2` を `RPI-RP2` にコピーする
+
+既定のボードは **Pico 2（RP2350A）**。CLIでのビルド、ボード切り替え、デバッガ、CIは [doc/build_ja.md](doc/build_ja.md) を参照。
 
 ## ギャラリー
 
@@ -48,51 +58,51 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/YM2608_Module.jpeg"><img src="doc/image/YM2608_Module.jpeg" width="280" alt="OPNA モジュール"></a><br>
+      <a href="doc/hardware/image/YM2608_Module.jpeg"><img src="doc/hardware/image/YM2608_Module.jpeg" width="280" alt="OPNA モジュール"></a><br>
       <b>YM2608モジュール</b><br>
       <sub>YM2608B + YM3016<br>MIDI Panel接続コネクタ</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/YM2203_Module.jpeg"><img src="doc/image/YM2203_Module.jpeg" width="280" alt="YM2203 モジュール"></a><br>
+      <a href="doc/hardware/image/YM2203_Module.jpeg"><img src="doc/hardware/image/YM2203_Module.jpeg" width="280" alt="YM2203 モジュール"></a><br>
       <b>YM2203モジュール</b><br>
       <sub>YM2203 + YM3014B<br>MIDI Panel接続コネクタ</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/YMF288_Module.jpeg"><img src="doc/image/YMF288_Module.jpeg" width="280" alt="YMF288 モジュール"></a><br>
+      <a href="doc/hardware/image/YMF288_Module.jpeg"><img src="doc/hardware/image/YMF288_Module.jpeg" width="280" alt="YMF288 モジュール"></a><br>
       <b>YMF288モジュール</b><br>
       <sub>YMF288 + BU9480F</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/Main_Module.jpeg"><img src="doc/image/Main_Module.jpeg" width="280" alt="コントローラモジュール"></a><br>
+      <a href="doc/hardware/image/Main_Module.jpeg"><img src="doc/hardware/image/Main_Module.jpeg" width="280" alt="コントローラモジュール"></a><br>
       <b>コントローラモジュール</b><br>
       <sub>Raspberry Pi Pico2<br>FM音源モジュール用コネクタ(裏面)</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/AudioMixer_Module.jpeg"><img src="doc/image/AudioMixer_Module.jpeg" width="280" alt="ミキサーモジュール"></a><br>
+      <a href="doc/hardware/image/AudioMixer_Module.jpeg"><img src="doc/hardware/image/AudioMixer_Module.jpeg" width="280" alt="ミキサーモジュール"></a><br>
       <b>ミキサーモジュール</b><br>
       <sub>FM音源モジュール出力の<br>オーディオミックス</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/Power_Module.jpeg"><img src="doc/image/Power_Module.jpeg" width="280" alt="電源モジュール"></a><br>
+      <a href="doc/hardware/image/Power_Module.jpeg"><img src="doc/hardware/image/Power_Module.jpeg" width="280" alt="電源モジュール"></a><br>
       <b>電源モジュール</b><br>
       <sub>+6V, 2A入力<br>+5V / ±12V 出力</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/MIDIPanel.jpeg"><img src="doc/image/MIDIPanel.jpeg" width="280" alt="MIDI パネル"></a><br>
+      <a href="doc/hardware/image/MIDIPanel.jpeg"><img src="doc/hardware/image/MIDIPanel.jpeg" width="280" alt="MIDI パネル"></a><br>
       <b>MIDIパネルモジュール</b><br>
       <sub>16CH ON/OFF + LED<br>ジョイスティック<br>YM2608/YM2203モジュールへ接続</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/SDHCCard_Module.jpeg"><img src="doc/image/SDHCCard_Module.jpeg" width="280" alt="SDHC Cardモジュール"></a><br>
+      <a href="doc/hardware/image/SDHCCard_Module.jpeg"><img src="doc/hardware/image/SDHCCard_Module.jpeg" width="280" alt="SDHC Cardモジュール"></a><br>
       <b>SDHC Cardモジュール</b><br>
       <sub>SMFファイル再生用</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/DisplayAdapter_Module.jpeg"><img src="doc/image/DisplayAdapter_Module.jpeg" width="280" alt="LCD Displayモジュール"></a><br>
+      <a href="doc/hardware/image/DisplayAdapter_Module.jpeg"><img src="doc/hardware/image/DisplayAdapter_Module.jpeg" width="280" alt="LCD Displayモジュール"></a><br>
       <b>LCD Displayモジュール</b><br>
       <sub>20x4 I2C LCDパネル接続用</sub>
     </td>
@@ -104,24 +114,24 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/StackedModules.jpeg"><img src="doc/image/StackedModules.jpeg" width="280" alt="スタック上面"></a><br>
+      <a href="doc/hardware/image/StackedModules.jpeg"><img src="doc/hardware/image/StackedModules.jpeg" width="280" alt="スタック上面"></a><br>
       <b>スタック</b><br>
       <sub>FM音源モジュールを4枚まで接続可能<br></sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/BackPlane.jpeg"><img src="doc/image/BackPlane.jpeg" width="280" alt="Dock接続"></a><br>
+      <a href="doc/hardware/image/BackPlane.jpeg"><img src="doc/hardware/image/BackPlane.jpeg" width="280" alt="Dock接続"></a><br>
       <b>Dock 接続</b><br>
       <sub>コントローラモジュールの裏面</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <a href="doc/image/ConnectedModules.jpeg"><img src="doc/image/ConnectedModules.jpeg" width="280" alt="モジュール接続"></a><br>
+      <a href="doc/hardware/image/ConnectedModules.jpeg"><img src="doc/hardware/image/ConnectedModules.jpeg" width="280" alt="モジュール接続"></a><br>
       <b>音源部接続</b><br>
       <sub>電源・コントローラ・<br>FM音源・ミキサー</sub>
     </td>
     <td align="center" width="33%">
-      <a href="doc/image/ConnectedModules_full.jpeg"><img src="doc/image/ConnectedModules_full.jpeg" width="280" alt="モジュール接続"></a><br>
+      <a href="doc/hardware/image/ConnectedModules_full.jpeg"><img src="doc/hardware/image/ConnectedModules_full.jpeg" width="280" alt="モジュール接続"></a><br>
       <b>全モジュール接続</b><br>
       <sub>音源部・<br>MIDIパネル・LCD Display・SDHC Card・<br>スピーカーアンプ</sub>
     </td>  </tr>
@@ -129,4 +139,4 @@ YAMAHAのOPN系FM音源LSIを使ったUSB MIDIシンセサイザ
 
 ### 接続図
 
-![接続図](./doc/image/ConnectionMap.png)
+![接続図](doc/hardware/image/ConnectionMap.png)

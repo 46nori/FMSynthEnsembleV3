@@ -88,7 +88,7 @@ int main()
 
 #if BUILD_I2C_DISPLAY && (ENABLE_FREERTOS_SAMPLE_TASK != 1)
     // InfoScreenTaskのコンテキスト構築(MIDIパネルはmodules[3]に接続する想定、上記に合わせる)
-    static InfoScreenTaskContext infoScreenCtx{&modules, &panelController, /*midiPanelDock=*/3,
+    static InfoScreenTaskContext infoScreenCtx{&fm_system->module_info, &panelController, /*midiPanelDock=*/3,
                                                 factory.get()};
 #endif
 

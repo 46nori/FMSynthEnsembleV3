@@ -116,29 +116,23 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")   # RP2350: pico2 / RP2040: pico
 
 ## 4. Build options
 
+Features that depend on hardware or external libraries are switched with CMake options. Their defaults are defined only by `fmse_build_option()` in the root `CMakeLists.txt`, so VS Code `Configure CMake` and `cmake --preset default` use the same values.
+
 | Option | Default | Description |
 |---|:---:|---|
 | `BUILD_MIDI_PANEL` | `ON` | Enable the MIDI panel controller |
 | `BUILD_SD_CARD` | `ON` | Enable the SD card module |
-| `BUILD_I2C_DISPLAY` | `ON` | Enable the I2C character LCD and LcdMenu |
-| `ENABLE_MIDI_TIMING_STATS` | `OFF` | Enable detailed MIDI queue-delay and event-execution timing instrumentation |
+| `BUILD_I2C_DISPLAY` | `ON` | Enable the I2C character LCD and LcdMenu. The menu is operated with the panel joystick, so use it with `BUILD_MIDI_PANEL=ON` |
 | `USB_MIDI_IRQ_DRIVEN` | `ON` | Run TinyUSB in FreeRTOS integrated (interrupt-driven) mode. `OFF` selects Pico's standard polling mode |
 
-Diagnostic build with detailed timing:
+Some features, such as CSM (`ENABLE_CSM`) and detailed MIDI timing instrumentation (`ENABLE_MIDI_TIMING_STATS`), are switched in `src/config.h` instead of CMake. Edit `config.h` and rebuild to change them. The rule for choosing CMake or `config.h`, and the full switch list, are in [architecture.md](architecture/architecture.md#7-build-time-switch) (Japanese).
+
+To build a non-default configuration, override with `-D`. Reconfigure after changing an option.
 
 ```bash
-cmake --preset default -DENABLE_MIDI_TIMING_STATS=ON
+cmake --preset default -DBUILD_SD_CARD=OFF
 ninja -C build
 ```
-
-CMake vs `config.h` placement, and the full switch list including `ENABLE_DEBUG_PRINT` / `ENABLE_CSM`, are in [architecture.md](architecture.md#7-build-time-switch).
-
-Option values are managed in two places. **Keep them identical.**
-
-| Location | Configure trigger | Purpose |
-|---|---|---|
-| `option()` defaults in `CMakeLists.txt` | Quick Access `Configure CMake` | Normal VS Code builds |
-| `cacheVariables` in `CMakePresets.json` | Task `Configure: Default` / CLI `cmake --preset` | Preset-based builds and configuration reference |
 
 ## 5. Debugger
 
@@ -166,4 +160,4 @@ Baud rate: 115200.
 
 ## 6. CI / CD
 
-Push and pull requests to `main` run [`.github/workflows/build.yml`](../.github/workflows/build.yml). It checks out pico-sdk separately (it is not a git submodule; the version is `PICO_SDK_REF` in `build.yml`), while FreeRTOS-Kernel comes with the repository as a submodule. It builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each. It then checks that the committed SBOM (`sbom/`) and license notices (`THIRD_PARTY_NOTICES.md`) match the build. After updating a dependency, regenerate them with `scripts/sbom/update.sh` and commit the result (see [design_sbom.md](design_sbom.md), Japanese).
+Push and pull requests to `main` run [`.github/workflows/build.yml`](../.github/workflows/build.yml). It checks out pico-sdk separately (it is not a git submodule; the version is `PICO_SDK_REF` in `build.yml`), while FreeRTOS-Kernel comes with the repository as a submodule. It builds `PICO_BOARD=pico2` and `PICO_BOARD=pico` with the default CMake options, and uploads firmware artifacts for each. It then checks that the committed SBOM (`sbom/`) and license notices (`THIRD_PARTY_NOTICES.md`) match the build. After updating a dependency, regenerate them with `scripts/sbom/update.sh` and commit the result (see [sbom.md](process/sbom.md), Japanese).
